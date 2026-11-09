@@ -1,240 +1,178 @@
+import math
+import re
+
+import sympy as sp
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
+
+import modelo
 
 console = Console()
 
-# =============================================================
-# VALORES INICIALES / CONFIGURACIÓN (La Paz - Zona Sur a 100 m)
-# =============================================================
-# Caso 1: Gas a temperatura ambiente (15 °C)
-P1_INI = 67120.0       # Presión (Pa)
-T1_INI = 15.0          # Temperatura (°C)
-R1_INI = 287.058       # Constante R del aire (J/(kg·K))
-
-# Caso 2: Mismo gas a mayor temperatura (50 °C)
-P2_INI = 67120.0       # Presión (Pa)
-T2_INI = 100.0          # Temperatura (°C)
-R2_INI = 287.058       # Constante R del aire (J/(kg·K))
-
-# Parámetros de Calor Sensible
-M_AIRE_INI = 9.0       # Masa de aire en kg
-CP_AIRE_INI = 1005.0   # Calor específico a presión constante del aire en J/(kg·K)
-
 
 # =============================================================
-# MÓDULO 1: Cálculo de Densidad de Gases Ideales (ρ = P / (R · T))
-# =============================================================
-def calcular_densidad(p: float, t_c: float, r: float) -> tuple[float, float]:
-    """
-    Calcula la densidad de un gas a partir de la ecuación de estado.
-    Retorna: (rho en kg/m³, t_k en Kelvin).
-    """
-    t_k = t_c + 273.15
-    rho = p / (r * t_k)
-    return rho, t_k
-
-
-# =============================================================
-# MÓDULO 2: Ecuación de Calor Sensible (Q = m_aire · cp · ΔT)
-# =============================================================
-def calcular_calor_sensible(m_aire: float, cp: float, delta_t: float) -> float:
-    """
-    Calcula el calor sensible necesario para elevar la temperatura del aire.
-    Retorna: Q en Joules (J).
-    """
-    return m_aire * cp * delta_t
-
-
-# =============================================================
-# MÓDULO 3: Presentación en Pantalla (Estilo KaTeX 2D)
+# Presentación en pantalla
 # =============================================================
 def limpiar_pantalla() -> None:
     """Limpia la terminal y el historial para actualizar en sitio sin acumular texto."""
     print("\033[H\033[2J\033[3J", end="", flush=True)
 
 
-def formatear_fraccion_2d(simbolo_izq: str, numerador: str, denominador: str, resultado: str) -> str:
+PREFIJOS = {
+    -24: "y", -21: "z", -18: "a", -15: "f", -12: "p", -9: "n", -6: "µ", -3: "m",
+    0: "", 3: "k", 6: "M", 9: "G", 12: "T", 15: "P", 18: "E", 21: "Z", 24: "Y",
+}
+K_SIMBOLO = sp.Symbol("273.15 (K)")  # constante de conversión °C -> K
+
+
+def formatear_ingenieria(nombre: str, valor: float) -> str:
+    """Ej.: 67120 Pa -> '67.120 (kPa)'. Hasta 3 enteros y 3 decimales."""
+    base, resto, factor = modelo.UNIDAD_ING[nombre]
+    v = valor * factor
+    exp = 0
+    if base is not None and v != 0:
+        exp = int(math.floor(math.log10(abs(v)) / 3)) * 3
+        exp = max(-24, min(24, exp))
+        if abs(round(v / 10 ** exp, 3)) >= 1000 and exp < 24:  # p.ej. 999.9996 -> 1.000
+            exp += 3
+    mantisa = v / 10 ** exp if base is not None else v
+    unidad = f"{PREFIJOS[exp]}{base}{resto}" if base is not None else resto
+    texto = f"{mantisa:.3f} ({unidad})"
+    return f"({texto})" if mantisa < 0 else texto
+
+
+def renderizar_general(eq: sp.Eq) -> str:
+    """Ecuación simbólica (en gris) con la unidad de cada variable entre paréntesis."""
+    eq = eq.xreplace({modelo.K: K_SIMBOLO})
+    reemplazo = {}
+    for simbolo in eq.free_symbols:
+        nombre = str(simbolo)
+        if nombre in modelo.VARIABLES:
+            unidad = modelo.VARIABLES[nombre][1]
+            reemplazo[simbolo] = sp.Symbol(f"{sp.pretty(simbolo, use_unicode=True)} ({unidad})")
+    dibujo = escape(sp.pretty(eq.xreplace(reemplazo), use_unicode=True))
+    return f"[grey58]{dibujo}[/grey58]"
+
+
+def renderizar_sustitucion(eq: sp.Eq, valores: dict[str, float], fijas: set[str]) -> str:
     """
-    Genera una representación matemática bidimensional estilo KaTeX:
-           numerador
-    símb = ─────────── = resultado
-          denominador
+    Dibuja la ecuación con los valores numéricos en lugar de las variables, en 2D.
+    Cada valor se colorea: amarillo si la variable es fija, verde si es calculada.
+    Se usan símbolos marcadores del mismo ancho que el valor para no romper
+    la alineación de las fracciones; luego se reemplazan por el texto coloreado.
     """
-    ancho = max(len(numerador), len(denominador)) + 4
-    barra = "─" * ancho
-    num_pad = numerador.center(ancho)
-    den_pad = denominador.center(ancho)
-    espacios = " " * len(simbolo_izq)
+    eq = eq.xreplace({modelo.K: K_SIMBOLO})
+    marcadores = {}   # caracter marcador -> (texto del valor, color)
+    reemplazo = {}
+    for i, simbolo in enumerate(sorted(eq.free_symbols, key=str)):
+        nombre = str(simbolo)
+        if nombre not in valores:  # constantes (273.15 K)
+            continue
+        texto = formatear_ingenieria(nombre, valores[nombre])
+        marca = chr(0xE000 + i)
+        marcadores[marca] = (texto, "yellow" if nombre in fijas else "green")
+        reemplazo[simbolo] = sp.Symbol(marca * len(texto))
 
-    return (
-        f"{espacios}{num_pad}\n"
-        f"{simbolo_izq}{barra} = {resultado}\n"
-        f"{espacios}{den_pad}"
-    )
+    dibujo = escape(sp.pretty(eq.xreplace(reemplazo), use_unicode=True))
+    for marca, (texto, color) in marcadores.items():
+        dibujo = re.sub(
+            f"{marca}+",
+            lambda _m, t=texto, c=color: f"[bold {c}]{t}[/bold {c}]",
+            dibujo,
+        )
+    return dibujo
 
 
-def mostrar_pantalla(p1: float, t1_c: float, r1: float, rho1: float, t1_k: float,
-                     p2: float, t2_c: float, r2: float, rho2: float, t2_k: float,
-                     delta_rho: float,
-                     m_aire: float, cp: float, delta_t: float, q_joules: float) -> None:
-    """Muestra el panel visual actualizado con formato matemático 2D."""
+def mostrar_pantalla(valores: dict[str, float], fijas: set[str]) -> None:
     limpiar_pantalla()
 
-    # 1. Ecuación general compartida de la ley de los gases ideales
-    ec_general_gas = (
-        "[bold cyan]Ley de Gases Ideales (Ecuación General Compartida):[/bold cyan]\n"
-        "        P\n"
-        "  ρ = ─────\n"
-        "      R · T"
-    )
+    bloques = []
+    for nombre, eq in modelo.ECUACIONES.items():
+        bloques.append(
+            f"[bold cyan]{nombre}[/bold cyan]\n{renderizar_general(eq)}\n\n"
+            f"{renderizar_sustitucion(eq, valores, fijas)}"
+        )
 
-    # 2. Caso 1: Sustitución con formato 2D
-    caso1_2d = formatear_fraccion_2d(
-        simbolo_izq="  ρ₁ = ",
-        numerador=f"{p1:,.2f} Pa",
-        denominador=f"{r1:.3f} J/(kg·K) · {t1_k:.2f} K",
-        resultado=f"[bold yellow]{rho1:.5f} kg/m³[/bold yellow]  ({t1_c:.1f} °C)"
-    )
-    texto_caso1 = f"[bold cyan]Caso 1 (Ambiente):[/bold cyan]\n{caso1_2d}"
-
-    # 3. Caso 2: Sustitución con formato 2D
-    caso2_2d = formatear_fraccion_2d(
-        simbolo_izq="  ρ₂ = ",
-        numerador=f"{p2:,.2f} Pa",
-        denominador=f"{r2:.3f} J/(kg·K) · {t2_k:.2f} K",
-        resultado=f"[bold yellow]{rho2:.5f} kg/m³[/bold yellow]  ({t2_c:.1f} °C)"
-    )
-    texto_caso2 = f"[bold cyan]Caso 2 (Mayor Temperatura):[/bold cyan]\n{caso2_2d}"
-
-    # 4. Diferencia positiva de densidades
-    texto_diff = (
-        f"[bold green]▶ Diferencia de densidades (|ρ₁ - ρ₂|):[/bold green] "
-        f"[bold white on blue] Δρ = {delta_rho:.5f} kg/m³ [/bold white on blue]"
-    )
-
-    # 5. Ecuación de Calor Sensible (General y Sustitución)
-    q_kj = q_joules / 1000.0
-    texto_calor = (
-        "[bold cyan]Calor Sensible de la Termodinámica (Ecuación General):[/bold cyan]\n"
-        "  Q = m_aire · c_p · ΔT\n\n"
-        f"[bold cyan]Sustitución con valores (ΔT = |T₂ - T₁| = {delta_t:.2f} °C):[/bold cyan]\n"
-        f"  Q = {m_aire:.2f} kg · {cp:.1f} J/(kg·K) · {delta_t:.2f} K\n"
-        f"  [bold green]▶ Calor requerido (Q):[/bold green] [bold yellow]{q_joules:,.2f} J[/bold yellow] ([bold magenta]{q_kj:.2f} kJ[/bold magenta])"
-    )
-
-    separador = "─" * 68
-    panel_completo = (
-        f"{ec_general_gas}\n\n"
-        f"{texto_caso1}\n\n"
-        f"{texto_caso2}\n\n"
-        f"{texto_diff}\n\n"
-        f"{separador}\n\n"
-        f"{texto_calor}"
-    )
-
+    leyenda = "[yellow]■ fija[/yellow]   [green]■ calculada[/green]"
     console.print(Panel(
-        panel_completo,
-        title="[bold yellow]Sustentación & Termodinámica de Dirigibles[/bold yellow]",
+        ("\n\n" + "─" * 60 + "\n\n").join(bloques) + "\n\n" + leyenda,
+        title="[bold yellow]Sustentación & Termodinámica de Dirigibles (CAS)[/bold yellow]",
         border_style="bright_blue",
-        padding=(1, 2)
+        padding=(1, 2),
     ))
 
 
 # =============================================================
-# MÓDULO 4: Entrada de Usuario y Modificaciones
+# Entrada de usuario
 # =============================================================
-def solicitar_modificacion(p1: float, t1_c: float, r1: float,
-                           p2: float, t2_c: float, r2: float,
-                           m_aire: float) -> tuple[bool, float, float, float, float, float, float, float]:
+def pedir_variable(mensaje: str) -> str | None:
+    nombre = input(mensaje).strip()
+    if not nombre:
+        return None
+    if nombre not in modelo.VARIABLES:
+        console.print(f"[red]Variable desconocida: '{nombre}'[/red]")
+        input("Enter para continuar...")
+        return None
+    return nombre
+
+
+def modificar(valores: dict[str, float], fijas: set[str]) -> tuple[dict[str, float], set[str]]:
     """
-    Gestiona la interacción para elegir y modificar variables.
-    Retorna: (continuar, p1, t1_c, r1, p2, t2_c, r2, m_aire)
+    Fija `objetivo = valor` y libera otra variable (`ajuste`) para que se ajuste.
+    Si el objetivo ya es una variable fija, basta con cambiar su valor.
     """
-    print("¿Qué deseas modificar?")
-    print(f"  1. Modificar Caso 1 (T1 = {t1_c:.1f} °C, P1 = {p1:,.0f} Pa)")
-    print(f"  2. Modificar Caso 2 (T2 = {t2_c:.1f} °C, P2 = {p2:,.0f} Pa)")
-    print(f"  3. Modificar Masa de aire m_aire ({m_aire:.2f} kg)")
-    print("  4. Salir")
+    print("\nVariables:", ", ".join(modelo.VARIABLES))
+    objetivo = pedir_variable("Variable a cambiar (o Enter para salir): ")
+    if objetivo is None:
+        return valores, fijas
 
-    opcion = input("\nElige una opción (1-4): ").strip()
+    try:
+        nuevo = float(input(f"Nuevo valor de {objetivo}: "))
+    except ValueError:
+        console.print("[red]Valor inválido.[/red]")
+        input("Enter para continuar...")
+        return valores, fijas
 
-    if opcion in ("1", "2"):
-        es_ec1 = (opcion == "1")
-        nombre_ec = "Caso 1" if es_ec1 else "Caso 2"
+    nuevas_fijas = set(fijas)
+    if objetivo not in fijas:
+        ajuste = pedir_variable(
+            f"{objetivo} era calculada. ¿Cuál variable fija se ajusta? {sorted(fijas)}: "
+        )
+        if ajuste is None or ajuste not in fijas:
+            if ajuste is not None:
+                console.print("[red]Debe ser una variable fija.[/red]")
+                input("Enter para continuar...")
+            return valores, fijas
+        nuevas_fijas.remove(ajuste)
+        nuevas_fijas.add(objetivo)
 
-        print(f"\nVariables de {nombre_ec}:")
-        print("  1. Presión (P en Pa)")
-        print("  2. Temperatura (T en °C)")
-        print("  3. Constante (R)")
-        var_op = input("Selecciona variable (1-3): ").strip()
-
-        try:
-            if var_op == "1":
-                val = float(input("Nueva Presión (Pa): "))
-                if es_ec1: p1 = val
-                else: p2 = val
-            elif var_op == "2":
-                val = float(input("Nueva Temperatura (°C): "))
-                if es_ec1: t1_c = val
-                else: t2_c = val
-            elif var_op == "3":
-                val = float(input("Nueva Constante R (J/(kg·K)): "))
-                if es_ec1: r1 = val
-                else: r2 = val
-        except ValueError:
-            pass
-        return True, p1, t1_c, r1, p2, t2_c, r2, m_aire
-
-    elif opcion == "3":
-        try:
-            val = float(input("\nNueva Masa de aire en kg: "))
-            if val > 0:
-                m_aire = val
-            else:
-                print("La masa debe ser mayor a 0.")
-        except ValueError:
-            pass
-        return True, p1, t1_c, r1, p2, t2_c, r2, m_aire
-
-    elif opcion == "4":
-        console.print("[bold cyan]¡Programa finalizado![/bold cyan]")
-        return False, p1, t1_c, r1, p2, t2_c, r2, m_aire
-
-    return True, p1, t1_c, r1, p2, t2_c, r2, m_aire
+    entradas = {n: valores[n] for n in nuevas_fijas}
+    entradas[objetivo] = nuevo
+    try:
+        return modelo.resolver(entradas), nuevas_fijas
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        input("Enter para continuar...")
+        return valores, fijas
 
 
 # =============================================================
-# Flujo Principal
+# Flujo principal
 # =============================================================
 def main() -> None:
-    # Cargar valores iniciales desde la configuración superior
-    p1, t1_c, r1 = P1_INI, T1_INI, R1_INI
-    p2, t2_c, r2 = P2_INI, T2_INI, R2_INI
-    m_aire = M_AIRE_INI
-    cp = CP_AIRE_INI
+    fijas = set(modelo.FIJAS_INI)
+    valores = modelo.resolver(modelo.valores_iniciales())
 
     while True:
-        # Cálculos de Densidad
-        rho1, t1_k = calcular_densidad(p1, t1_c, r1)
-        rho2, t2_k = calcular_densidad(p2, t2_c, r2)
-        delta_rho = abs(rho1 - rho2)
-
-        # Cálculo de Calor Sensible usando ΔT entre Caso 2 y Caso 1
-        delta_t = abs(t2_c - t1_c)
-        q_joules = calcular_calor_sensible(m_aire, cp, delta_t)
-
-        # Mostrar en pantalla
-        mostrar_pantalla(p1, t1_c, r1, rho1, t1_k,
-                         p2, t2_c, r2, rho2, t2_k,
-                         delta_rho,
-                         m_aire, cp, delta_t, q_joules)
-
-        # Solicitar modificaciones al usuario
-        continuar, p1, t1_c, r1, p2, t2_c, r2, m_aire = solicitar_modificacion(
-            p1, t1_c, r1, p2, t2_c, r2, m_aire
-        )
-        if not continuar:
-            break
+        mostrar_pantalla(valores, fijas)
+        nuevos, nuevas_fijas = modificar(valores, fijas)
+        if nuevos is valores:  # sin cambios (Enter vacío o error)
+            if input("¿Salir? (s/N): ").strip().lower() == "s":
+                console.print("[bold cyan]¡Programa finalizado![/bold cyan]")
+                break
+            continue
+        valores, fijas = nuevos, nuevas_fijas
 
 
 if __name__ == "__main__":
