@@ -87,16 +87,19 @@ def renderizar_sustitucion(eq: sp.Eq, valores: dict[str, float], fijas: set[str]
 def mostrar_pantalla(valores: dict[str, float], fijas: set[str]) -> None:
     limpiar_pantalla()
 
-    bloques = []
-    for nombre, eq in modelo.ECUACIONES.items():
-        bloques.append(
+    secciones = []
+    for categoria, ecuaciones in modelo.CATEGORIAS.items():
+        bloques = [
             f"[bold cyan]{nombre}[/bold cyan]\n{renderizar_general(eq)}\n\n"
             f"{renderizar_sustitucion(eq, valores, fijas)}"
-        )
+            for nombre, eq in ecuaciones.items()
+        ]
+        cabecera = f"[bold white on blue] ▌ {categoria.upper()} [/bold white on blue]"
+        secciones.append(cabecera + "\n\n" + ("\n\n" + "─" * 60 + "\n\n").join(bloques))
 
     leyenda = "[yellow]■ fija[/yellow]   [green]■ calculada[/green]"
     console.print(Panel(
-        ("\n\n" + "─" * 60 + "\n\n").join(bloques) + "\n\n" + leyenda,
+        ("\n\n" + "═" * 60 + "\n\n").join(secciones) + "\n\n" + leyenda,
         title="[bold yellow]Sustentación & Termodinámica de Dirigibles (CAS)[/bold yellow]",
         border_style="bright_blue",
         padding=(1, 2),
@@ -150,7 +153,7 @@ def modificar(valores: dict[str, float], fijas: set[str]) -> tuple[dict[str, flo
     entradas = {n: valores[n] for n in nuevas_fijas}
     entradas[objetivo] = nuevo
     try:
-        return modelo.resolver(entradas), nuevas_fijas
+        return modelo.resolver(entradas, referencia=valores), nuevas_fijas
     except ValueError as exc:
         console.print(f"[red]{exc}[/red]")
         input("Enter para continuar...")
