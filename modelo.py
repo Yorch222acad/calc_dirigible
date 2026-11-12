@@ -3,8 +3,8 @@ Modelo del sistema basado en CAS (SymPy).
 
 Para ampliar el programa solo hay que:
   1. Agregar la variable en VARIABLES (nombre, descripción, unidad, valor inicial).
-  2. Registrar su formato ingenieril en UNIDAD_ING.
-  3. Agregar la ecuación en ECUACIONES (como sp.Eq).
+  2. Registrar su formato ingenieril en UNIDAD_ING y nombre completo de unidad en UNIDAD_NOMBRE.
+  3. Agregar la ecuación en la categoría correspondiente de CATEGORIAS (como sp.Eq).
   4. Si la variable es un dato de entrada, incluirla en FIJAS_INI
      (regla: nº de variables calculadas == nº de ecuaciones independientes).
 """
@@ -18,65 +18,162 @@ import sympy as sp
 # =============================================================
 VARIABLES = {
     # Caso 1: gas a temperatura ambiente (exterior)
-    "P1":    ("Presión caso 1",                "Pa",        67120.0),
-    "T1":    ("Temperatura caso 1",            "°C",        15.0),
-    "R1":    ("Constante R caso 1",            "J/(kg·K)",  287.058),
-    "rho1":  ("Densidad caso 1",               "kg/m³",     None),
+    "P1":    ("Presión caso 1 (ambiente)",              "Pa",          67120.0),
+    "T1":    ("Temperatura caso 1 (ambiente)",          "°C",          15.0),
+    "R1":    ("Constante R caso 1",                     "J/(kg·K)",    287.058),
+    "rho1":  ("Densidad caso 1 (ambiente)",             "kg/m³",       None),
     # Caso 2: mismo gas a mayor temperatura (aire caliente interior)
-    "P2":    ("Presión caso 2",                "Pa",        67120.0),
-    "T2":    ("Temperatura caso 2",            "°C",        100.0),
-    "R2":    ("Constante R caso 2",            "J/(kg·K)",  287.058),
-    "rho2":  ("Densidad caso 2",               "kg/m³",     None),
-    "drho":  ("Diferencia de densidades",      "kg/m³",     None),
+    "P2":    ("Presión caso 2 (aire caliente)",         "Pa",          67120.0),
+    "T2":    ("Temperatura caso 2 (aire caliente)",     "°C",          100.0),
+    "R2":    ("Constante R caso 2",                     "J/(kg·K)",    287.058),
+    "rho2":  ("Densidad caso 2 (aire caliente)",        "kg/m³",       None),
+    "drho":  ("Diferencia de densidades",               "kg/m³",       None),
     # Geometría del casco (dos semielipsoides prolados, cf > R y cr > R)
-    "R":     ("Radio máximo transversal",      "m",         1.25),
-    "cf":    ("Longitud semielipsoide nariz",  "m",         2.1),
-    "cr":    ("Longitud semielipsoide cola",   "m",         3.9),
-    "L":     ("Longitud total del casco",      "m",         None),
-    "V":     ("Volumen total del casco",       "m³",        None),
-    "ef":    ("Excentricidad frontal",         "adim",      None),
-    "er":    ("Excentricidad trasera",         "adim",      None),
-    "Sf":    ("Área superficial frontal",      "m²",        None),
-    "Sr":    ("Área superficial trasera",      "m²",        None),
-    "S":     ("Área superficial total",        "m²",        None),
+    "R":     ("Radio máximo transversal",               "m",           1.25),
+    "cf":    ("Longitud semielipsoide nariz",           "m",           2.1),
+    "cr":    ("Longitud semielipsoide cola",            "m",           3.9),
+    "L":     ("Longitud total del casco",               "m",           None),
+    "V":     ("Volumen total del casco",                "m³",          None),
+    "ef":    ("Excentricidad frontal",                  "adim",        None),
+    "er":    ("Excentricidad trasera",                  "adim",        None),
+    "Sf":    ("Área superficial frontal",               "m²",          None),
+    "Sr":    ("Área superficial trasera",               "m²",          None),
+    "S":     ("Área superficial total",                 "m²",          None),
     # Masa de aire caliente y calor sensible
-    "m":     ("Masa de aire caliente",         "kg",        None),
-    "cp":    ("Calor específico del aire",     "J/(kg·K)",  1005.0),
-    "dT":    ("Gradiente térmico",             "K",         None),
-    "Q":     ("Calor sensible",                "J",         None),
+    "m":     ("Masa de aire caliente",                  "kg",          None),
+    "cp":    ("Calor específico del aire",              "J/(kg·K)",    1005.0),
+    "dT":    ("Gradiente térmico (T2 - T1)",            "K",           None),
+    "Q":     ("Calor sensible total",                   "J",           None),
     # Sustentación (Arquímedes)
-    "g":     ("Aceleración de la gravedad",    "m/s²",      9.775),
-    "F":     ("Fuerza de sustentación",        "N",         None),
+    "g":     ("Aceleración de la gravedad",             "m/s²",        9.775),
+    "F":     ("Fuerza de sustentación",                 "N",           None),
+    # Aislamiento por capa intermedia de celdas (con orificios de ecualización de 3 mm)
+    "e":     ("Espesor de capa intermedia celular",     "m",           0.02),
+    "W":     ("Ancho de celda cuadrada",                "m",           0.20),
+    "beta":  ("Coef. expansión térmica del aire",       "K⁻¹",         0.00302),
+    "nu":    ("Viscosidad cinemática del aire",         "m²/s",        2.65e-5),
+    "alpha": ("Difusividad térmica del aire",           "m²/s",        3.80e-5),
+    "Rae":   ("Número de Rayleigh en la celda",         "adim",        None),
+    "Rac":   ("Rayleigh crítico de convección",         "adim",        2000.0),
+    "Nuc":   ("Número de Nusselt en la celda",          "adim",        None),
+    "ka":    ("Conductividad térmica del aire",         "W/(m·K)",     0.0285),
+    "U0":    ("Coef. global sin capa celular",          "W/(m²·K)",    5.0),
+    "U":     ("Coef. global con capa celular",          "W/(m²·K)",    None),
+    "Qp0":   ("Potencia perdida sin capa celular",      "W",           None),
+    "Qp":    ("Potencia perdida con capa celular",      "W",           None),
+    "dQp":   ("Potencia ahorrada por capa celular",     "W",           None),
+    "fais":  ("Fracción de ahorro térmico celular",     "adim",        None),
+    "Sc":    ("Área de película de la cuadrícula",      "m²",          None),
+    "sigma": ("Gramaje de película HDPE",               "kg/m²",       0.0095),
+    "mc":    ("Masa total de la cuadrícula celular",    "kg",          None),
+    # Pérdida de calor y enfriamiento (con aislante celular incorporado)
+    "vT":    ("Velocidad de enfriamiento (dT/dt)",      "K/s",         None),
+    "dTc":   ("Caída admisible de temperatura",         "K",           20.0),
+    "Qc":    ("Energía perdida en caída dTc",           "J",           None),
+    "tc":    ("Tiempo de enfriamiento para dTc",        "s",           None),
+    # Quemador de propano/butano (GLP) para compensación térmica
+    "PC":    ("Poder calorífico del GLP (propano)",     "J/kg",        4.6e7),
+    "mgc":   ("Masa de GLP para recuperar caída dTc",   "kg",          None),
+    "tm":    ("Tiempo de misión (mantenimiento)",       "s",           1800.0),
+    "Em":    ("Energía para mantener T en misión",      "J",           None),
+    "mgm":   ("Masa de GLP para mantener T en misión",  "kg",          None),
 }
 
-# Variables de entrada al iniciar (25 variables - 14 ecuaciones = 11 fijas)
-FIJAS_INI = ["P1", "T1", "R1", "P2", "T2", "R2", "R", "cf", "cr", "cp", "g"]
+# Nombre completo de cada unidad para las columnas explicativas junto a las ecuaciones
+UNIDAD_NOMBRE = {
+    "Pa":       "Pascales",
+    "°C":       "grados Celsius",
+    "J/(kg·K)": "Joules por kilogramo Kelvin",
+    "kg/m³":    "kilogramos por metro cúbico",
+    "m":        "metros",
+    "m²":       "metros cuadrados",
+    "m³":       "metros cúbicos",
+    "adim":     "adimensional",
+    "kg":       "kilogramos",
+    "K":        "grados Kelvin",
+    "J":        "Joules",
+    "m/s²":     "metros por segundo cuadrado",
+    "N":        "Newtons",
+    "W":        "Watts",
+    "W/(m·K)":  "Watts por metro Kelvin",
+    "W/(m²·K)": "Watts por metro cuadrado Kelvin",
+    "K/s":      "grados Kelvin por segundo",
+    "s":        "segundos",
+    "K⁻¹":      "inverso de grado Kelvin",
+    "m²/s":     "metros cuadrados por segundo",
+    "kg/m²":    "kilogramos por metro cuadrado",
+    "J/kg":     "Joules por kilogramo",
+}
+
+# Variables de entrada al iniciar (52 variables - 29 ecuaciones = 23 fijas)
+FIJAS_INI = [
+    "P1", "T1", "R1", "P2", "T2", "R2",
+    "R", "cf", "cr",
+    "cp", "g",
+    "e", "W", "beta", "nu", "alpha", "Rac", "ka", "U0", "sigma",
+    "dTc",
+    "PC", "tm",
+]
 
 # Variables que físicamente deben ser estrictamente positivas
 POSITIVAS = {
     "P1", "R1", "rho1", "P2", "R2", "rho2",
     "R", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
+    "e", "W", "beta", "nu", "alpha", "Rae", "Rac", "Nuc", "ka", "U0", "U",
+    "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
+    "vT", "dTc", "Qc", "tc",
+    "PC", "mgc", "tm", "Em", "mgm",
 }
 
 # Unidad para notación de ingeniería: nombre -> (unidad prefijable, resto, factor)
-# Se muestra como: <prefijo><unidad prefijable><resto>. El factor convierte el valor
+# Se muestra como: <prefijo>_<unidad prefijable><resto>. El factor convierte el valor
 # SI al de la unidad prefijable (ej. kg -> g: 1000). Si es None no se usan prefijos.
 UNIDAD_ING = {
-    "P1":   ("Pa", "", 1),        "P2":   ("Pa", "", 1),
-    "T1":   (None, "°C", 1),      "T2":   (None, "°C", 1),
-    "R1":   ("J", "/(kg·K)", 1),  "R2":   ("J", "/(kg·K)", 1),
-    "rho1": ("g", "/m³", 1000),   "rho2": ("g", "/m³", 1000),   "drho": ("g", "/m³", 1000),
-    "R":    ("m", "", 1),         "cf":   ("m", "", 1),         "cr":   ("m", "", 1),
-    "L":    ("m", "", 1),         "V":    ("m³", "", 1),
-    "ef":   (None, "adim", 1),    "er":   (None, "adim", 1),
-    "Sf":   ("m²", "", 1),        "Sr":   ("m²", "", 1),        "S":    ("m²", "", 1),
-    "m":    ("g", "", 1000),
-    "cp":   ("J", "/(kg·K)", 1),
-    "dT":   ("K", "", 1),
-    "Q":    ("J", "", 1),
-    "g":    (None, "m/s²", 1),
-    "F":    ("N", "", 1),
+    "P1":    ("Pa", "", 1),        "P2":    ("Pa", "", 1),
+    "T1":    (None, "°C", 1),      "T2":    (None, "°C", 1),
+    "R1":    ("J", "/(kg·K)", 1),  "R2":    ("J", "/(kg·K)", 1),
+    "rho1":  ("g", "/m³", 1000),   "rho2":  ("g", "/m³", 1000),   "drho": ("g", "/m³", 1000),
+    "R":     ("m", "", 1),         "cf":    ("m", "", 1),         "cr":   ("m", "", 1),
+    "L":     ("m", "", 1),         "V":     ("m³", "", 1),
+    "ef":    (None, "adim", 1),    "er":    (None, "adim", 1),
+    "Sf":    ("m²", "", 1),        "Sr":    ("m²", "", 1),        "S":    ("m²", "", 1),
+    "m":     ("g", "", 1000),
+    "cp":    ("J", "/(kg·K)", 1),
+    "dT":    ("K", "", 1),
+    "Q":     ("J", "", 1),
+    "g":     (None, "m/s²", 1),
+    "F":     ("N", "", 1),
+    # Capa intermedia de celdas y transferencia de calor
+    "e":     ("m", "", 1),
+    "W":     ("m", "", 1),
+    "beta":  ("K⁻¹", "", 1),
+    "nu":    ("m²/s", "", 1),
+    "alpha": ("m²/s", "", 1),
+    "Rae":   ("adim", "", 1),
+    "Rac":   ("adim", "", 1),
+    "Nuc":   (None, "adim", 1),
+    "ka":    ("W", "/(m·K)", 1),
+    "U0":    ("W", "/(m²·K)", 1),
+    "U":     ("W", "/(m²·K)", 1),
+    "Qp0":   ("W", "", 1),
+    "Qp":    ("W", "", 1),
+    "dQp":   ("W", "", 1),
+    "fais":  (None, "adim", 1),
+    "Sc":    ("m²", "", 1),
+    "sigma": ("g", "/m²", 1000),
+    "mc":    ("g", "", 1000),
+    # Pérdida de calor y enfriamiento
+    "vT":    ("K", "/s", 1),
+    "dTc":   ("K", "", 1),
+    "Qc":    ("J", "", 1),
+    "tc":    ("s", "", 1),
+    # Quemador de GLP
+    "PC":    ("J", "/kg", 1),
+    "mgc":   ("g", "", 1000),
+    "tm":    ("s", "", 1),
+    "Em":    ("J", "", 1),
+    "mgm":   ("g", "", 1000),
 }
 
 S = {
@@ -84,11 +181,11 @@ S = {
     for n in VARIABLES
 }
 K = sp.Rational("273.15")  # °C -> K
+RA_CRIT = sp.Integer(2000)  # Umbral crítico de Rayleigh en cavidad celular
 
 # =============================================================
-# ECUACIONES (las temperaturas están en °C; se convierte a K aquí)
-# =============================================================
 # Ecuaciones agrupadas por categoría (se muestran así en pantalla)
+# =============================================================
 CATEGORIAS = {
     "Gases ideales y densidades": {
         "Gas ideal (caso 1 - ambiente)": sp.Eq(S["rho1"], S["P1"] / (S["R1"] * (S["T1"] + K))),
@@ -113,6 +210,45 @@ CATEGORIAS = {
         # Arquímedes: F = Δρ·g·V  (equivale a Δρ·g·m/ρ₂, pues m = ρ₂·V)
         "Fuerza de sustentación": sp.Eq(S["F"], S["drho"] * S["g"] * S["V"]),
     },
+    "Aislamiento por capa intermedia de celdas": {
+        "Número de Rayleigh en cavidad (Rae)": sp.Eq(
+            S["Rae"], (S["g"] * S["beta"] * S["dT"] * S["e"] ** 3) / (S["nu"] * S["alpha"])
+        ),
+        "Número de Nusselt en celda (Nuc)": sp.Eq(
+            S["Nuc"], (S["Rae"] / S["Rac"]) ** sp.Rational(1, 4)
+        ),
+        "Coeficiente global con capa celular (U)": sp.Eq(
+            S["U"], 1 / (1 / S["U0"] + S["e"] / (S["ka"] * S["Nuc"]))
+        ),
+        "Potencia perdida sin capa celular (Qp0)": sp.Eq(
+            S["Qp0"], S["U0"] * S["S"] * S["dT"]
+        ),
+        "Potencia perdida con capa celular (Qp)": sp.Eq(
+            S["Qp"], S["U"] * S["S"] * S["dT"]
+        ),
+        "Potencia ahorrada por capa celular (dQp)": sp.Eq(
+            S["dQp"], S["Qp0"] - S["Qp"]
+        ),
+        "Fracción de ahorro térmico celular (fais)": sp.Eq(
+            S["fais"], S["dQp"] / S["Qp0"]
+        ),
+        "Área total de película celular": sp.Eq(
+            S["Sc"], S["S"] * (1 + 2 * S["e"] / S["W"])
+        ),
+        "Masa de la cuadrícula celular": sp.Eq(
+            S["mc"], S["Sc"] * S["sigma"]
+        ),
+    },
+    "Pérdida de calor y enfriamiento": {
+        "Velocidad de enfriamiento (dT/dt)": sp.Eq(S["vT"], S["Qp"] / (S["m"] * S["cp"])),
+        "Energía cedida en caída admisible": sp.Eq(S["Qc"], S["m"] * S["cp"] * S["dTc"]),
+        "Tiempo de enfriamiento sin aporte": sp.Eq(S["tc"], S["Qc"] / S["Qp"]),
+    },
+    "Quemador de propano/butano (compensación térmica)": {
+        "Masa de gas para recuperar caída dTc": sp.Eq(S["mgc"], S["Qc"] / S["PC"]),
+        "Energía para mantener T en misión":    sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
+        "Masa de gas para mantener T en misión": sp.Eq(S["mgm"], S["Em"] / S["PC"]),
+    },
 }
 
 # Lista plana de ecuaciones para el solucionador
@@ -136,7 +272,7 @@ def _es_valida(nombre: str, val: sp.Expr) -> bool:
         return False
     if nombre in POSITIVAS and v <= 0:
         return False
-    if nombre in ("ef", "er") and not (0 < v < 1):
+    if nombre in ("ef", "er", "fais") and not (0 < v < 1):
         return False
     return True
 
