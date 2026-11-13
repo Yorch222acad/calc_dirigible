@@ -15,7 +15,10 @@ $$\rho = \frac{P}{R_{\text{gas}} \cdot (T + 273.15)}, \qquad \Delta\rho = \rho_1
 
 ### 2. Geometría del Casco Compuesto (Dos Semielipsoides de Revolución)
 El casco se modela mediante dos semielipsoides prolados ($c_f > R$ y $c_r > R$) unidos en el plano de diámetro máximo ($R = 1.25\text{ m}$, $L = 6.0\text{ m}$):
-$$L = c_f + c_r, \qquad V = \frac{2}{3} \pi R^2 L$$
+$$\lambda = \frac{L}{D} = \frac{L}{2R}, \qquad x_f = \frac{c_f}{L}, \qquad L = c_f + c_r, \qquad V = \frac{2}{3} \pi R^2 L$$
+- **Relación de esbeltez ($\lambda$):** indica qué tanto se parece el casco a una esfera ($\lambda \to 1$) o a una "aguja" ($\lambda$ alto). Valor inicial $\lambda = 2.4$ ($L = 6\text{ m}$, $D = 2.5\text{ m}$).
+- **Fracción de nariz ($x_f$):** posición del diámetro máximo ($x_f = 0.35$). Permite variar $\lambda$ manteniendo la proporción nariz/cola.
+- La geometría de entrada es $R$, $\lambda$ y $x_f$. Para estudiar la esbeltez **a volumen constante**, cambia `V` liberando `R` y luego modifica `lam`: el área de tela $S$, la masa de la cuadrícula y las pérdidas térmicas se ajustan solas.
 $$e_f = \sqrt{1 - \frac{R^2}{c_f^2}}, \qquad e_r = \sqrt{1 - \frac{R^2}{c_r^2}}$$
 $$S_f = \frac{\pi R c_f}{e_f} \arcsin(e_f), \qquad S_r = \frac{\pi R c_r}{e_r} \arcsin(e_r), \qquad S = S_f + S_r$$
 
@@ -51,7 +54,7 @@ $$m_{gc} = \frac{Q_c}{PC}, \qquad E_m = Q_p \cdot t_m, \qquad m_{gm} = \frac{E_m
 
 ## ✨ Características Principales
 
-- **Motor CAS + Numérico con SymPy:** Resuelve analíticamente (`solve`) o numéricamente (`nsolve`) cualquiera de las 52 variables a partir de las 29 ecuaciones acopladas.
+- **Motor CAS + Numérico con SymPy:** Resuelve analíticamente (`solve`) o numéricamente (`nsolve`) cualquiera de las 54 variables a partir de las 31 ecuaciones acopladas.
 - **Notación de Ingeniería Personalizada:**
   - Prefijos positivos en mayúsculas (`K, M, G, T`) y negativos en minúsculas (`m, u, n, p`).
   - Separación mediante guión bajo entre prefijo y unidad (ej. `67.120 (K_Pa)`, `4.243 (K_W)`, `20.000 (m_m)`, `1.051 (M_J)`).

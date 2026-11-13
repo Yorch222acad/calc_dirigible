@@ -30,8 +30,10 @@ VARIABLES = {
     "drho":  ("Diferencia de densidades",               "kg/m³",       None),
     # Geometría del casco (dos semielipsoides prolados, cf > R y cr > R)
     "R":     ("Radio máximo transversal",               "m",           1.25),
-    "cf":    ("Longitud semielipsoide nariz",           "m",           2.1),
-    "cr":    ("Longitud semielipsoide cola",            "m",           3.9),
+    "lam":   ("Relación de esbeltez (L/D)",             "adim",        2.4),
+    "xf":    ("Fracción de nariz (cf/L)",               "adim",        0.35),
+    "cf":    ("Longitud semielipsoide nariz",           "m",           None),
+    "cr":    ("Longitud semielipsoide cola",            "m",           None),
     "L":     ("Longitud total del casco",               "m",           None),
     "V":     ("Volumen total del casco",                "m³",          None),
     "ef":    ("Excentricidad frontal",                  "adim",        None),
@@ -74,7 +76,7 @@ VARIABLES = {
     # Quemador de propano/butano (GLP) para compensación térmica
     "PC":    ("Poder calorífico del GLP (propano)",     "J/kg",        4.6e7),
     "mgc":   ("Masa de GLP para recuperar caída dTc",   "kg",          None),
-    "tm":    ("Tiempo de misión (mantenimiento)",       "s",           1800.0),
+    "tm":    ("Tiempo de misión (mantenimiento)",       "s",           600.0),
     "Em":    ("Energía para mantener T en misión",      "J",           None),
     "mgm":   ("Masa de GLP para mantener T en misión",  "kg",          None),
 }
@@ -105,10 +107,11 @@ UNIDAD_NOMBRE = {
     "J/kg":     "Joules por kilogramo",
 }
 
-# Variables de entrada al iniciar (52 variables - 29 ecuaciones = 23 fijas)
+# Variables de entrada al iniciar (54 variables - 31 ecuaciones = 23 fijas)
+# Geometría definida por R, esbeltez (lam) y fracción de nariz (xf) -> L = 6 m, cf = 2.1 m, cr = 3.9 m
 FIJAS_INI = [
     "P1", "T1", "R1", "P2", "T2", "R2",
-    "R", "cf", "cr",
+    "R", "lam", "xf",
     "cp", "g",
     "e", "W", "beta", "nu", "alpha", "Rac", "ka", "U0", "sigma",
     "dTc",
@@ -118,7 +121,7 @@ FIJAS_INI = [
 # Variables que físicamente deben ser estrictamente positivas
 POSITIVAS = {
     "P1", "R1", "rho1", "P2", "R2", "rho2",
-    "R", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
+    "R", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
     "e", "W", "beta", "nu", "alpha", "Rae", "Rac", "Nuc", "ka", "U0", "U",
     "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
@@ -134,6 +137,7 @@ UNIDAD_ING = {
     "T1":    (None, "°C", 1),      "T2":    (None, "°C", 1),
     "R1":    ("J", "/(kg·K)", 1),  "R2":    ("J", "/(kg·K)", 1),
     "rho1":  ("g", "/m³", 1000),   "rho2":  ("g", "/m³", 1000),   "drho": ("g", "/m³", 1000),
+    "lam":   (None, "adim", 1),    "xf":    (None, "adim", 1),
     "R":     ("m", "", 1),         "cf":    ("m", "", 1),         "cr":   ("m", "", 1),
     "L":     ("m", "", 1),         "V":     ("m³", "", 1),
     "ef":    (None, "adim", 1),    "er":    (None, "adim", 1),
@@ -193,6 +197,9 @@ CATEGORIAS = {
         "Diferencia de densidades":      sp.Eq(S["drho"], S["rho1"] - S["rho2"]),
     },
     "Geometría del casco (dos semielipsoides)": {
+        # Esbeltez: λ = L/D. λ → 1 se parece a una esfera; λ alto se parece a una "aguja"
+        "Relación de esbeltez (L/D)":     sp.Eq(S["lam"], S["L"] / (2 * S["R"])),
+        "Fracción de nariz (cf/L)":       sp.Eq(S["xf"], S["cf"] / S["L"]),
         "Longitud total del casco":       sp.Eq(S["L"],  S["cf"] + S["cr"]),
         "Volumen total del casco":        sp.Eq(S["V"],  sp.Rational(2, 3) * sp.pi * S["R"] ** 2 * S["L"]),
         "Excentricidad frontal (cf > R)": sp.Eq(S["ef"], sp.sqrt(1 - S["R"] ** 2 / S["cf"] ** 2)),
@@ -272,7 +279,7 @@ def _es_valida(nombre: str, val: sp.Expr) -> bool:
         return False
     if nombre in POSITIVAS and v <= 0:
         return False
-    if nombre in ("ef", "er", "fais") and not (0 < v < 1):
+    if nombre in ("ef", "er", "fais", "xf") and not (0 < v < 1):
         return False
     return True
 
