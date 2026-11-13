@@ -476,6 +476,108 @@ def valores_iniciales() -> dict[str, float]:
     return {n: v[2] for n, v in VARIABLES.items() if n in FIJAS_INI}
 
 
+def ecuaciones_de_variable(nombre: str) -> list[tuple[str, str, sp.Eq]]:
+    """Devuelve [(categoria, nombre_eq, eq)] donde interviene la variable `nombre`."""
+    sim = S[nombre]
+    return [
+        (cat, nom_eq, eq)
+        for cat, eqs in CATEGORIAS.items()
+        for nom_eq, eq in eqs.items()
+        if sim in eq.free_symbols
+    ]
+
+
+def _tamano_emparejamiento(incognitas: set[str]) -> int:
+    """Calcula el tamaño del emparejamiento máximo bipartito (ecuaciones <-> incógnitas)."""
+    eq_vars = [
+        [str(sim) for sim in eq.free_symbols if str(sim) in incognitas]
+        for eq in ECUACIONES.values()
+    ]
+    match_var: dict[str, int] = {}
+
+    def dfs(u: int, visto: set[str]) -> bool:
+        for v in eq_vars[u]:
+            if v in visto:
+                continue
+            visto.add(v)
+            if v not in match_var or dfs(match_var[v], visto):
+                match_var[v] = u
+                return True
+        return False
+
+    emparejadas = 0
+    for u in range(len(eq_vars)):
+        if dfs(u, set()):
+            emparejadas += 1
+    return emparejadas
+
+
+def _tiene_emparejamiento_perfecto(incognitas: set[str]) -> bool:
+    """Comprueba en el grafo bipartito (ecuaciones <-> incógnitas) si el sistema es resoluble."""
+    return len(incognitas) == len(ECUACIONES) and _tamano_emparejamiento(incognitas) == len(ECUACIONES)
+
+
+def variables_liberables(fijas: set[str], objetivo: str) -> list[str]:
+    """
+    Dada una variable calculada `objetivo` que pasará a ser fija, devuelve las
+    variables fijas que pueden volverse calculadas (liberarse) manteniendo el sentido matemático.
+    """
+    inc_actual = set(VARIABLES) - fijas
+    return [
+        f for f in VARIABLES
+        if f in fijas and _tiene_emparejamiento_perfecto((inc_actual - {objetivo}) | {f})
+    ]
+
+
+def calculadas_fijables(fijas: set[str], fija_a_liberar: str) -> list[str]:
+    """
+    Dada una variable fija `fija_a_liberar` que pasará a ser calculada, devuelve
+    cuáles variables calculadas pueden volverse fijas manteniendo el sentido matemático.
+    """
+    inc_actual = set(VARIABLES) - fijas
+    return [
+        c for c in VARIABLES
+        if c in inc_actual and _tiene_emparejamiento_perfecto((inc_actual - {c}) | {fija_a_liberar})
+    ]
+
+
+def estado_equilibrio(
+    fijas_actuales: set[str],
+    excluidas: set[str] | None = None,
+) -> tuple[int, list[str], int, list[str]]:
+    """
+    Analiza el estado matemático actual dado `fijas_actuales`:
+    Devuelve `(faltan_fijar, candidatas_calculadas_a_fijar, faltan_liberar, candidatas_fijas_a_liberar)`.
+    - `faltan_fijar`: cuántas variables calculadas faltan por volver fijas.
+    - `candidatas_calculadas_a_fijar`: cuáles variables calculadas se pueden volver fijas en este paso.
+    - `faltan_liberar`: cuántas variables fijas faltan por liberar (volver calculadas).
+    - `candidatas_fijas_a_liberar`: cuáles variables fijas se pueden liberar en este paso.
+    """
+    excl = excluidas or set()
+    inc_actual = set(VARIABLES) - fijas_actuales
+    n_eq = len(ECUACIONES)
+    m = _tamano_emparejamiento(inc_actual)
+
+    faltan_fijar = len(inc_actual) - m
+    faltan_liberar = n_eq - m
+
+    candidatas_fijar: list[str] = []
+    if faltan_fijar > 0:
+        candidatas_fijar = [
+            c for c in VARIABLES
+            if c in inc_actual and c not in excl and _tamano_emparejamiento(inc_actual - {c}) == m
+        ]
+
+    candidatas_liberar: list[str] = []
+    if faltan_liberar > 0:
+        candidatas_liberar = [
+            f for f in VARIABLES
+            if f in fijas_actuales and f not in excl and _tamano_emparejamiento(inc_actual | {f}) == m + 1
+        ]
+
+    return faltan_fijar, candidatas_fijar, faltan_liberar, candidatas_liberar
+
+
 def _es_valida(nombre: str, val: sp.Expr) -> bool:
     """Verifica que un valor simbólico sea numérico, real y respete dominios físicos."""
     try:
