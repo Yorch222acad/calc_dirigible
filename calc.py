@@ -28,6 +28,16 @@ PREFIJOS = {
     0: "", 3: "K", 6: "M", 9: "G", 12: "T", 15: "P", 18: "E", 21: "Z", 24: "Y",
 }
 K_SIMBOLO = sp.Symbol("273.15 (K)")  # constante de conversión °C -> K
+LOG10_FUNC = sp.Function("log₁₀")
+VARS_SUSTENTACION = ("F", "mflot", "FL", "FLmax", "Fexc")
+
+
+def _preparar_eq_vista(eq: sp.Eq) -> sp.Eq:
+    """Reemplaza constantes y logaritmos en base 10 para una presentación 2D limpia."""
+    eq = eq.xreplace({modelo.K: K_SIMBOLO})
+    if "Cf" in modelo.S and eq.lhs == modelo.S["Cf"]:
+        eq = sp.Eq(eq.lhs, sp.Float("0.455") * LOG10_FUNC(modelo.S["ReL"]) ** sp.Float("-2.58"))
+    return eq
 
 
 def _unidad_con_guion(unidad: str) -> str:
@@ -56,9 +66,37 @@ def formatear_ingenieria(nombre: str, valor: float) -> str:
     return f"({texto})" if mantisa < 0 else texto
 
 
+def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float], list[str]]:
+    """
+    Verifica si se excede el peso máximo de batería (mbmax) o el ángulo máximo de
+    rotación (thmax). Si se supera algún límite, pone en negativo los valores de
+    sustentación en la vista y devuelve los mensajes de alerta correspondientes.
+    """
+    alertas: list[str] = []
+    if valores["mbat"] > valores["mbmax"]:
+        alertas.append(
+            f"PESO DE BATERÍA EXCEDIDO: mbat = {formatear_ingenieria('mbat', valores['mbat'])} "
+            f"supera el máximo permitido mbmax = {formatear_ingenieria('mbmax', valores['mbmax'])}. "
+            "Cálculos de sustentación puestos en NEGATIVO."
+        )
+    if valores["theta"] > valores["thmax"]:
+        alertas.append(
+            f"ÁNGULO DE ROTACIÓN EXCEDIDO: theta = {valores['theta']:.2f}° "
+            f"supera el máximo permitido thmax = {valores['thmax']:.2f}°. "
+            "Cálculos de sustentación puestos en NEGATIVO."
+        )
+
+    vista = dict(valores)
+    if alertas:
+        for var_s in VARS_SUSTENTACION:
+            if var_s in vista:
+                vista[var_s] = -abs(vista[var_s])
+    return vista, alertas
+
+
 def renderizar_general(eq: sp.Eq) -> str:
     """Ecuación simbólica (en gris) con la unidad de cada variable entre paréntesis."""
-    eq = eq.xreplace({modelo.K: K_SIMBOLO})
+    eq = _preparar_eq_vista(eq)
     marcadores = {}
     reemplazo = {}
     for i, simbolo in enumerate(sorted(eq.free_symbols, key=str)):
@@ -69,20 +107,26 @@ def renderizar_general(eq: sp.Eq) -> str:
             marca = chr(0xE000 + i)
             marcadores[marca] = texto
             reemplazo[simbolo] = sp.Symbol(marca * len(texto))
-    dibujo = escape(sp.pretty(eq.xreplace(reemplazo), use_unicode=True, wrap_line=False))
+    eq_m = eq.xreplace(reemplazo)
+    eq_m = sp.Eq(sp.powsimp(eq_m.lhs, force=True), sp.powsimp(eq_m.rhs, force=True))
+    dibujo = escape(sp.pretty(eq_m, use_unicode=True, wrap_line=False))
     for marca, texto in marcadores.items():
         dibujo = re.sub(f"{marca}+", lambda _m, t=escape(texto): t, dibujo)
     return f"[grey58]{dibujo}[/grey58]"
 
 
-def renderizar_sustitucion(eq: sp.Eq, valores: dict[str, float], fijas: set[str]) -> str:
+def renderizar_sustitucion(
+    eq: sp.Eq,
+    valores: dict[str, float],
+    fijas: set[str],
+    penalizado: bool = False,
+) -> str:
     """
     Dibuja la ecuación con los valores numéricos en lugar de las variables, en 2D.
-    Cada valor se colorea: amarillo si la variable es fija, verde si es calculada.
-    Se usan símbolos marcadores del mismo ancho que el valor para no romper
-    la alineación de las fracciones; luego se reemplazan por el texto coloreado.
+    Cada valor se colorea: amarillo si la variable es fija, verde si es calculada
+    (o rojo si es una variable de sustentación penalizada en negativo).
     """
-    eq = eq.xreplace({modelo.K: K_SIMBOLO})
+    eq = _preparar_eq_vista(eq)
     marcadores = {}   # caracter marcador -> (texto del valor, color)
     reemplazo = {}
     for i, simbolo in enumerate(sorted(eq.free_symbols, key=str)):
@@ -91,10 +135,16 @@ def renderizar_sustitucion(eq: sp.Eq, valores: dict[str, float], fijas: set[str]
             continue
         texto = formatear_ingenieria(nombre, valores[nombre])
         marca = chr(0xE000 + i)
-        marcadores[marca] = (texto, "yellow" if nombre in fijas else "green")
+        if penalizado and nombre in VARS_SUSTENTACION:
+            color = "red"
+        else:
+            color = "yellow" if nombre in fijas else "green"
+        marcadores[marca] = (texto, color)
         reemplazo[simbolo] = sp.Symbol(marca * len(texto))
 
-    dibujo = escape(sp.pretty(eq.xreplace(reemplazo), use_unicode=True, wrap_line=False))
+    eq_m = eq.xreplace(reemplazo)
+    eq_m = sp.Eq(sp.powsimp(eq_m.lhs, force=True), sp.powsimp(eq_m.rhs, force=True))
+    dibujo = escape(sp.pretty(eq_m, use_unicode=True, wrap_line=False))
     for marca, (texto, color) in marcadores.items():
         dibujo = re.sub(
             f"{marca}+",
@@ -124,12 +174,21 @@ def tabla_variables_ecuacion(eq: sp.Eq, fijas: set[str]) -> Table:
 ANCHO_VARIABLES = 28  # ancho mínimo reservado para la columna de variables a la derecha
 
 
-def bloque_ecuacion(nombre: str, eq: sp.Eq, valores: dict[str, float], fijas: set[str]):
+def bloque_ecuacion(
+    nombre: str,
+    eq: sp.Eq,
+    valores: dict[str, float],
+    fijas: set[str],
+    penalizado: bool = False,
+):
     """
     Ecuación (general + sustituida) con sus variables a la derecha en columnas.
     Si la terminal es demasiado angosta, las variables se muestran debajo.
     """
-    texto_eq = f"{renderizar_general(eq)}\n\n{renderizar_sustitucion(eq, valores, fijas)}"
+    texto_eq = (
+        f"{renderizar_general(eq)}\n\n"
+        f"{renderizar_sustitucion(eq, valores, fijas, penalizado=penalizado)}"
+    )
     ancho_eq = max(cell_len(l) for l in Text.from_markup(texto_eq).plain.splitlines())
     variables = tabla_variables_ecuacion(eq, fijas)
     titulo = Text.from_markup(f"[bold cyan]{nombre}[/bold cyan]")
@@ -148,8 +207,15 @@ def bloque_ecuacion(nombre: str, eq: sp.Eq, valores: dict[str, float], fijas: se
 
 def mostrar_pantalla(valores: dict[str, float], fijas: set[str]) -> None:
     limpiar_pantalla()
+    valores_vista, alertas = evaluar_alertas_y_vista(valores)
+    penalizado = bool(alertas)
 
     elementos = []
+    if alertas:
+        for alerta in alertas:
+            elementos.append(Text.from_markup(f"[bold white on red] ⚠ {escape(alerta)} [/bold white on red]"))
+        elementos.append(Text(""))
+
     separador_eq = Text("─" * 60, style="grey42")
     separador_cat = Text("═" * 60, style="blue")
     for i, (categoria, ecuaciones) in enumerate(modelo.CATEGORIAS.items()):
@@ -159,13 +225,22 @@ def mostrar_pantalla(valores: dict[str, float], fijas: set[str]) -> None:
         for j, (nombre, eq) in enumerate(ecuaciones.items()):
             if j:
                 elementos += [Text(""), separador_eq, Text("")]
-            elementos.append(bloque_ecuacion(nombre, eq, valores, fijas))
+            elementos.append(bloque_ecuacion(nombre, eq, valores_vista, fijas, penalizado=penalizado))
 
-    elementos += [Text(""), Text.from_markup("[yellow]■ fija[/yellow]   [green]■ calculada[/green]")]
+    leyenda = "[yellow]■ fija[/yellow]   [green]■ calculada[/green]"
+    if penalizado:
+        leyenda += "   [red]■ sustentación penalizada (negativa)[/red]"
+    elementos += [Text(""), Text.from_markup(leyenda)]
+
+    if alertas:
+        elementos.append(Text(""))
+        for alerta in alertas:
+            elementos.append(Text.from_markup(f"[bold white on red] ⚠ {escape(alerta)} [/bold white on red]"))
+
     console.print(Panel(
         Group(*elementos),
-        title="[bold yellow]Sustentación & Termodinámica de Dirigibles (CAS)[/bold yellow]",
-        border_style="bright_blue",
+        title="[bold yellow]Sustentación, Termodinámica & Propulsión Híbrida de Dirigibles (CAS)[/bold yellow]",
+        border_style="red" if penalizado else "bright_blue",
         padding=(1, 2),
     ))
 
