@@ -1,0 +1,203 @@
+/* =============================================================
+   base.css — Tokens de diseño, paleta de colores y tipografía
+   Exporta los códigos cromáticos de la terminal Rich:
+   - Amarillo (#facc15): Variable fija (entrada)
+   - Verde (#4ade80): Variable calculada (despejada)
+   - Rojo (#f87171): Variable de sustentación penalizada (negativa)
+   - Gris (#94a3b8): Ecuación general con unidades
+   - Cian (#38bdf8): Títulos de bloques y acentos técnicos
+   ============================================================= */
+
+:root {
+  --bg-app: #0b1120;
+  --bg-panel: #111827;
+  --bg-card: #162032;
+  --bg-card-hover: #1e293b;
+  --bg-input: #0f172a;
+  --bg-header: #0f172a;
+
+  --border-subtle: #1e293b;
+  --border-normal: #334155;
+  --border-cyan: #0284c7;
+  --border-blue: #2563eb;
+  --border-red: #dc2626;
+  --border-yellow: #ca8a04;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  --color-fixed: #facc15;
+  --color-fixed-bg: rgba(250, 204, 21, 0.12);
+  --color-fixed-border: rgba(250, 204, 21, 0.38);
+
+  --color-calc: #4ade80;
+  --color-calc-bg: rgba(74, 222, 128, 0.12);
+  --color-calc-border: rgba(74, 222, 128, 0.38);
+
+  --color-penalized: #f87171;
+  --color-penalized-bg: rgba(248, 113, 113, 0.15);
+  --color-penalized-border: rgba(248, 113, 113, 0.5);
+
+  --color-cyan: #38bdf8;
+  --color-cyan-bg: rgba(56, 189, 248, 0.12);
+
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars estilizados y claramente visibles */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-left: 1px solid #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 6px;
+  border: 2px solid #0f172a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Botones reutilizables */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.btn-primary:hover {
+  background: #0369a1;
+}
+
+.btn-secondary {
+  background: #1e293b;
+  color: var(--text-secondary);
+  border-color: var(--border-normal);
+}
+
+.btn-secondary:hover {
+  background: #334155;
+  color: #ffffff;
+}
+
+.btn-outline {
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--color-cyan);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.btn-outline:hover,
+.btn-outline.active {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--color-cyan);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border-normal);
+}
+
+.btn-ghost:hover {
+  background: #1e293b;
+  color: var(--text-primary);
+}
+
+.btn-success {
+  background: #15803d;
+  color: #ffffff;
+  border-color: #4ade80;
+}
+
+.btn-success:hover {
+  background: #166534;
+}
+
+.btn-warning {
+  background: rgba(234, 179, 8, 0.16);
+  color: var(--color-fixed);
+  border-color: var(--color-fixed-border);
+}
+
+.btn-warning:hover {
+  background: rgba(234, 179, 8, 0.28);
+}
+
+/* Utilidades de color de estado */
+.text-fixed {
+  color: var(--color-fixed) !important;
+}
+
+.text-calc {
+  color: var(--color-calc) !important;
+}
+
+.text-penalized {
+  color: var(--color-penalized) !important;
+}
+
+.text-cyan {
+  color: var(--color-cyan) !important;
+}
+
+/* Ajustes para KaTeX — ecuaciones más grandes y legibles */
+.katex-display {
+  margin: 0.4em 0 !important;
+  overflow: visible !important;
+  padding: 6px 4px;
+}
+
+.katex {
+  font-size: 1.32em !important;
+}

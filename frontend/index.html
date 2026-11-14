@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculadora de Sustentación, Termodinámica &amp; Propulsión Híbrida de Dirigibles (CAS)</title>
+
+  <!-- KaTeX para renderizado matemático de ecuaciones -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+
+  <!-- Hojas de estilo modulares -->
+  <link rel="stylesheet" href="/static/css/base.css" />
+  <link rel="stylesheet" href="/static/css/layout.css" />
+  <link rel="stylesheet" href="/static/css/components.css" />
+</head>
+<body>
+  <div id="app-shell" class="app-shell">
+    <!-- BARRA SUPERIOR: Título, Leyenda de colores y Controles globales -->
+    <header id="top-header" class="top-header">
+      <div class="header-title-group">
+        <span class="header-badge">CAS · SymPy</span>
+        <h1 class="header-title">Sustentación, Termodinámica &amp; Propulsión Híbrida de Dirigibles</h1>
+      </div>
+
+      <div class="header-legend-group">
+        <div class="legend-item">
+          <span class="legend-dot legend-fixed"></span>
+          <span>Fija (Entrada)</span>
+          <strong id="count-fixed" class="legend-count">46</strong>
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot legend-calc"></span>
+          <span>Calculada (Despejada)</span>
+          <strong id="count-calc" class="legend-count">56</strong>
+        </div>
+        <div id="legend-penalized" class="legend-item legend-item-penalized hidden">
+          <span class="legend-dot legend-penalized"></span>
+          <span>Sustentación Penalizada (Negativa)</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-reset" class="btn btn-secondary" title="Restaurar calibración inicial (La Paz - Zona Sur)">
+          ↺ Restaurar valores iniciales
+        </button>
+      </div>
+    </header>
+
+    <!-- BANNER DE ALERTAS DE DISEÑO (mbat > mbmax o theta > thmax) -->
+    <section id="alert-banner" class="alert-banner hidden" aria-live="polite"></section>
+
+    <!-- ÁREA CENTRAL: Panel Izquierdo (Categorías) + Panel Central (Ecuaciones en 3 columnas) -->
+    <div class="workspace-main">
+      <aside id="category-sidebar" class="category-sidebar" aria-label="Categorías de ecuaciones">
+        <div class="sidebar-header">
+          <h2 class="sidebar-title">Categorías</h2>
+          <span id="sidebar-count" class="sidebar-subtitle">11 bloques</span>
+        </div>
+        <nav id="category-list" class="category-list"></nav>
+      </aside>
+
+      <main id="equations-panel" class="equations-panel">
+        <div id="equations-header" class="equations-header"></div>
+        <div id="equations-columns-bar" class="equations-columns-bar">
+          <div class="col-header">1. Ecuación General (Unidades)</div>
+          <div class="col-header">2. Ecuación con Datos Reemplazados (Ingeniería)</div>
+          <div class="col-header">3. Explicación de Variables Involucradas</div>
+        </div>
+        <div id="equations-list" class="equations-list"></div>
+      </main>
+    </div>
+
+    <!-- PANEL INFERIOR: Ingreso de Variable por Teclado, Catálogo, Ecuaciones de la Variable y Equilibrio -->
+    <section id="bottom-panel" class="bottom-panel" aria-label="Ingreso y detalle de variables">
+      <!-- Barra de ingreso rápido por teclado y controles del panel inferior -->
+      <div class="bottom-bar">
+        <form id="var-quick-form" class="var-quick-form" autocomplete="off">
+          <label for="var-keyboard-input" class="quick-label">
+            Variable a consultar / modificar:
+          </label>
+          <div class="quick-input-wrapper">
+            <input
+              id="var-keyboard-input"
+              type="text"
+              class="quick-input"
+              placeholder="Escribe el nombre (ej. mflot, mbat, R, theta, P1) y pulsa Enter..."
+              spellcheck="false"
+            />
+            <div id="var-autocomplete" class="var-autocomplete hidden"></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Seleccionar (Enter)</button>
+        </form>
+
+        <div class="bottom-bar-actions">
+          <button id="btn-toggle-catalog" type="button" class="btn btn-outline">
+            ☰ Catálogo de las 102 Variables
+          </button>
+          <button id="btn-clear-selection" type="button" class="btn btn-ghost hidden">
+            ✕ Cerrar detalle
+          </button>
+          <button id="btn-toggle-bottom-size" type="button" class="btn btn-ghost" title="Expandir / reducir panel inferior">
+            ⇕ Expandir panel
+          </button>
+        </div>
+      </div>
+
+      <!-- Mensajes de estado o error de resolución -->
+      <div id="bottom-feedback" class="bottom-feedback hidden"></div>
+
+      <!-- Contenedor dinámico: Catálogo desplegable y/o Detalle completo de la variable seleccionada -->
+      <div id="bottom-content" class="bottom-content">
+        <div id="catalog-container" class="catalog-container hidden"></div>
+        <div id="variable-detail-container" class="variable-detail-container"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Punto de entrada JavaScript Modular (ES6) -->
+  <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

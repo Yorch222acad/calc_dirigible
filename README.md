@@ -70,18 +70,90 @@ $$E_{\text{req}} = \frac{P_{\text{elec}} \cdot t_m}{3600}, \qquad m_{\text{bat}}
 
 ---
 
-## ✨ Características Principales
+## 🔄 Reparto de Sustentación e Interacción Bidireccional
 
-- **Motor CAS + Numérico con SymPy:** Resuelve analíticamente (`solve`) o numéricamente (`nsolve` con poda de hojas en grafos bipartitos) cualquiera de las **102 variables** a partir de las **56 ecuaciones** acopladas.
+### Reparto Directo de Carga (`mflot` y `mres`)
+Por defecto, el reparto de sustentación del dirigible híbrido está definido como dato de entrada (**fijo / amarillo**):
+- **$m_{\text{flot}} = 3.0\text{ kg}$**: masa compensada por el empuje aerostático del aire caliente ($F \approx 29.33\text{ N}$, equivalente al **85.7%** del peso total).
+- **$m_{\text{res}} = 0.5\text{ kg}$ ($500\text{ g}$)**: masa residual que sostienen dinámicamente los 4 motores Brushless A2212 (**14.3%** del peso total).
+
+A partir de este reparto, el solucionador despeja de forma automática (**calculadas / verdes**):
+- **Geometría del casco**: $R \approx 1.173\text{ m}$, $D \approx 2.346\text{ m}$, $L \approx 5.631\text{ m}$, $V \approx 16.23\text{ m}^3$, $S \approx 26.16\text{ m}^2$.
+- **Balance de masas y autonomía**: masa de cuadrícula celular $m_c \approx 298\text{ g}$, masa de batería $m_{\text{bat}} \approx 764\text{ g}$, masa del artefacto $m_{\text{art}} = 2.50\text{ kg}$, masa total $m_{\text{tot}} = 3.50\text{ kg}$ (con $m_{\text{carga}} = 1.0\text{ kg}$) y tiempo de misión $t_m \approx 921.4\text{ s}$ ($\approx 15.36\text{ min}$).
+- **Propulsión y márgenes**: potencia eléctrica $P_{\text{elec}} \approx 329.4\text{ W}$, empuje total $T_{\text{tot}} \approx 10.67\text{ N}$ ($\theta \approx 41.3^\circ < 75^\circ$) y excedente de sustentación $F_{\text{exc}} \approx 15.31\text{ N}$.
+
+---
+
+## 🌐 Interfaz Web Modular y Flujo en Terminal
+
+El sistema cuenta con una **interfaz web interactiva** (FastAPI + HTML/CSS/JS ES6 modular + KaTeX) y conserva además su **interfaz original en terminal** (`calc.py`). Ambas comparten exactamente las mismas reglas visuales y numéricas a través de `formateo.py`.
+
+### 1. Interfaz Web (`app.py` + `frontend/`)
+1. **Barra Superior y Alertas de Diseño:**
+   - Muestra el conteo en vivo de variables fijas (`46`) y calculadas (`56`), la leyenda de colores y el botón para restaurar los valores iniciales.
+   - Si se excede `mbmax` o `thmax`, despliega un **banner de alerta en rojo** y penaliza en negativo (`rojo`) las variables de sustentación (`F`, `mflot`, `FL`, `FLmax`, `Fexc`).
+2. **Panel Izquierdo (Categorías):**
+   - Lista las **11 categorías** físicas (más la vista global *"Ver todas las categorías"*) con el conteo de ecuaciones y un indicador visual si alguna categoría tiene variables penalizadas.
+3. **Panel Central de Ecuaciones (3 Columnas con Desplazamiento Vertical):**
+   - Muestra en filas de arriba hacia abajo todas las ecuaciones de la categoría seleccionada:
+     - **Izquierda:** Ecuación simbólica general (en gris) con la unidad de cada variable entre paréntesis.
+     - **Centro:** Ecuación con los valores actuales reemplazados en **notación de ingeniería** (`amarillo` = fija, `verde` = calculada, `rojo` = sustentación penalizada).
+     - **Derecha:** Lista clicable de las variables que participan en la ecuación con su descripción y el nombre completo de su unidad.
+   - Las unidades compuestas se renderizan con **fracciones verticales en LaTeX/KaTeX** (ej. $\frac{\text{J}}{\text{K\_g} \cdot \text{K}}$) para ahorrar ancho horizontal y mejorar la legibilidad.
+4. **Panel Inferior (Ingreso de Variable, Catálogo y Equilibrio Matemático):**
+   - **Ingreso rápido por teclado:** Permite escribir el nombre de cualquier variable con autocompletado y pulsar `Enter` (también se puede seleccionar haciendo clic sobre cualquier variable de las ecuaciones o del **catálogo desplegable de 102 variables** a 2 columnas).
+   - **Detalle de variable:** Muestra estado, valor SI, valor de ingeniería y **todas las ecuaciones donde participa** en el mismo formato de 3 columnas.
+   - **Asistente de equilibrio matemático:** Permite editar valores fijos o intercambiar variables fijas $\leftrightarrow$ calculadas guiando paso a paso cuántas y cuáles faltan por fijar o liberar mediante el grafo bipartito.
+
+### 2. Interfaz en Terminal (`calc.py`)
+1. **Panel Principal:** Renderiza en 2D con `SymPy` y `Rich` las **56 ecuaciones** en **11 categorías**.
+2. **Catálogo del Sistema:** Lista las **102 variables** en dos columnas con su código de color (`Amarillo = Fija`, `Verde = Calculada`).
+3. **Panel Inferior (`Detalle de '<variable>'`):** Permite consultar ecuaciones involucradas, editar valores y ejecutar el asistente `_equilibrar_sistema`.
+
+---
+
+## ✨ Características Técnicas Principales
+
+- **Motor CAS + Numérico con SymPy:** Resuelve analíticamente (`solve`) o numéricamente (`nsolve` con reducción simbólica interna y poda iterativa de incógnitas de grado 1) cualquiera de las **102 variables** a partir de las **56 ecuaciones** acopladas.
+- **Verificación Estructural por Grafo Bipartito:** Determina instantáneamente qué intercambios entre variables fijas (`46`) y calculadas (`56`) mantienen el sistema libre de bloques sobredeterminados o subdeterminados.
 - **Notación de Ingeniería Personalizada:**
   - Prefijos positivos en mayúsculas (`K, M, G, T`) y negativos en minúsculas (`m, u, n, p`).
-  - Separación mediante guión bajo entre prefijo y unidad (ej. `67.120 (K_Pa)`, `299.565 (W)`, `452.242 (g)`, `1.113 (M_adim)`).
-- **Columnas Explicativas Laterales:** Cada ecuación muestra a su derecha las variables que intervienen con su descripción y el nombre completo de su unidad.
+  - Separación mediante guion bajo entre prefijo y unidad base (ej. `67.120 (K_Pa)`, `3.000 (K_g)`, `764.442 (g)`, `20.000 (m_m)`, `1.697 (M_adim)`).
+  - En la web, las unidades con cocientes se renderizan como fracciones verticales mediante KaTeX (`\frac{...}{...}`).
+- **API REST con FastAPI (`app.py`):**
+  - `GET /api/estado`: devuelve categorías, ecuaciones en LaTeX/KaTeX, variables, resumen y alertas activas.
+  - `GET /api/variable/{nombre}`: devuelve metadatos, ecuaciones donde participa y candidatas de intercambio.
+  - `POST /api/equilibrio`: evalúa el emparejamiento en el grafo bipartito para el asistente paso a paso.
+  - `POST /api/modificar` y `POST /api/reiniciar`: resuelven el sistema con nuevas entradas o restauran la calibración inicial.
+- **Estructura Modular del Proyecto:**
+  - `modelo.py`: definición declarativa de las 102 variables (`VARIABLES`), unidades (`UNIDAD_ING`, `UNIDAD_NOMBRE`), variables fijas iniciales (`FIJAS_INI`), 11 categorías de ecuaciones simbólicas (`CATEGORIAS`), análisis de equilibrio (`calculadas_fijables`, `variables_liberables`, `estado_equilibrio`) y solucionador híbrido (`resolver`).
+  - `formateo.py`: reglas compartidas de notación de ingeniería con guion bajo, evaluación de alertas de diseño (`mbat > mbmax`, `theta > thmax`), penalización negativa de sustentación y generadores de ecuaciones en 2D y LaTeX/KaTeX coloreado con fracciones verticales en unidades.
+  - `calc.py`: interfaz interactiva en terminal con `rich`, renderizado 2D con `SymPy`, panel de detalle de variable y asistente de equilibrio matemático (`_equilibrar_sistema`).
+  - `app.py`: servidor backend con `FastAPI` que expone la API REST del sistema y sirve el frontend web.
+  - `frontend/`: interfaz web modular sin dependencias de Node.js:
+    - `index.html`: estructura base de los paneles y carga de KaTeX.
+    - `css/` (`base.css`, `layout.css`, `components.css`): tokens de color, rejilla principal con scroll vertical y tarjetas de ecuaciones en 3 columnas.
+    - `js/` (`main.js`, `api.js`, `state.js`, `katex_helper.js`) y `js/components/` (`sidebar.js`, `equations.js`, `varInput.js`, `balancer.js`).
 
 ---
 
 ## 🚀 Instalación y Ejecución
 
+Si instalas por primera vez:
+```bash
+python3 -m venv venv_sus_d
+source venv_sus_d/bin/activate
+pip install -r requirements.txt
+```
+
+### Interfaz Web (Frontend + Backend FastAPI)
+```bash
+./venv_sus_d/bin/uvicorn app:app --host 127.0.0.1 --port 8000 --reload
+```
+*(O activando antes el entorno con `source venv_sus_d/bin/activate` y ejecutando `uvicorn app:app --reload`).*
+Luego abre en tu navegador: **`http://127.0.0.1:8000`**
+
+### Interfaz en Terminal (CLI con Rich)
 ```bash
 source venv_sus_d/bin/activate
 python calc.py

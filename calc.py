@@ -1,6 +1,3 @@
-import math
-import re
-
 import sympy as sp
 from rich.cells import cell_len
 from rich.console import Console, Group
@@ -10,6 +7,18 @@ from rich.table import Table
 from rich.text import Text
 
 import modelo
+from formateo import (
+    PREFIJOS,
+    K_SIMBOLO,
+    LOG10_FUNC,
+    VARS_SUSTENTACION,
+    unidad_con_guion as _unidad_con_guion,
+    formatear_ingenieria,
+    evaluar_alertas_y_vista,
+    preparar_eq_vista as _preparar_eq_vista,
+    renderizar_general,
+    renderizar_sustitucion,
+)
 
 console = Console()
 
@@ -20,138 +29,6 @@ console = Console()
 def limpiar_pantalla() -> None:
     """Limpia la terminal y el historial para actualizar en sitio sin acumular texto."""
     print("\033[H\033[2J\033[3J", end="", flush=True)
-
-
-# Prefijos negativos en minúsculas (m, u, n, p...) y positivos en mayúsculas (K, M, G, T...)
-PREFIJOS = {
-    -24: "y", -21: "z", -18: "a", -15: "f", -12: "p", -9: "n", -6: "u", -3: "m",
-    0: "", 3: "K", 6: "M", 9: "G", 12: "T", 15: "P", 18: "E", 21: "Z", 24: "Y",
-}
-K_SIMBOLO = sp.Symbol("273.15 (K)")  # constante de conversión °C -> K
-LOG10_FUNC = sp.Function("log₁₀")
-VARS_SUSTENTACION = ("F", "mflot", "FL", "FLmax", "Fexc")
-
-
-def _preparar_eq_vista(eq: sp.Eq) -> sp.Eq:
-    """Reemplaza constantes y logaritmos en base 10 para una presentación 2D limpia."""
-    eq = eq.xreplace({modelo.K: K_SIMBOLO})
-    if "Cf" in modelo.S and eq.lhs == modelo.S["Cf"]:
-        eq = sp.Eq(eq.lhs, sp.Float("0.455") * LOG10_FUNC(modelo.S["ReL"]) ** sp.Float("-2.58"))
-    return eq
-
-
-def _unidad_con_guion(unidad: str) -> str:
-    """Convierte prefijos SI en unidades base (ej. 'kg' -> 'K_g') en todas las vistas."""
-    return unidad.replace("kg", "K_g")
-
-
-def formatear_ingenieria(nombre: str, valor: float) -> str:
-    """Ej.: 67120 Pa -> '67.120 (K_Pa)', 0.02 m -> '20.000 (m_m)'. Hasta 3 enteros y 3 decimales."""
-    base, resto, factor = modelo.UNIDAD_ING[nombre]
-    resto = _unidad_con_guion(resto)
-    v = valor * factor
-    exp = 0
-    if base is not None and v != 0:
-        exp = int(math.floor(math.log10(abs(v)) / 3)) * 3
-        exp = max(-24, min(24, exp))
-        if abs(round(v / 10 ** exp, 3)) >= 1000 and exp < 24:  # p.ej. 999.9996 -> 1.000
-            exp += 3
-    mantisa = v / 10 ** exp if base is not None else v
-    if base is not None:
-        pref = PREFIJOS[exp]
-        unidad = f"{pref}_{base}{resto}" if pref else f"{base}{resto}"
-    else:
-        unidad = resto
-    texto = f"{mantisa:.3f} ({unidad})"
-    return f"({texto})" if mantisa < 0 else texto
-
-
-def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float], list[str]]:
-    """
-    Verifica si se excede el peso máximo de batería (mbmax) o el ángulo máximo de
-    rotación (thmax). Si se supera algún límite, pone en negativo los valores de
-    sustentación en la vista y devuelve los mensajes de alerta correspondientes.
-    """
-    alertas: list[str] = []
-    if valores["mbat"] > valores["mbmax"]:
-        alertas.append(
-            f"PESO DE BATERÍA EXCEDIDO: mbat = {formatear_ingenieria('mbat', valores['mbat'])} "
-            f"supera el máximo permitido mbmax = {formatear_ingenieria('mbmax', valores['mbmax'])}. "
-            "Cálculos de sustentación puestos en NEGATIVO."
-        )
-    if valores["theta"] > valores["thmax"]:
-        alertas.append(
-            f"ÁNGULO DE ROTACIÓN EXCEDIDO: theta = {valores['theta']:.2f}° "
-            f"supera el máximo permitido thmax = {valores['thmax']:.2f}°. "
-            "Cálculos de sustentación puestos en NEGATIVO."
-        )
-
-    vista = dict(valores)
-    if alertas:
-        for var_s in VARS_SUSTENTACION:
-            if var_s in vista:
-                vista[var_s] = -abs(vista[var_s])
-    return vista, alertas
-
-
-def renderizar_general(eq: sp.Eq) -> str:
-    """Ecuación simbólica (en gris) con la unidad de cada variable entre paréntesis."""
-    eq = _preparar_eq_vista(eq)
-    marcadores = {}
-    reemplazo = {}
-    for i, simbolo in enumerate(sorted(eq.free_symbols, key=str)):
-        nombre = str(simbolo)
-        if nombre in modelo.VARIABLES:
-            unidad = _unidad_con_guion(modelo.VARIABLES[nombre][1])
-            texto = f"{sp.pretty(simbolo, use_unicode=True)} ({unidad})"
-            marca = chr(0xE000 + i)
-            marcadores[marca] = texto
-            reemplazo[simbolo] = sp.Symbol(marca * len(texto))
-    eq_m = eq.xreplace(reemplazo)
-    eq_m = sp.Eq(sp.powsimp(eq_m.lhs, force=True), sp.powsimp(eq_m.rhs, force=True))
-    dibujo = escape(sp.pretty(eq_m, use_unicode=True, wrap_line=False))
-    for marca, texto in marcadores.items():
-        dibujo = re.sub(f"{marca}+", lambda _m, t=escape(texto): t, dibujo)
-    return f"[grey58]{dibujo}[/grey58]"
-
-
-def renderizar_sustitucion(
-    eq: sp.Eq,
-    valores: dict[str, float],
-    fijas: set[str],
-    penalizado: bool = False,
-) -> str:
-    """
-    Dibuja la ecuación con los valores numéricos en lugar de las variables, en 2D.
-    Cada valor se colorea: amarillo si la variable es fija, verde si es calculada
-    (o rojo si es una variable de sustentación penalizada en negativo).
-    """
-    eq = _preparar_eq_vista(eq)
-    marcadores = {}   # caracter marcador -> (texto del valor, color)
-    reemplazo = {}
-    for i, simbolo in enumerate(sorted(eq.free_symbols, key=str)):
-        nombre = str(simbolo)
-        if nombre not in valores:  # constantes (273.15 K)
-            continue
-        texto = formatear_ingenieria(nombre, valores[nombre])
-        marca = chr(0xE000 + i)
-        if penalizado and nombre in VARS_SUSTENTACION:
-            color = "red"
-        else:
-            color = "yellow" if nombre in fijas else "green"
-        marcadores[marca] = (texto, color)
-        reemplazo[simbolo] = sp.Symbol(marca * len(texto))
-
-    eq_m = eq.xreplace(reemplazo)
-    eq_m = sp.Eq(sp.powsimp(eq_m.lhs, force=True), sp.powsimp(eq_m.rhs, force=True))
-    dibujo = escape(sp.pretty(eq_m, use_unicode=True, wrap_line=False))
-    for marca, (texto, color) in marcadores.items():
-        dibujo = re.sub(
-            f"{marca}+",
-            lambda _m, t=escape(texto), c=color: f"[bold {c}]{t}[/bold {c}]",
-            dibujo,
-        )
-    return dibujo
 
 
 def tabla_variables_ecuacion(eq: sp.Eq, fijas: set[str]) -> Table:
