@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import formateo
+import graficas
 import modelo
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -128,10 +129,13 @@ def construir_respuesta_estado() -> dict[str, Any]:
         for nom in modelo.VARIABLES
     ]
 
+    graficas_out = graficas.construir_datos_graficas(estado.valores, estado.fijas)
+
     return {
         "alertas": alertas,
         "penalizado": penalizado,
         "categorias": categorias_out,
+        "graficas": graficas_out,
         "variables": variables_out,
         "fijas": [n for n in modelo.VARIABLES if n in estado.fijas],
         "resumen": {
@@ -140,6 +144,7 @@ def construir_respuesta_estado() -> dict[str, Any]:
             "total_calculadas": len(modelo.VARIABLES) - len(estado.fijas),
             "total_ecuaciones": len(modelo.ECUACIONES),
             "total_categorias": len(modelo.CATEGORIAS),
+            "total_graficas": len(graficas_out),
         },
     }
 

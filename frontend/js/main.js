@@ -11,8 +11,12 @@ import {
   postReiniciar,
 } from "./api.js";
 import { store } from "./state.js";
-import { renderizarSidebarCategorias } from "./components/sidebar.js";
+import {
+  renderizarSidebarCategorias,
+  renderizarSidebarGraficas,
+} from "./components/sidebar.js";
 import { renderizarPanelEcuaciones } from "./components/equations.js";
+import { renderizarPanelGraficas } from "./components/charts.js";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
@@ -29,8 +33,16 @@ const btnReset = document.getElementById("btn-reset");
 
 const sidebarCount = document.getElementById("sidebar-count");
 const categoryList = document.getElementById("category-list");
+const sidebarChartsCount = document.getElementById("sidebar-charts-count");
+const chartsNavList = document.getElementById("charts-nav-list");
+
+const equationsView = document.getElementById("equations-view");
 const equationsHeader = document.getElementById("equations-header");
 const equationsList = document.getElementById("equations-list");
+
+const chartsView = document.getElementById("charts-view");
+const chartsHeader = document.getElementById("charts-header");
+const chartsList = document.getElementById("charts-list");
 
 const bottomPanel = document.getElementById("bottom-panel");
 const varQuickForm = document.getElementById("var-quick-form");
@@ -72,6 +84,7 @@ function renderizarBarraSuperiorYAlertas(estadoApp) {
 
   countFixedEl.textContent = String(resumen.total_fijas);
   countCalcEl.textContent = String(resumen.total_calculadas);
+  btnToggleCatalog.textContent = `☰ Catálogo de las ${resumen.total_variables} Variables`;
 
   appShell.classList.toggle("shell-penalized", penalizado);
   legendPenalizedEl.classList.toggle("hidden", !penalizado);
@@ -129,12 +142,39 @@ function renderizarTodo(estadoApp) {
     }
   );
 
-  renderizarPanelEcuaciones(
-    equationsHeader,
-    equationsList,
+  renderizarSidebarGraficas(
+    chartsNavList,
+    sidebarChartsCount,
     estadoApp,
-    (nomVar) => seleccionarVariable(nomVar)
+    (graficaId) => {
+      store.seleccionarGrafica(graficaId);
+      chartsList.scrollTop = 0;
+    }
   );
+
+  const esVistaGraficas = estadoApp.vistaActiva === "graficas";
+  equationsView.classList.toggle("hidden", esVistaGraficas);
+  chartsView.classList.toggle("hidden", !esVistaGraficas);
+
+  if (esVistaGraficas) {
+    renderizarPanelGraficas(
+      chartsHeader,
+      chartsList,
+      estadoApp,
+      (nomVar) => seleccionarVariable(nomVar),
+      (graficaId) => {
+        store.seleccionarGrafica(graficaId);
+        chartsList.scrollTop = 0;
+      }
+    );
+  } else {
+    renderizarPanelEcuaciones(
+      equationsHeader,
+      equationsList,
+      estadoApp,
+      (nomVar) => seleccionarVariable(nomVar)
+    );
+  }
 
   btnToggleCatalog.classList.toggle("active", estadoApp.catalogoAbierto);
 

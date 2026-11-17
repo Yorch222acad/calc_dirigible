@@ -50,24 +50,45 @@
     <!-- BANNER DE ALERTAS DE DISEÑO (mbat > mbmax o theta > thmax) -->
     <section id="alert-banner" class="alert-banner hidden" aria-live="polite"></section>
 
-    <!-- ÁREA CENTRAL: Panel Izquierdo (Categorías) + Panel Central (Ecuaciones en 3 columnas) -->
+    <!-- ÁREA CENTRAL: Panel Izquierdo dividido (Categorías arriba + Gráficas abajo) + Panel Central (Vista Ecuaciones o Vista Gráficas) -->
     <div class="workspace-main">
-      <aside id="category-sidebar" class="category-sidebar" aria-label="Categorías de ecuaciones">
-        <div class="sidebar-header">
-          <h2 class="sidebar-title">Categorías</h2>
-          <span id="sidebar-count" class="sidebar-subtitle">11 bloques</span>
+      <aside id="category-sidebar" class="category-sidebar" aria-label="Navegación de categorías y gráficas">
+        <!-- Mitad superior izquierda: Categorías de ecuaciones -->
+        <div class="sidebar-section sidebar-section-top">
+          <div class="sidebar-header">
+            <h2 class="sidebar-title">Categorías</h2>
+            <span id="sidebar-count" class="sidebar-subtitle">11 bloques</span>
+          </div>
+          <nav id="category-list" class="category-list" aria-label="Lista de categorías de ecuaciones"></nav>
         </div>
-        <nav id="category-list" class="category-list"></nav>
+
+        <!-- Mitad inferior izquierda: Gráficas comparativas -->
+        <div class="sidebar-section sidebar-section-bottom">
+          <div class="sidebar-header sidebar-header-charts">
+            <h2 class="sidebar-title sidebar-title-charts">Gráficas</h2>
+            <span id="sidebar-charts-count" class="sidebar-subtitle">6 gráficas</span>
+          </div>
+          <nav id="charts-nav-list" class="charts-nav-list" aria-label="Lista de gráficas del proyecto"></nav>
+        </div>
       </aside>
 
       <main id="equations-panel" class="equations-panel">
-        <div id="equations-header" class="equations-header"></div>
-        <div id="equations-columns-bar" class="equations-columns-bar">
-          <div class="col-header">1. Ecuación General (Unidades)</div>
-          <div class="col-header">2. Ecuación con Datos Reemplazados (Ingeniería)</div>
-          <div class="col-header">3. Explicación de Variables Involucradas</div>
+        <!-- VISTA 1: ECUACIONES DE LA CATEGORÍA SELECCIONADA -->
+        <div id="equations-view" class="central-view">
+          <div id="equations-header" class="equations-header"></div>
+          <div id="equations-columns-bar" class="equations-columns-bar">
+            <div class="col-header">1. Ecuación General (Unidades)</div>
+            <div class="col-header">2. Ecuación con Datos Reemplazados (Ingeniería)</div>
+            <div class="col-header">3. Explicación de Variables Involucradas</div>
+          </div>
+          <div id="equations-list" class="equations-list"></div>
         </div>
-        <div id="equations-list" class="equations-list"></div>
+
+        <!-- VISTA 2: GRÁFICAS COMPARATIVAS DE VARIABLES CLAVE -->
+        <div id="charts-view" class="central-view hidden">
+          <div id="charts-header" class="equations-header charts-view-header"></div>
+          <div id="charts-list" class="charts-list"></div>
+        </div>
       </main>
     </div>
 
@@ -94,7 +115,7 @@
 
         <div class="bottom-bar-actions">
           <button id="btn-toggle-catalog" type="button" class="btn btn-outline">
-            ☰ Catálogo de las 102 Variables
+            ☰ Catálogo de las 106 Variables
           </button>
           <button id="btn-clear-selection" type="button" class="btn btn-ghost hidden">
             ✕ Cerrar detalle

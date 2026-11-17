@@ -4,9 +4,11 @@
 
 export const store = {
   sistema: null,              // Respuesta completa de /api/estado
+  vistaActiva: "ecuaciones",  // "ecuaciones" | "graficas"
   categoriaActivaId: 0,       // Índice de categoría seleccionada (o "all" para ver todas)
+  graficaActivaId: "esbeltez",// ID de la gráfica seleccionada (o "all" para ver todas)
   variableDetalle: null,      // Respuesta de /api/variable/{nombre}
-  catalogoAbierto: false,     // Si el catálogo de 102 variables está visible
+  catalogoAbierto: false,     // Si el catálogo de variables está visible
   filtroCatalogo: "all",      // "all" | "fixed" | "calc"
   listeners: new Set(),
 
@@ -27,7 +29,14 @@ export const store = {
   },
 
   seleccionarCategoria(catId) {
+    this.vistaActiva = "ecuaciones";
     this.categoriaActivaId = catId;
+    this.notificar();
+  },
+
+  seleccionarGrafica(graficaId) {
+    this.vistaActiva = "graficas";
+    this.graficaActivaId = graficaId;
     this.notificar();
   },
 

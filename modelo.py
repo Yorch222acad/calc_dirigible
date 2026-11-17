@@ -30,7 +30,8 @@ VARIABLES = {
     "drho":   ("Diferencia de densidades",               "kg/m³",       None),
     # Geometría del casco (dos semielipsoides prolados, cf > R y cr > R)
     "R":      ("Radio máximo transversal",               "m",           None),
-    "lam":    ("Relación de esbeltez (L/D)",             "adim",        2.4),
+    "D":      ("Diámetro máximo del dirigible (2R)",     "m",           None),
+    "lam":    ("Relación de esbeltez (L/D)",             "adim",        2.6),
     "xf":     ("Fracción de nariz (cf/L)",               "adim",        0.35),
     "cf":     ("Longitud semielipsoide nariz",           "m",           None),
     "cr":     ("Longitud semielipsoide cola",            "m",           None),
@@ -77,10 +78,13 @@ VARIABLES = {
     "PC":     ("Poder calorífico del GLP (propano)",     "J/kg",        4.6e7),
     "mgc":    ("Masa de GLP para recuperar caída dTc",   "kg",          None),
     "tm":     ("Tiempo de misión (vuelo/mantenimiento)", "s",           None),
-    "Em":     ("Energía térmica para mantener T",        "J",           None),
+    "Em0":    ("Energía perdida sin aislante en misión", "J",           None),
+    "Em":     ("Energía térmica perdida en misión",      "J",           None),
+    "Eah":    ("Energía ahorrada gracias al aislante",   "J",           None),
     "mgm":    ("Masa de GLP consumida en misión",        "kg",          None),
     # Resistencia aerodinámica en el desplazamiento (arrastre)
-    "v":      ("Velocidad relativa al aire",             "m/s",         6.5),
+    "v":      ("Velocidad relativa al aire",             "m/s",         4.5),
+    "dm":     ("Distancia de misión a recorrer",         "m",           280.0),
     "mu":     ("Viscosidad dinámica del aire",           "Pa·s",        1.75e-5),
     "ReL":    ("Número de Reynolds longitudinal",        "adim",        None),
     "Cf":     ("Coef. de fricción superficial",          "adim",        None),
@@ -96,13 +100,13 @@ VARIABLES = {
     "mart":   ("Masa del artefacto con componentes",     "kg",          None),
     "mcarga": ("Carga útil",                             "kg",          1.0),
     "mtot":   ("Masa total del dirigible",               "kg",          None),
-    "mflot":  ("Masa compensada por aire caliente",      "kg",          3.0),
-    "mres":   ("Masa residual a sostener por motores",   "kg",          0.5),
+    "mflot":  ("Masa compensada por aire caliente",      "kg",          2.55),
+    "mres":   ("Masa residual a sostener por motores",   "kg",          None),
     "fap":    ("Factor de masa aparente virtual",        "adim",        1.15),
     "map":    ("Masa aparente traslacional",             "kg",          None),
     # Propulsión vectorial y motores Brushless A2212 (1000KV)
     "vz":     ("Velocidad de ascenso objetivo",          "m/s",         0.8),
-    "vx":     ("Velocidad de traslación objetivo",       "m/s",         3.0),
+    "vx":     ("Velocidad de traslación objetivo",       "m/s",         2.5),
     "ta":     ("Tiempo de aceleración de maniobra",      "s",           5.0),
     "az":     ("Aceleración vertical de ascenso",        "m/s²",        None),
     "ax":     ("Aceleración horizontal de avance",       "m/s²",        None),
@@ -123,8 +127,11 @@ VARIABLES = {
     "ntot":   ("Eficiencia propulsiva global",           "adim",        None),
     "km":     ("Factor de margen de control/maniobra",   "adim",        1.20),
     "Pelec":  ("Potencia eléctrica de los 4 motores",    "W",           None),
-    # Batería requerida y energía eléctrica de misión
+    # Batería requerida, distancia y coste energético de misión
     "Ereq":   ("Energía eléctrica requerida en misión",  "Wh",          None),
+    "celec":  ("Coste energético eléctrico por metro",   "Wh/m",        None),
+    "Etot":   ("Energía total en misión (eléc. + GLP)",  "J",           None),
+    "ctot":   ("Coste energético total por metro",       "J/m",         None),
     "ebat":   ("Energía específica de batería",          "Wh/kg",       150.0),
     "DoD":    ("Profundidad de descarga máxima (DoD)",   "adim",        0.80),
     "ntemp":  ("Factor de derateo térmico de batería",   "adim",        0.92),
@@ -162,10 +169,12 @@ UNIDAD_NOMBRE = {
     "°":        "grados sexagesimales",
     "Wh":       "Watts hora",
     "Wh/kg":    "Watts hora por kilogramo",
+    "Wh/m":     "Watts hora por metro",
+    "J/m":      "Joules por metro",
 }
 
-# Variables de entrada al iniciar (102 variables - 56 ecuaciones = 46 fijas)
-# Se fijan mflot (carga aire caliente) y mres (carga motores); R y tm se ajustan automáticamente.
+# Variables de entrada al iniciar (106 variables - 60 ecuaciones = 46 fijas)
+# Se fijan dm (distancia de misión) y mflot (carga aire caliente); tm, mbat y mres se despejan automáticamente.
 FIJAS_INI = [
     "P1", "T1", "R1", "P2", "T2", "R2",
     "lam", "xf",
@@ -173,8 +182,8 @@ FIJAS_INI = [
     "e", "W", "beta", "nu", "alpha", "Rac", "ka", "U0", "sigma",
     "dTc",
     "PC",
-    "v", "mu", "kp",
-    "N", "mmot", "mp", "mad", "mcarga", "mflot", "mres", "fap",
+    "v", "dm", "mu", "kp",
+    "N", "mmot", "mp", "mad", "mcarga", "mflot", "fap",
     "vz", "vx", "ta", "thmax", "Tmax1", "dp", "nprop", "nm", "nESC", "km",
     "ebat", "DoD", "ntemp", "mbmax",
 ]
@@ -182,17 +191,17 @@ FIJAS_INI = [
 # Variables que físicamente deben ser estrictamente positivas
 POSITIVAS = {
     "P1", "R1", "rho1", "P2", "R2", "rho2",
-    "R", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
+    "R", "D", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
     "e", "W", "beta", "nu", "alpha", "Rae", "Rac", "Nuc", "ka", "U0", "U",
     "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
     "vT", "dTc", "Qc", "tc",
-    "PC", "mgc", "tm", "Em", "mgm",
-    "v", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD",
+    "PC", "mgc", "tm", "Em0", "Em", "Eah", "mgm",
+    "v", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD",
     "N", "mmot", "mp", "mad", "mart", "mcarga", "mtot", "mflot", "mres", "fap", "map",
     "vz", "vx", "ta", "az", "ax", "FL", "FX", "Ttot", "theta", "thmax",
     "Tmax1", "FLmax", "dp", "Ap", "nprop", "nm", "nESC", "ntot", "km", "Pelec",
-    "Ereq", "ebat", "DoD", "ntemp", "mbat", "mbmax",
+    "Ereq", "celec", "Etot", "ctot", "ebat", "DoD", "ntemp", "mbat", "mbmax",
 }
 
 # Unidad para notación de ingeniería: nombre -> (unidad prefijable, resto, factor)
@@ -204,7 +213,7 @@ UNIDAD_ING = {
     "R1":     ("J", "/(kg·K)", 1),  "R2":     ("J", "/(kg·K)", 1),
     "rho1":   ("g", "/m³", 1000),   "rho2":   ("g", "/m³", 1000),   "drho":  ("g", "/m³", 1000),
     "lam":    (None, "adim", 1),    "xf":     (None, "adim", 1),
-    "R":      ("m", "", 1),         "cf":     ("m", "", 1),         "cr":    ("m", "", 1),
+    "R":      ("m", "", 1),         "D":      ("m", "", 1),         "cf":     ("m", "", 1),         "cr":    ("m", "", 1),
     "L":      ("m", "", 1),         "V":      ("m³", "", 1),
     "ef":     (None, "adim", 1),    "er":     (None, "adim", 1),
     "Sf":     ("m²", "", 1),        "Sr":     ("m²", "", 1),        "S":     ("m²", "", 1),
@@ -242,10 +251,13 @@ UNIDAD_ING = {
     "PC":     ("J", "/kg", 1),
     "mgc":    ("g", "", 1000),
     "tm":     ("s", "", 1),
+    "Em0":    ("J", "", 1),
     "Em":     ("J", "", 1),
+    "Eah":    ("J", "", 1),
     "mgm":    ("g", "", 1000),
     # Resistencia aerodinámica
     "v":      ("m", "/s", 1),
+    "dm":     ("m", "", 1),
     "mu":     ("Pa·s", "", 1),
     "ReL":    ("adim", "", 1),
     "Cf":     ("adim", "", 1),
@@ -288,8 +300,11 @@ UNIDAD_ING = {
     "ntot":   (None, "adim", 1),
     "km":     (None, "adim", 1),
     "Pelec":  ("W", "", 1),
-    # Batería y energía eléctrica
+    # Batería, distancia y coste energético
     "Ereq":   ("Wh", "", 1),
+    "celec":  ("Wh", "/m", 1),
+    "Etot":   ("J", "", 1),
+    "ctot":   ("J", "/m", 1),
     "ebat":   ("Wh", "/kg", 1),
     "DoD":    (None, "adim", 1),
     "ntemp":  (None, "adim", 1),
@@ -316,6 +331,7 @@ CATEGORIAS = {
     },
     "Geometría del casco (dos semielipsoides)": {
         # Esbeltez: λ = L/D. λ → 1 se parece a una esfera; λ alto se parece a una "aguja"
+        "Diámetro máximo transversal (2R)": sp.Eq(S["D"], 2 * S["R"]),
         "Relación de esbeltez (L/D)":     sp.Eq(S["lam"], S["L"] / (2 * S["R"])),
         "Fracción de nariz (cf/L)":       sp.Eq(S["xf"], S["cf"] / S["L"]),
         "Longitud total del casco":       sp.Eq(S["L"],  S["cf"] + S["cr"]),
@@ -370,11 +386,16 @@ CATEGORIAS = {
         "Tiempo de enfriamiento sin aporte": sp.Eq(S["tc"], S["Qc"] / S["Qp"]),
     },
     "Quemador de propano/butano (compensación térmica)": {
-        "Masa de gas para recuperar caída dTc": sp.Eq(S["mgc"], S["Qc"] / S["PC"]),
-        "Energía para mantener T en misión":    sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
-        "Masa de gas para mantener T en misión": sp.Eq(S["mgm"], S["Em"] / S["PC"]),
+        "Masa de gas para recuperar caída dTc":     sp.Eq(S["mgc"], S["Qc"] / S["PC"]),
+        "Energía perdida sin aislante en misión":   sp.Eq(S["Em0"], S["Qp0"] * S["tm"]),
+        "Energía perdida con aislante en misión":   sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
+        "Energía ahorrada gracias al aislante":     sp.Eq(S["Eah"], S["dQp"] * S["tm"]),
+        "Masa de gas para mantener T en misión":    sp.Eq(S["mgm"], S["Em"] / S["PC"]),
     },
-    "Resistencia aerodinámica (arrastre)": {
+    "Resistencia aerodinámica y desplazamiento": {
+        "Distancia recorrida en misión (dm)": sp.Eq(
+            S["dm"], S["v"] * S["tm"]
+        ),
         "Número de Reynolds longitudinal (ReL)": sp.Eq(
             S["ReL"], (S["rho1"] * S["v"] * S["L"]) / S["mu"]
         ),
@@ -455,9 +476,18 @@ CATEGORIAS = {
             ),
         ),
     },
-    "Batería requerida y energía eléctrica": {
+    "Batería requerida y coste energético de misión": {
         "Energía eléctrica requerida en misión (Ereq)": sp.Eq(
             S["Ereq"], (S["Pelec"] * S["tm"]) / S_POR_H
+        ),
+        "Coste energético eléctrico por distancia (celec)": sp.Eq(
+            S["celec"], S["Ereq"] / S["dm"]
+        ),
+        "Energía total consumida en misión (Etot)": sp.Eq(
+            S["Etot"], S["Em"] + S_POR_H * S["Ereq"]
+        ),
+        "Coste energético total por distancia (ctot)": sp.Eq(
+            S["ctot"], S["Etot"] / S["dm"]
         ),
         "Masa de batería requerida (mbat)": sp.Eq(
             S["mbat"], S["Ereq"] / (S["ebat"] * S["DoD"] * S["ntemp"])
@@ -658,7 +688,10 @@ def _resolver_bloque(
 
         inc_reducidas = [inc for inc in incognitas_bloque if inc not in sust_interna]
         exprs = [e.lhs - e.rhs for e in eqs_reducidas]
-        valores_semilla = [semilla.get(str(inc), 1.0) for inc in inc_reducidas]
+        valores_semilla = [
+            semilla.get(str(inc), 0.1 if str(inc) in ("mbat", "mres") else 1.0)
+            for inc in inc_reducidas
+        ]
         if len(exprs) == 1 and len(inc_reducidas) == 1:
             try:
                 sol_unica = sp.nsolve(exprs[0], inc_reducidas[0], valores_semilla[0])
@@ -761,8 +794,8 @@ def resolver(
 
         # Buscar el subsistema cerrado más pequeño dentro de los candidatos
         for k in range(2, len(candidatos) + 1):
-            # Si k es grande y el conjunto completo de candidatos ya es cuadrado, probarlo directo
-            if k > 3 and k < len(candidatos):
+            # Si k > 4 y el conjunto completo de candidatos ya es cuadrado, probarlo directo
+            if k > 4 and k < len(candidatos):
                 inc_cand = sorted(
                     {
                         sim for idx in candidatos for sim in eqs_sust[idx].free_symbols
