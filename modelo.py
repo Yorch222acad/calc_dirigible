@@ -60,18 +60,22 @@ VARIABLES = {
     "nu":     ("Viscosidad cinemática del aire",         "m²/s",        2.65e-5),
     "alpha":  ("Difusividad térmica del aire",           "m²/s",        3.80e-5),
     "Pr":     ("Número de Prandtl del aire",             "adim",        None),
-    "dTi":    ("Caída térmica en capa límite interna",   "K",           None),
-    "RaD":    ("Número de Rayleigh interno del casco",   "adim",        None),
-    "Nui":    ("Número de Nusselt interno del casco",    "adim",        None),
-    "hi":     ("Coef. convectivo interno del casco",     "W/(m²·K)",    None),
     "Nue":    ("Número de Nusselt externo del casco",    "adim",        None),
     "he":     ("Coef. convectivo externo del casco",     "W/(m²·K)",    None),
+    "dTi0":   ("Caída térmica interna sin aislante",     "K",           None),
+    "RaD0":   ("Rayleigh interno del casco sin aislante","adim",        None),
+    "Nui0":   ("Nusselt interno del casco sin aislante", "adim",        None),
+    "hi0":    ("Coef. convectivo interno sin aislante",  "W/(m²·K)",    None),
+    "U0":     ("Coef. global sin capa celular",          "W/(m²·K)",    None),
+    "dTi":    ("Caída térmica interna con aislante",     "K",           None),
+    "RaD":    ("Rayleigh interno del casco con aislante","adim",        None),
+    "Nui":    ("Nusselt interno del casco con aislante", "adim",        None),
+    "hi":     ("Coef. convectivo interno con aislante",  "W/(m²·K)",    None),
     "dTcel":  ("Caída térmica en la celda aislante",     "K",           None),
     "Rae":    ("Número de Rayleigh en la celda",         "adim",        None),
     "Rac":    ("Rayleigh crítico de convección",         "adim",        2000.0),
     "Nuc":    ("Número de Nusselt en la celda",          "adim",        None),
     "ka":     ("Conductividad térmica del aire",         "W/(m·K)",     0.0285),
-    "U0":     ("Coef. global sin capa celular",          "W/(m²·K)",    None),
     "U":      ("Coef. global con capa celular",          "W/(m²·K)",    None),
     "Qp0":    ("Potencia perdida sin capa celular",      "W",           None),
     "Qp":     ("Potencia perdida con capa celular",      "W",           None),
@@ -206,8 +210,10 @@ POSITIVAS = {
     "R", "D", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
     "e", "W", "ep", "ke", "fcal", "beta", "nu", "alpha",
-    "Pr", "dTi", "RaD", "Nui", "hi", "Nue", "he",
-    "dTcel", "Rae", "Rac", "Nuc", "ka", "U0", "U",
+    "Pr", "Nue", "he",
+    "dTi0", "RaD0", "Nui0", "hi0", "U0",
+    "dTi", "RaD", "Nui", "hi",
+    "dTcel", "Rae", "Rac", "Nuc", "ka", "U",
     "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
     "vT", "dTc", "Qc", "tc",
     "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "mgm",
@@ -247,18 +253,22 @@ UNIDAD_ING = {
     "nu":     ("m²/s", "", 1),
     "alpha":  ("m²/s", "", 1),
     "Pr":     (None, "adim", 1),
+    "Nue":    ("adim", "", 1),
+    "he":     ("W", "/(m²·K)", 1),
+    "dTi0":   ("K", "", 1),
+    "RaD0":   ("adim", "", 1),
+    "Nui0":   ("adim", "", 1),
+    "hi0":    ("W", "/(m²·K)", 1),
+    "U0":     ("W", "/(m²·K)", 1),
     "dTi":    ("K", "", 1),
     "RaD":    ("adim", "", 1),
     "Nui":    ("adim", "", 1),
     "hi":     ("W", "/(m²·K)", 1),
-    "Nue":    ("adim", "", 1),
-    "he":     ("W", "/(m²·K)", 1),
     "dTcel":  ("K", "", 1),
     "Rae":    ("adim", "", 1),
     "Rac":    ("adim", "", 1),
     "Nuc":    (None, "adim", 1),
     "ka":     ("W", "/(m·K)", 1),
-    "U0":     ("W", "/(m²·K)", 1),
     "U":      ("W", "/(m²·K)", 1),
     "Qp0":    ("W", "", 1),
     "Qp":     ("W", "", 1),
@@ -381,31 +391,43 @@ CATEGORIAS = {
         "Número de Prandtl del aire (Pr)": sp.Eq(
             S["Pr"], S["nu"] / S["alpha"]
         ),
-        "Caída de temperatura en capa límite interna (dTi)": sp.Eq(
-            S["dTi"], (S["U"] / S["hi"]) * S["dT"]
-        ),
-        "Número de Rayleigh interno del casco (RaD)": sp.Eq(
-            S["RaD"], (S["g"] * S["beta"] * S["dTi"] * S["D"] ** 3) / (S["nu"] * S["alpha"])
-        ),
-        "Número de Nusselt interno del casco (Nui)": sp.Eq(
-            S["Nui"], sp.Float("0.13") * S["RaD"] ** sp.Rational(1, 3)
-        ),
-        "Coeficiente convectivo interno con agitación (hi)": sp.Eq(
-            S["hi"], S["fcal"] * (S["Nui"] * S["ka"]) / S["D"]
-        ),
         "Número de Nusselt externo por viento (Nue)": sp.Eq(
             S["Nue"], sp.Float("0.037") * S["ReL"] ** sp.Rational(4, 5) * S["Pr"] ** sp.Rational(1, 3)
         ),
         "Coeficiente convectivo externo del casco (he)": sp.Eq(
             S["he"], (S["Nue"] * S["ka"]) / S["L"]
         ),
+        "Caída térmica interna sin capa celular (dTi0)": sp.Eq(
+            S["dTi0"], (S["U0"] / S["hi0"]) * S["dT"]
+        ),
+        "Número de Rayleigh interno sin capa celular (RaD0)": sp.Eq(
+            S["RaD0"], (S["g"] * S["beta"] * S["dTi0"] * S["D"] ** 3) / (S["nu"] * S["alpha"])
+        ),
+        "Número de Nusselt interno sin capa celular (Nui0)": sp.Eq(
+            S["Nui0"], sp.Float("0.13") * S["RaD0"] ** sp.Rational(1, 3)
+        ),
+        "Coeficiente convectivo interno sin capa celular (hi0)": sp.Eq(
+            S["hi0"], S["fcal"] * (S["Nui0"] * S["ka"]) / S["D"]
+        ),
         "Coeficiente global sin capa celular (U0)": sp.Eq(
-            S["U0"], 1 / (1 / S["hi"] + S["ep"] / S["ke"] + 1 / S["he"])
+            S["U0"], 1 / (1 / S["hi0"] + S["ep"] / S["ke"] + 1 / S["he"])
         ),
     },
     "Aislamiento por capa intermedia de celdas": {
-        "Caída de temperatura en la celda aislante (dTcel)": sp.Eq(
-            S["dTcel"], S["dT"] * (1 - S["U"] / S["U0"])
+        "Caída térmica interna con capa celular (dTi)": sp.Eq(
+            S["dTi"], (S["U"] / S["hi"]) * S["dT"]
+        ),
+        "Número de Rayleigh interno con capa celular (RaD)": sp.Eq(
+            S["RaD"], (S["g"] * S["beta"] * S["dTi"] * S["D"] ** 3) / (S["nu"] * S["alpha"])
+        ),
+        "Número de Nusselt interno con capa celular (Nui)": sp.Eq(
+            S["Nui"], sp.Float("0.13") * S["RaD"] ** sp.Rational(1, 3)
+        ),
+        "Coeficiente convectivo interno con capa celular (hi)": sp.Eq(
+            S["hi"], S["fcal"] * (S["Nui"] * S["ka"]) / S["D"]
+        ),
+        "Caída térmica en la celda aislante (dTcel)": sp.Eq(
+            S["dTcel"], ((S["U"] * S["e"]) / (S["ka"] * S["Nuc"])) * S["dT"]
         ),
         "Número de Rayleigh en cavidad celular (Rae)": sp.Eq(
             S["Rae"], (S["g"] * S["beta"] * S["dTcel"] * S["e"] ** 3) / (S["nu"] * S["alpha"])
@@ -754,11 +776,13 @@ def _resolver_bloque(
         semillas_defecto = {
             "mbat": 0.1,
             "mres": 0.1,
-            "dTi": 30.0,
-            "dTcel": 40.0,
+            "dTi0": 55.0,
+            "dTi": 35.0,
+            "dTcel": 36.0,
             "U": 2.0,
-            "U0": 4.0,
-            "hi": 5.0,
+            "U0": 3.5,
+            "hi0": 5.0,
+            "hi": 4.3,
         }
         valores_semilla = [
             semilla.get(str(inc), semillas_defecto.get(str(inc), 1.0))

@@ -26,17 +26,24 @@ $$m = \rho_2 \cdot V, \qquad dT = T_2 - T_1, \qquad Q = m \cdot c_p \cdot dT$$
 $$F = \Delta\rho \cdot g \cdot V$$
 - Calcula la fuerza de empuje aerostático neto del aire caliente ($g = 9.775\text{ m/s}^2$). Con la asignación inicial optimizada de $m_{\text{flot}} = 2.55\text{ kg}$, el aire caliente aporta $F \approx 24.93\text{ N}$ (~90.9% del peso total) y los 4 motores sostienen dinámicamente los $m_{\text{res}} \approx 253.6\text{ g}$ restantes.
 
-### 5. Aislamiento por Capa Intermedia de Celdas y Aporte Térmico
-Modela una capa aislante intermedia dividida en celdas cuadradas de espesor $e = 2\text{ cm}$ ($20\text{ m\_m}$) y ancho $W = 20\text{ cm}$ ($200\text{ m\_m}$), con orificios de ecualización de presión de $3\text{ mm}$:
-$$Ra_e = \frac{g \cdot \beta \cdot dT \cdot e^3}{\nu \cdot \alpha}, \qquad Nu_c = \left(\frac{Ra_e}{Ra_c}\right)^{1/4}, \qquad U = \frac{1}{\frac{1}{U_0} + \frac{e}{k_a \cdot Nu_c}}$$
-$$Q_{p0} = U_0 \cdot S \cdot dT, \qquad Q_p = U \cdot S \cdot dT, \qquad dQ_p = Q_{p0} - Q_p, \qquad f_{\text{ais}} = \frac{dQ_p}{Q_{p0}}$$
-$$S_c = S \cdot \left(1 + \frac{2 \cdot e}{W}\right), \qquad m_c = S_c \cdot \sigma$$
+### 5. Convección del Casco (Sin Aislante) y Aislamiento por Capa Celular (Con Aislante)
+Modela dos escenarios térmicos **independientes** que comparten la convección forzada externa por el viento ($Pr$, $Nu_e$, $h_e$):
+- **Caso sin capa celular (`U0`):** Resuelve de forma acoplada la caída térmica interna ($dT_{i0}$), convección natural interna con agitación del calefactor ($Ra_{D0}$, $Nu_{i0}$, $h_{i0}$), conducción en una película HDPE ($e_p / k_e$) y convección externa ($h_e$):
+  $$Pr = \frac{\nu}{\alpha}, \qquad Nu_e = 0.037 \cdot Re_L^{4/5} \cdot Pr^{1/3}, \qquad h_e = \frac{Nu_e \cdot k_a}{L}$$
+  $$dT_{i0} = \frac{U_0}{h_{i0}} \cdot dT, \qquad h_{i0} = f_{\text{cal}} \cdot \frac{0.13 \cdot Ra_{D0}^{1/3} \cdot k_a}{D}, \qquad U_0 = \frac{1}{\frac{1}{h_{i0}} + \frac{e_p}{k_e} + \frac{1}{h_e}}$$
+- **Caso con capa intermedia celular ($e = 16\text{ mm}$, $W = 20\text{ cm}$):** Resuelve independientemente $dT_i$, $h_i$, la caída propia en la celda ($dT_{\text{cel}}$), la convección celular con piso de conducción pura y penalización por recirculación a gran espesor ($Nu_c$), y la doble película de HDPE ($2 e_p / k_e$):
+  $$dT_{\text{cel}} = \frac{U \cdot e}{k_a \cdot Nu_c} \cdot dT, \qquad Nu_c = 1 + \left(\frac{Ra_e}{Ra_c}\right)^{1/4} + \frac{e}{W}\left(\frac{Ra_e}{Ra_c}\right)^{3/4}$$
+  $$U = \frac{1}{\frac{1}{h_i} + \frac{2 \cdot e_p}{k_e} + \frac{e}{k_a \cdot Nu_c} + \frac{1}{h_e}}$$
+- **Comparación y masa celular:**
+  $$Q_{p0} = U_0 \cdot S \cdot dT, \qquad Q_p = U \cdot S \cdot dT, \qquad dQ_p = Q_{p0} - Q_p, \qquad f_{\text{ais}} = \frac{dQ_p}{Q_{p0}}$$
+  $$S_c = S \cdot \left(1 + \frac{2 \cdot e}{W}\right), \qquad m_c = S_c \cdot \sigma$$
 
 ### 6. Pérdida de Calor y Enfriamiento (con Aislante Incorporado)
 $$v_T = \frac{Q_p}{m \cdot c_p}, \qquad Q_c = m \cdot c_p \cdot dT_c, \qquad t_c = \frac{Q_c}{Q_p}$$
 
-### 7. Quemador de Propano/Butano (Compensación Térmica y Ahorro Energético)
-$$m_{gc} = \frac{Q_c}{PC}, \qquad E_{m0} = Q_{p0} \cdot t_m, \qquad E_m = Q_p \cdot t_m, \qquad E_{\text{ah}} = dQ_p \cdot t_m, \qquad m_{gm} = \frac{E_m}{PC}$$
+### 7. Quemador de Propano/Butano (Calefactor Indirecto sin Llama Directa)
+Incluye la eficiencia térmica del intercambiador ($n_{\text{cal}} = 0.80$) al no haber contacto directo de la llama con el aire interior:
+$$m_{gc} = \frac{Q_c}{n_{\text{cal}} \cdot PC}, \qquad E_{m0} = Q_{p0} \cdot t_m, \qquad E_m = Q_p \cdot t_m, \qquad E_{\text{ah}} = dQ_p \cdot t_m, \qquad m_{gm} = \frac{E_m}{n_{\text{cal}} \cdot PC}$$
 
 ### 8. Resistencia Aerodinámica y Desplazamiento (Correlación de Hoerner)
 Vincula directamente la relación de esbeltez ($\lambda = L/D$), el volumen ($V$) y la distancia de misión requerida ($d_m = 280\text{ m}$, con margen sobre los $240\text{ m}$ base) con la fuerza de arrastre ($F_D$) y el tiempo de misión ($t_m$) a una velocidad de crucero $v = 4.5\text{ m/s}$ y factor de interferencia parásita $k_p = 1.4$:
@@ -91,11 +98,11 @@ El sistema cuenta con una **interfaz web interactiva** (FastAPI + HTML/CSS/JS ES
 
 ### 1. Interfaz Web (`app.py` + `frontend/`)
 1. **Barra Superior y Alertas de Diseño:**
-   - Muestra el conteo en vivo de variables fijas (`46`) y calculadas (`63`), la leyenda de colores y el botón para restaurar los valores iniciales.
+   - Muestra el conteo en vivo de variables fijas (`49`) y calculadas (`76`), la leyenda de colores y el botón para restaurar los valores iniciales.
    - Si se excede `mbmax` o `thmax`, despliega un **banner de alerta en rojo** y penaliza en negativo (`rojo`) las variables de sustentación (`F`, `mflot`, `FL`, `FLmax`, `Fexc`).
 2. **Panel Izquierdo Dividido (Categorías arriba + Gráficas abajo):**
-   - **Superior (`Categorías`):** Lista las **11 categorías** físicas (más la vista global *"Ver todas las categorías"*) con barra deslizante propia, conteo de ecuaciones e indicador de variables penalizadas.
-   - **Inferior (`Gráficas`):** Lista las **6 gráficas comparativas** (más *"Ver todas las gráficas"*) con su propia barra deslizante independiente.
+   - **Superior (`Categorías`):** Lista las **14 categorías** físicas numeradas (`C1.`–`C14.`, más la vista global *"Ver todas las categorías"*) con barra deslizante propia, conteo de ecuaciones e indicador de variables penalizadas.
+   - **Inferior (`Gráficas`):** Lista las **6 gráficas comparativas** numeradas (`G1.`–`G6.`, más *"Ver todas las gráficas"*) con su propia barra deslizante independiente.
 3. **Panel Central Dual (Vista de Ecuaciones o Vista de Gráficas):**
    - **Vista de Ecuaciones (al pulsar una Categoría):** Muestra en 3 columnas (Ecuación General | Ecuación con Datos Reemplazados en notación de ingeniería | Explicación de Variables clicables) con fracciones verticales en LaTeX/KaTeX (ej. $\frac{\text{J}}{\text{K\_g} \cdot \text{K}}$).
    - **Vista de Gráficas (al pulsar una Gráfica):** Reemplaza el panel de ecuaciones ocupando todo el espacio central para mostrar curvas paramétricas interactivas con doble eje Y, lectura exacta al pasar el cursor, marcador de punto actual (`★`) y óptimo (`◆`), barras comparativas y silueta geométrica a escala ($L \times D$) con desglose de masa total:
@@ -107,23 +114,23 @@ El sistema cuenta con una **interfaz web interactiva** (FastAPI + HTML/CSS/JS ES
      6. *G6. Dimensiones (`L`, `D`) vs. Sustentación, Silueta 2D a escala y Desglose de `mtot`*
 4. **Panel Inferior Persistente (Ingreso de Variable, Catálogo y Equilibrio Matemático):**
    - Se mantiene disponible tanto en la vista de Ecuaciones como en la de Gráficas.
-   - **Ingreso rápido por teclado y clic directo:** Permite escribir cualquier variable con autocompletado, seleccionarla desde el **catálogo desplegable de 109 variables** o hacer clic sobre las variables comparadas en cualquier ecuación o gráfica.
+   - **Ingreso rápido por teclado y clic directo:** Permite escribir cualquier variable con autocompletado, seleccionarla desde el **catálogo desplegable de 125 variables** o hacer clic sobre las variables comparadas en cualquier ecuación o gráfica.
    - **Detalle y Asistente de Equilibrio:** Muestra estado, valor SI, valor de ingeniería, ecuaciones involucradas y permite editar o intercambiar variables fijas $\leftrightarrow$ calculadas mediante el grafo bipartito (actualizando al instante tanto ecuaciones como gráficas).
 
 ### 2. Interfaz en Terminal (`calc.py`)
-1. **Panel Principal:** Renderiza en 2D con `SymPy` y `Rich` las **63 ecuaciones** en **11 categorías**.
-2. **Catálogo del Sistema:** Lista las **109 variables** en dos columnas con su código de color (`Amarillo = Fija`, `Verde = Calculada`).
+1. **Panel Principal:** Renderiza en 2D con `SymPy` y `Rich` las **76 ecuaciones** en **14 categorías**.
+2. **Catálogo del Sistema:** Lista las **125 variables** en dos columnas con su código de color (`Amarillo = Fija`, `Verde = Calculada`).
 3. **Panel Inferior (`Detalle de '<variable>'`):** Permite consultar ecuaciones involucradas, editar valores y ejecutar el asistente `_equilibrar_sistema`.
 
 ---
 
 ## ✨ Características Técnicas Principales
 
-- **Motor CAS + Numérico con SymPy:** Resuelve analíticamente (`solve`) o numéricamente (`nsolve` con reducción simbólica interna y poda iterativa de incógnitas de grado 1) cualquiera de las **109 variables** a partir de las **63 ecuaciones** acopladas.
-- **Verificación Estructural por Grafo Bipartito:** Determina instantáneamente qué intercambios entre variables fijas (`46`) y calculadas (`63`) mantienen el sistema libre de bloques sobredeterminados o subdeterminados.
+- **Motor CAS + Numérico con SymPy:** Resuelve analíticamente (`solve`) o numéricamente (`nsolve` con reducción simbólica interna, separación de componentes conexas y poda iterativa de incógnitas de grado 1) cualquiera de las **125 variables** a partir de las **76 ecuaciones** acopladas.
+- **Verificación Estructural por Grafo Bipartito:** Determina instantáneamente qué intercambios entre variables fijas (`49`) y calculadas (`76`) mantienen el sistema libre de bloques sobredeterminados o subdeterminados.
 - **Notación de Ingeniería Personalizada:**
   - Prefijos positivos en mayúsculas (`K, M, G, T`) y negativos en minúsculas (`m, u, n, p`).
-  - Separación mediante guion bajo entre prefijo y unidad base (ej. `67.120 (K_Pa)`, `2.550 (K_g)`, `253.579 (g)`, `20.000 (m_m)`, `1.176 (M_adim)`).
+  - Separación mediante guion bajo entre prefijo y unidad base (ej. `67.120 (K_Pa)`, `2.550 (K_g)`, `253.579 (g)`, `16.000 (m_m)`, `1.176 (M_adim)`).
   - En la web, las unidades con cocientes se renderizan como fracciones verticales mediante KaTeX (`\frac{...}{...}`).
 - **API REST con FastAPI (`app.py`):**
   - `GET /api/estado`: devuelve categorías, ecuaciones en LaTeX/KaTeX, datos de las 6 gráficas (`graficas.py`), variables, resumen y alertas activas.
@@ -131,7 +138,7 @@ El sistema cuenta con una **interfaz web interactiva** (FastAPI + HTML/CSS/JS ES
   - `POST /api/equilibrio`: evalúa el emparejamiento en el grafo bipartito para el asistente paso a paso.
   - `POST /api/modificar` y `POST /api/reiniciar`: resuelven el sistema con nuevas entradas o restauran la calibración inicial.
 - **Estructura Modular del Proyecto:**
-  - `modelo.py`: definición declarativa de las 109 variables (`VARIABLES`), unidades (`UNIDAD_ING`, `UNIDAD_NOMBRE`), variables fijas iniciales (`FIJAS_INI`), 11 categorías de ecuaciones simbólicas (`CATEGORIAS`), análisis de equilibrio (`calculadas_fijables`, `variables_liberables`, `estado_equilibrio`) y solucionador híbrido (`resolver`).
+  - `modelo.py`: definición declarativa de las 125 variables (`VARIABLES`), unidades (`UNIDAD_ING`, `UNIDAD_NOMBRE`), variables fijas iniciales (`FIJAS_INI`), 14 categorías de ecuaciones simbólicas (`CATEGORIAS`), análisis de equilibrio (`calculadas_fijables`, `variables_liberables`, `estado_equilibrio`) y solucionador híbrido (`resolver`).
   - `graficas.py`: evaluador paramétrico rápido (`simular_punto`) y generador de datos de las 6 gráficas comparativas (`construir_datos_graficas`).
   - `formateo.py`: reglas compartidas de notación de ingeniería con guion bajo, evaluación de alertas de diseño (`mbat > mbmax`, `theta > thmax`), penalización negativa de sustentación y generadores de ecuaciones en 2D y LaTeX/KaTeX coloreado con fracciones verticales en unidades.
   - `calc.py`: interfaz interactiva en terminal con `rich`, renderizado 2D con `SymPy`, panel de detalle de variable y asistente de equilibrio matemático (`_equilibrar_sistema`).

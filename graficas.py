@@ -108,19 +108,31 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         Nue = 0.037 * (ReL ** 0.8) * (Pr ** (1.0 / 3.0))
         he = (Nue * ka) / L
 
-        # Punto fijo rápido para el reparto acoplado de temperaturas (dTi y dTcel)
+        # Caso 1 (Independiente): Casco sin capa celular (dTi0, RaD0, Nui0, hi0, U0)
+        dTi0 = max(1.0, base.get("dTi0", 0.65 * dT))
+        for _ in range(10):
+            RaD0 = (g * beta * max(1e-4, dTi0) * (D ** 3)) / (nu * alpha)
+            Nui0 = 0.13 * (RaD0 ** (1.0 / 3.0))
+            hi0 = fcal * (Nui0 * ka) / D
+            U0 = 1.0 / ((1.0 / hi0) + (ep / ke) + (1.0 / he))
+            nuevo_dTi0 = (U0 / hi0) * dT
+            if abs(nuevo_dTi0 - dTi0) < 1e-7:
+                dTi0 = nuevo_dTi0
+                break
+            dTi0 = nuevo_dTi0
+
+        # Caso 2 (Independiente): Casco con capa celular (dTi, RaD, Nui, hi, dTcel, Rae, Nuc, U)
         dTi = max(1.0, base.get("dTi", 0.35 * dT))
         dTcel = max(1.0, base.get("dTcel", 0.45 * dT))
         for _ in range(12):
             RaD = (g * beta * max(1e-4, dTi) * (D ** 3)) / (nu * alpha)
             Nui = 0.13 * (RaD ** (1.0 / 3.0))
             hi = fcal * (Nui * ka) / D
-            U0 = 1.0 / ((1.0 / hi) + (ep / ke) + (1.0 / he))
             Rae = (g * beta * max(1e-4, dTcel) * (e ** 3)) / (nu * alpha)
             Nuc = 1.0 + ((Rae / Rac) ** 0.25) + (e / W) * ((Rae / Rac) ** 0.75)
             U = 1.0 / ((1.0 / hi) + (2.0 * ep / ke) + (e / (ka * Nuc)) + (1.0 / he))
             nuevo_dTi = (U / hi) * dT
-            nuevo_dTcel = max(1e-4, dT * (1.0 - (U / U0)))
+            nuevo_dTcel = max(1e-4, ((U * e) / (ka * Nuc)) * dT)
             if abs(nuevo_dTi - dTi) < 1e-7 and abs(nuevo_dTcel - dTcel) < 1e-7:
                 dTi, dTcel = nuevo_dTi, nuevo_dTcel
                 break
@@ -635,7 +647,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Cómo influye el Espesor de la Capa Celular (e) en la Energía Ahorrada (Eah), la Energía Perdida (Em), "
             "el Número de Nusselt celular (Nuc), la Masa de Propano necesaria (mgm) y la Masa Total (mtot)."
         ),
-        "variables": vars_meta(["e", "dTi", "dTcel", "fcal", "Eah", "Em", "Em0", "U0", "U", "Nuc", "hi", "he", "mc", "mtot", "mgm"]),
+        "variables": vars_meta(["e", "dTi0", "hi0", "U0", "dTi", "hi", "dTcel", "Nuc", "U", "he", "Eah", "Em", "Em0", "mc", "mtot", "mgm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
