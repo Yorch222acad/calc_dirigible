@@ -128,7 +128,7 @@ export function renderizarPanelEcuaciones(
     categorias.forEach((cat) => {
       const divider = document.createElement("div");
       divider.className = "category-section-divider";
-      divider.textContent = `${cat.id + 1}. ${cat.nombre}`;
+      divider.textContent = `C${cat.id + 1}. ${cat.nombre}`;
       contenedorLista.appendChild(divider);
 
       cat.ecuaciones.forEach((eq) => {
@@ -142,7 +142,7 @@ export function renderizarPanelEcuaciones(
   if (!catActiva) return;
 
   contenedorHeader.innerHTML = `
-    <div class="cat-banner-title">▌ ${catActiva.id + 1}. ${escaparHtml(catActiva.nombre.toUpperCase())}</div>
+    <div class="cat-banner-title">▌ C${catActiva.id + 1}. ${escaparHtml(catActiva.nombre.toUpperCase())}</div>
     <div class="cat-banner-stats">
       ${catActiva.num_ecuaciones} ecuación(es) · ${catActiva.num_fijas} fija(s) · ${catActiva.num_calculadas} calculada(s)
     </div>

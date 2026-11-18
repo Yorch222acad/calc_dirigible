@@ -50,17 +50,28 @@ VARIABLES = {
     # Sustentación aerostática (Arquímedes)
     "g":      ("Aceleración de la gravedad",             "m/s²",        9.775),
     "F":      ("Fuerza de sustentación aerostática",     "N",           None),
-    # Aislamiento por capa intermedia de celdas (con orificios de ecualización de 3 mm)
-    "e":      ("Espesor de capa intermedia celular",     "m",           0.02),
+    # Convección interna/externa del casco y aislamiento por capa intermedia de celdas
+    "e":      ("Espesor de capa intermedia celular",     "m",           0.016),
     "W":      ("Ancho de celda cuadrada",                "m",           0.20),
+    "ep":     ("Espesor de película envolvente HDPE",    "m",           1.0e-5),
+    "ke":     ("Conductividad térmica película HDPE",    "W/(m·K)",     0.45),
+    "fcal":   ("Factor de agitación convectiva calefactor", "adim",     1.15),
     "beta":   ("Coef. expansión térmica del aire",       "K⁻¹",         0.00302),
     "nu":     ("Viscosidad cinemática del aire",         "m²/s",        2.65e-5),
     "alpha":  ("Difusividad térmica del aire",           "m²/s",        3.80e-5),
+    "Pr":     ("Número de Prandtl del aire",             "adim",        None),
+    "dTi":    ("Caída térmica en capa límite interna",   "K",           None),
+    "RaD":    ("Número de Rayleigh interno del casco",   "adim",        None),
+    "Nui":    ("Número de Nusselt interno del casco",    "adim",        None),
+    "hi":     ("Coef. convectivo interno del casco",     "W/(m²·K)",    None),
+    "Nue":    ("Número de Nusselt externo del casco",    "adim",        None),
+    "he":     ("Coef. convectivo externo del casco",     "W/(m²·K)",    None),
+    "dTcel":  ("Caída térmica en la celda aislante",     "K",           None),
     "Rae":    ("Número de Rayleigh en la celda",         "adim",        None),
     "Rac":    ("Rayleigh crítico de convección",         "adim",        2000.0),
     "Nuc":    ("Número de Nusselt en la celda",          "adim",        None),
     "ka":     ("Conductividad térmica del aire",         "W/(m·K)",     0.0285),
-    "U0":     ("Coef. global sin capa celular",          "W/(m²·K)",    5.0),
+    "U0":     ("Coef. global sin capa celular",          "W/(m²·K)",    None),
     "U":      ("Coef. global con capa celular",          "W/(m²·K)",    None),
     "Qp0":    ("Potencia perdida sin capa celular",      "W",           None),
     "Qp":     ("Potencia perdida con capa celular",      "W",           None),
@@ -74,8 +85,9 @@ VARIABLES = {
     "dTc":    ("Caída admisible de temperatura",         "K",           20.0),
     "Qc":     ("Energía perdida en caída dTc",           "J",           None),
     "tc":     ("Tiempo de enfriamiento para dTc",        "s",           None),
-    # Quemador de propano/butano (GLP) para compensación térmica
+    # Quemador de propano/butano (GLP) e intercambiador sin contacto de llama
     "PC":     ("Poder calorífico del GLP (propano)",     "J/kg",        4.6e7),
+    "ncal":   ("Eficiencia térmica calefactor indirecto","adim",        0.80),
     "mgc":    ("Masa de GLP para recuperar caída dTc",   "kg",          None),
     "tm":     ("Tiempo de misión (vuelo/mantenimiento)", "s",           None),
     "Em0":    ("Energía perdida sin aislante en misión", "J",           None),
@@ -173,15 +185,15 @@ UNIDAD_NOMBRE = {
     "J/m":      "Joules por metro",
 }
 
-# Variables de entrada al iniciar (106 variables - 60 ecuaciones = 46 fijas)
-# Se fijan dm (distancia de misión) y mflot (carga aire caliente); tm, mbat y mres se despejan automáticamente.
+# Variables de entrada al iniciar (121 variables - 72 ecuaciones = 49 fijas)
+# Se fijan dm (distancia de misión) y mflot (carga aire caliente); U0, tm, mbat y mres se despejan automáticamente.
 FIJAS_INI = [
     "P1", "T1", "R1", "P2", "T2", "R2",
     "lam", "xf",
     "cp", "g",
-    "e", "W", "beta", "nu", "alpha", "Rac", "ka", "U0", "sigma",
+    "e", "W", "ep", "ke", "fcal", "beta", "nu", "alpha", "Rac", "ka", "sigma",
     "dTc",
-    "PC",
+    "PC", "ncal",
     "v", "dm", "mu", "kp",
     "N", "mmot", "mp", "mad", "mcarga", "mflot", "fap",
     "vz", "vx", "ta", "thmax", "Tmax1", "dp", "nprop", "nm", "nESC", "km",
@@ -193,10 +205,12 @@ POSITIVAS = {
     "P1", "R1", "rho1", "P2", "R2", "rho2",
     "R", "D", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
-    "e", "W", "beta", "nu", "alpha", "Rae", "Rac", "Nuc", "ka", "U0", "U",
+    "e", "W", "ep", "ke", "fcal", "beta", "nu", "alpha",
+    "Pr", "dTi", "RaD", "Nui", "hi", "Nue", "he",
+    "dTcel", "Rae", "Rac", "Nuc", "ka", "U0", "U",
     "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
     "vT", "dTc", "Qc", "tc",
-    "PC", "mgc", "tm", "Em0", "Em", "Eah", "mgm",
+    "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "mgm",
     "v", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD",
     "N", "mmot", "mp", "mad", "mart", "mcarga", "mtot", "mflot", "mres", "fap", "map",
     "vz", "vx", "ta", "az", "ax", "FL", "FX", "Ttot", "theta", "thmax",
@@ -223,12 +237,23 @@ UNIDAD_ING = {
     "Q":      ("J", "", 1),
     "g":      (None, "m/s²", 1),
     "F":      ("N", "", 1),
-    # Capa intermedia de celdas y transferencia de calor
+    # Convección interna/externa y capa intermedia de celdas
     "e":      ("m", "", 1),
     "W":      ("m", "", 1),
+    "ep":     ("m", "", 1),
+    "ke":     ("W", "/(m·K)", 1),
+    "fcal":   (None, "adim", 1),
     "beta":   ("K⁻¹", "", 1),
     "nu":     ("m²/s", "", 1),
     "alpha":  ("m²/s", "", 1),
+    "Pr":     (None, "adim", 1),
+    "dTi":    ("K", "", 1),
+    "RaD":    ("adim", "", 1),
+    "Nui":    ("adim", "", 1),
+    "hi":     ("W", "/(m²·K)", 1),
+    "Nue":    ("adim", "", 1),
+    "he":     ("W", "/(m²·K)", 1),
+    "dTcel":  ("K", "", 1),
     "Rae":    ("adim", "", 1),
     "Rac":    ("adim", "", 1),
     "Nuc":    (None, "adim", 1),
@@ -247,8 +272,9 @@ UNIDAD_ING = {
     "dTc":    ("K", "", 1),
     "Qc":     ("J", "", 1),
     "tc":     ("s", "", 1),
-    # Quemador de GLP
+    # Quemador de GLP e intercambiador
     "PC":     ("J", "/kg", 1),
+    "ncal":   (None, "adim", 1),
     "mgc":    ("g", "", 1000),
     "tm":     ("s", "", 1),
     "Em0":    ("J", "", 1),
@@ -347,20 +373,61 @@ CATEGORIAS = {
         "Gradiente térmico":     sp.Eq(S["dT"], S["T2"] - S["T1"]),
         "Calor sensible":        sp.Eq(S["Q"],  S["m"] * S["cp"] * S["dT"]),
     },
-    "Sustentación": {
+    "Sustentación aerostática": {
         # Arquímedes: F = Δρ·g·V  (equivale a Δρ·g·m/ρ₂, pues m = ρ₂·V)
         "Fuerza de sustentación aerostática": sp.Eq(S["F"], S["drho"] * S["g"] * S["V"]),
     },
-    "Aislamiento por capa intermedia de celdas": {
-        "Número de Rayleigh en cavidad (Rae)": sp.Eq(
-            S["Rae"], (S["g"] * S["beta"] * S["dT"] * S["e"] ** 3) / (S["nu"] * S["alpha"])
+    "Convección del casco y coef. global base (U0)": {
+        "Número de Prandtl del aire (Pr)": sp.Eq(
+            S["Pr"], S["nu"] / S["alpha"]
         ),
-        "Número de Nusselt en celda (Nuc)": sp.Eq(
-            S["Nuc"], (S["Rae"] / S["Rac"]) ** sp.Rational(1, 4)
+        "Caída de temperatura en capa límite interna (dTi)": sp.Eq(
+            S["dTi"], (S["U"] / S["hi"]) * S["dT"]
+        ),
+        "Número de Rayleigh interno del casco (RaD)": sp.Eq(
+            S["RaD"], (S["g"] * S["beta"] * S["dTi"] * S["D"] ** 3) / (S["nu"] * S["alpha"])
+        ),
+        "Número de Nusselt interno del casco (Nui)": sp.Eq(
+            S["Nui"], sp.Float("0.13") * S["RaD"] ** sp.Rational(1, 3)
+        ),
+        "Coeficiente convectivo interno con agitación (hi)": sp.Eq(
+            S["hi"], S["fcal"] * (S["Nui"] * S["ka"]) / S["D"]
+        ),
+        "Número de Nusselt externo por viento (Nue)": sp.Eq(
+            S["Nue"], sp.Float("0.037") * S["ReL"] ** sp.Rational(4, 5) * S["Pr"] ** sp.Rational(1, 3)
+        ),
+        "Coeficiente convectivo externo del casco (he)": sp.Eq(
+            S["he"], (S["Nue"] * S["ka"]) / S["L"]
+        ),
+        "Coeficiente global sin capa celular (U0)": sp.Eq(
+            S["U0"], 1 / (1 / S["hi"] + S["ep"] / S["ke"] + 1 / S["he"])
+        ),
+    },
+    "Aislamiento por capa intermedia de celdas": {
+        "Caída de temperatura en la celda aislante (dTcel)": sp.Eq(
+            S["dTcel"], S["dT"] * (1 - S["U"] / S["U0"])
+        ),
+        "Número de Rayleigh en cavidad celular (Rae)": sp.Eq(
+            S["Rae"], (S["g"] * S["beta"] * S["dTcel"] * S["e"] ** 3) / (S["nu"] * S["alpha"])
+        ),
+        "Número de Nusselt efectivo en celda (Nuc)": sp.Eq(
+            S["Nuc"],
+            1
+            + (S["Rae"] / S["Rac"]) ** sp.Rational(1, 4)
+            + (S["e"] / S["W"]) * (S["Rae"] / S["Rac"]) ** sp.Rational(3, 4),
         ),
         "Coeficiente global con capa celular (U)": sp.Eq(
-            S["U"], 1 / (1 / S["U0"] + S["e"] / (S["ka"] * S["Nuc"]))
+            S["U"],
+            1 / (1 / S["hi"] + (2 * S["ep"]) / S["ke"] + S["e"] / (S["ka"] * S["Nuc"]) + 1 / S["he"]),
         ),
+        "Área total de película celular": sp.Eq(
+            S["Sc"], S["S"] * (1 + 2 * S["e"] / S["W"])
+        ),
+        "Masa de la cuadrícula celular": sp.Eq(
+            S["mc"], S["Sc"] * S["sigma"]
+        ),
+    },
+    "Pérdida de calor, ahorro y enfriamiento": {
         "Potencia perdida sin capa celular (Qp0)": sp.Eq(
             S["Qp0"], S["U0"] * S["S"] * S["dT"]
         ),
@@ -373,26 +440,18 @@ CATEGORIAS = {
         "Fracción de ahorro térmico celular (fais)": sp.Eq(
             S["fais"], S["dQp"] / S["Qp0"]
         ),
-        "Área total de película celular": sp.Eq(
-            S["Sc"], S["S"] * (1 + 2 * S["e"] / S["W"])
-        ),
-        "Masa de la cuadrícula celular": sp.Eq(
-            S["mc"], S["Sc"] * S["sigma"]
-        ),
-    },
-    "Pérdida de calor y enfriamiento": {
         "Velocidad de enfriamiento (dT/dt)": sp.Eq(S["vT"], S["Qp"] / (S["m"] * S["cp"])),
         "Energía cedida en caída admisible": sp.Eq(S["Qc"], S["m"] * S["cp"] * S["dTc"]),
         "Tiempo de enfriamiento sin aporte": sp.Eq(S["tc"], S["Qc"] / S["Qp"]),
     },
     "Quemador de propano/butano (compensación térmica)": {
-        "Masa de gas para recuperar caída dTc":     sp.Eq(S["mgc"], S["Qc"] / S["PC"]),
+        "Masa de gas para recuperar caída dTc":     sp.Eq(S["mgc"], S["Qc"] / (S["ncal"] * S["PC"])),
         "Energía perdida sin aislante en misión":   sp.Eq(S["Em0"], S["Qp0"] * S["tm"]),
         "Energía perdida con aislante en misión":   sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
         "Energía ahorrada gracias al aislante":     sp.Eq(S["Eah"], S["dQp"] * S["tm"]),
-        "Masa de gas para mantener T en misión":    sp.Eq(S["mgm"], S["Em"] / S["PC"]),
+        "Masa de gas para mantener T en misión":    sp.Eq(S["mgm"], S["Em"] / (S["ncal"] * S["PC"])),
     },
-    "Resistencia aerodinámica y desplazamiento": {
+    "Desplazamiento y resistencia aerodinámica": {
         "Distancia recorrida en misión (dm)": sp.Eq(
             S["dm"], S["v"] * S["tm"]
         ),
@@ -434,7 +493,7 @@ CATEGORIAS = {
             S["map"], S["fap"] * S["mtot"]
         ),
     },
-    "Propulsión vectorial y motores A2212 (1000KV)": {
+    "Dinámica vectorial y empuje (motores A2212)": {
         "Aceleración vertical de ascenso (az)": sp.Eq(
             S["az"], S["vz"] / S["ta"]
         ),
@@ -462,6 +521,8 @@ CATEGORIAS = {
         "Excedente de sustentación total (Fexc)": sp.Eq(
             S["Fexc"], S["F"] + S["FLmax"] - S["mtot"] * S["g"]
         ),
+    },
+    "Eficiencia y potencia eléctrica propulsiva": {
         "Área de disco barrida por cada hélice (Ap)": sp.Eq(
             S["Ap"], sp.pi * S["dp"] ** 2 / 4
         ),
@@ -476,7 +537,7 @@ CATEGORIAS = {
             ),
         ),
     },
-    "Batería requerida y coste energético de misión": {
+    "Energía y coste energético de misión": {
         "Energía eléctrica requerida en misión (Ereq)": sp.Eq(
             S["Ereq"], (S["Pelec"] * S["tm"]) / S_POR_H
         ),
@@ -489,6 +550,8 @@ CATEGORIAS = {
         "Coste energético total por distancia (ctot)": sp.Eq(
             S["ctot"], S["Etot"] / S["dm"]
         ),
+    },
+    "Dimensionamiento de batería y límites": {
         "Masa de batería requerida (mbat)": sp.Eq(
             S["mbat"], S["Ereq"] / (S["ebat"] * S["DoD"] * S["ntemp"])
         ),
@@ -688,8 +751,17 @@ def _resolver_bloque(
 
         inc_reducidas = [inc for inc in incognitas_bloque if inc not in sust_interna]
         exprs = [e.lhs - e.rhs for e in eqs_reducidas]
+        semillas_defecto = {
+            "mbat": 0.1,
+            "mres": 0.1,
+            "dTi": 30.0,
+            "dTcel": 40.0,
+            "U": 2.0,
+            "U0": 4.0,
+            "hi": 5.0,
+        }
         valores_semilla = [
-            semilla.get(str(inc), 0.1 if str(inc) in ("mbat", "mres") else 1.0)
+            semilla.get(str(inc), semillas_defecto.get(str(inc), 1.0))
             for inc in inc_reducidas
         ]
         if len(exprs) == 1 and len(inc_reducidas) == 1:
@@ -745,6 +817,36 @@ def _podar_hojas(eqs_sust: list[sp.Eq]) -> list[int]:
     return activos
 
 
+def _componentes_conexas(eqs_sust: list[sp.Eq], indices: list[int]) -> list[list[int]]:
+    """
+    Agrupa los índices de ecuaciones en componentes conexas según las incógnitas que comparten.
+    Ordena las componentes de menor a mayor tamaño para resolver primero los bloques más simples.
+    """
+    inc_por_eq = {
+        i: {sim for sim in eqs_sust[i].free_symbols if str(sim) in VARIABLES}
+        for i in indices
+    }
+    visitados: set[int] = set()
+    componentes: list[list[int]] = []
+    for i in indices:
+        if i in visitados:
+            continue
+        comp: list[int] = []
+        cola = [i]
+        visitados.add(i)
+        while cola:
+            actual = cola.pop()
+            comp.append(actual)
+            sims_actual = inc_por_eq[actual]
+            for j in indices:
+                if j not in visitados and (inc_por_eq[j] & sims_actual):
+                    visitados.add(j)
+                    cola.append(j)
+        componentes.append(sorted(comp))
+    componentes.sort(key=len)
+    return componentes
+
+
 def resolver(
     fijas: dict[str, float],
     referencia: dict[str, float] | None = None,
@@ -787,40 +889,41 @@ def resolver(
         if avance:
             continue
 
-        # Paso 2: podar incógnitas hoja (grado 1) para aislar ciclos acoplados
+        # Paso 2: podar incógnitas hoja (grado 1) y separar en componentes conexas independientes
         candidatos = _podar_hojas(eqs_sust)
         if not candidatos:
             candidatos = list(range(len(pendientes)))
 
-        # Buscar el subsistema cerrado más pequeño dentro de los candidatos
-        for k in range(2, len(candidatos) + 1):
-            # Si k > 4 y el conjunto completo de candidatos ya es cuadrado, probarlo directo
-            if k > 4 and k < len(candidatos):
-                inc_cand = sorted(
-                    {
-                        sim for idx in candidatos for sim in eqs_sust[idx].free_symbols
-                        if str(sim) in VARIABLES
-                    },
-                    key=str,
-                )
-                if len(inc_cand) == len(candidatos):
-                    k = len(candidatos)
-
-            for indices in combinations(candidatos, k):
-                sub_eqs_sust = [eqs_sust[i] for i in indices]
-                incognitas = sorted(
-                    {
-                        sim for e in sub_eqs_sust for sim in e.free_symbols
-                        if str(sim) in VARIABLES
-                    },
-                    key=str,
-                )
-                if len(incognitas) == k:
-                    nuevos = _resolver_bloque(sub_eqs_sust, incognitas, semilla)
-                    conocidas.update(nuevos)
-                    for i in sorted(indices, reverse=True):
-                        pendientes.pop(i)
-                    avance = True
+        componentes = _componentes_conexas(eqs_sust, candidatos)
+        for comp in componentes:
+            inc_comp = sorted(
+                {
+                    sim for idx in comp for sim in eqs_sust[idx].free_symbols
+                    if str(sim) in VARIABLES
+                },
+                key=str,
+            )
+            # Si la componente conexa completa ya es un sistema cuadrado, probar sus sub-bloques pequeños o ella misma
+            for k in range(2, len(comp) + 1):
+                if k > 4 and len(inc_comp) == len(comp):
+                    k = len(comp)
+                for indices in combinations(comp, k):
+                    sub_eqs_sust = [eqs_sust[i] for i in indices]
+                    incognitas = sorted(
+                        {
+                            sim for e in sub_eqs_sust for sim in e.free_symbols
+                            if str(sim) in VARIABLES
+                        },
+                        key=str,
+                    )
+                    if len(incognitas) == k:
+                        nuevos = _resolver_bloque(sub_eqs_sust, incognitas, semilla)
+                        conocidas.update(nuevos)
+                        for i in sorted(indices, reverse=True):
+                            pendientes.pop(i)
+                        avance = True
+                        break
+                if avance:
                     break
             if avance:
                 break

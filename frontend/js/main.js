@@ -14,8 +14,8 @@ import { store } from "./state.js";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js";
-import { renderizarPanelEcuaciones } from "./components/equations.js";
+} from "./components/sidebar.js?v=2";
+import { renderizarPanelEcuaciones } from "./components/equations.js?v=2";
 import { renderizarPanelGraficas } from "./components/charts.js";
 import {
   inicializarEntradaTeclado,

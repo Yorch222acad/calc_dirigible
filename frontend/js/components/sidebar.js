@@ -20,7 +20,7 @@ export function renderizarSidebarCategorias(
   contenedorLista.innerHTML = "";
   const esVistaEcuaciones = estadoApp.vistaActiva === "ecuaciones";
 
-  // Botón para cada una de las 11 categorías
+  // Botón para cada una de las categorías
   categorias.forEach((cat) => {
     const activo = esVistaEcuaciones && estadoApp.categoriaActivaId === cat.id;
     const btn = document.createElement("button");
@@ -32,7 +32,7 @@ export function renderizarSidebarCategorias(
 
     const idxSpan = document.createElement("span");
     idxSpan.className = "category-index";
-    idxSpan.textContent = `${cat.id + 1}.`;
+    idxSpan.textContent = `C${cat.id + 1}.`;
 
     const nameSpan = document.createElement("span");
     nameSpan.className = "category-name";

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import sympy as sp
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -284,6 +284,15 @@ def reiniciar_sistema() -> dict[str, Any]:
 # Archivos estáticos del Frontend
 # =============================================================
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+
+
+@app.middleware("http")
+async def desactivar_cache_estaticos(request: Request, call_next):
+    """Evita que el navegador use copias antiguas en caché de JS/CSS/HTML tras cambios."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
 
 
 @app.get("/")

@@ -81,28 +81,6 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         cp = p["cp"]
         Q = m * cp * dT
 
-        e = max(1e-5, p["e"])
-        W = p["W"]
-        beta, nu, alpha = p["beta"], p["nu"], p["alpha"]
-        Rac, ka, U0, sigma = p["Rac"], p["ka"], p["U0"], p["sigma"]
-
-        Rae = (g * beta * dT * (e ** 3)) / (nu * alpha)
-        Nuc = (Rae / Rac) ** 0.25
-        U = 1.0 / ((1.0 / U0) + (e / (ka * Nuc)))
-        Qp0 = U0 * S * dT
-        Qp = U * S * dT
-        dQp = Qp0 - Qp
-        fais = dQp / Qp0 if Qp0 > 0 else 0.0
-        Sc = S * (1.0 + 2.0 * e / W)
-        mc = Sc * sigma
-
-        dTc = p["dTc"]
-        PC = p["PC"]
-        vT = Qp / (m * cp)
-        Qc = m * cp * dTc
-        tc = Qc / Qp
-        mgc = Qc / PC
-
         v = max(0.2, p["v"])
         if "tm" in overrides and "dm" not in overrides and "v" not in overrides:
             tm = max(1.0, overrides["tm"])
@@ -110,11 +88,6 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         else:
             dm = max(1.0, p["dm"])
             tm = dm / v
-
-        Em0 = Qp0 * tm
-        Em = Qp * tm
-        Eah = dQp * tm
-        mgm = Em / PC
 
         mu, kp = p["mu"], p["kp"]
         ReL = (rho1 * v * L) / mu
@@ -124,6 +97,54 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         CDVc = Cf * (4.0 * (lam ** (1.0 / 3.0)) + 6.0 * (lam ** -1.2) + 24.0 * (lam ** -2.7))
         CDV = kp * CDVc
         FD = 0.5 * rho1 * (v ** 2) * CDV * (V ** (2.0 / 3.0))
+
+        e = max(1e-5, p["e"])
+        W = p["W"]
+        ep, ke, fcal = p["ep"], p["ke"], p["fcal"]
+        beta, nu, alpha = p["beta"], p["nu"], p["alpha"]
+        Rac, ka, sigma = p["Rac"], p["ka"], p["sigma"]
+
+        Pr = nu / alpha
+        Nue = 0.037 * (ReL ** 0.8) * (Pr ** (1.0 / 3.0))
+        he = (Nue * ka) / L
+
+        # Punto fijo rápido para el reparto acoplado de temperaturas (dTi y dTcel)
+        dTi = max(1.0, base.get("dTi", 0.35 * dT))
+        dTcel = max(1.0, base.get("dTcel", 0.45 * dT))
+        for _ in range(12):
+            RaD = (g * beta * max(1e-4, dTi) * (D ** 3)) / (nu * alpha)
+            Nui = 0.13 * (RaD ** (1.0 / 3.0))
+            hi = fcal * (Nui * ka) / D
+            U0 = 1.0 / ((1.0 / hi) + (ep / ke) + (1.0 / he))
+            Rae = (g * beta * max(1e-4, dTcel) * (e ** 3)) / (nu * alpha)
+            Nuc = 1.0 + ((Rae / Rac) ** 0.25) + (e / W) * ((Rae / Rac) ** 0.75)
+            U = 1.0 / ((1.0 / hi) + (2.0 * ep / ke) + (e / (ka * Nuc)) + (1.0 / he))
+            nuevo_dTi = (U / hi) * dT
+            nuevo_dTcel = max(1e-4, dT * (1.0 - (U / U0)))
+            if abs(nuevo_dTi - dTi) < 1e-7 and abs(nuevo_dTcel - dTcel) < 1e-7:
+                dTi, dTcel = nuevo_dTi, nuevo_dTcel
+                break
+            dTi, dTcel = nuevo_dTi, nuevo_dTcel
+
+        Qp0 = U0 * S * dT
+        Qp = U * S * dT
+        dQp = Qp0 - Qp
+        fais = dQp / Qp0 if Qp0 > 0 else 0.0
+        Sc = S * (1.0 + 2.0 * e / W)
+        mc = Sc * sigma
+
+        dTc = p["dTc"]
+        PC = p["PC"]
+        ncal = p["ncal"]
+        vT = Qp / (m * cp)
+        Qc = m * cp * dTc
+        tc = Qc / Qp
+        mgc = Qc / (ncal * PC)
+
+        Em0 = Qp0 * tm
+        Em = Qp * tm
+        Eah = dQp * tm
+        mgm = Em / (ncal * PC)
 
         N, mmot, mp, mad, mcarga, fap = p["N"], p["mmot"], p["mp"], p["mad"], p["mcarga"], p["fap"]
         vz, vx, ta = p["vz"], p["vx"], p["ta"]
@@ -598,13 +619,12 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     # 4. ESPESOR DEL AISLANTE CELULAR (e) vs. ENERGÍA AHORRADA Y PERDIDA
     # =========================================================
     e_actual_mm = valores["e"] * 1000.0
-    xs_e_mm = _linspace(2.0, 60.0, 45, incluir=e_actual_mm)
+    xs_e_mm = _linspace(1.5, 65.0, 48, incluir=e_actual_mm)
     pts_e = [p for x_mm in xs_e_mm if (p := simular_punto(valores, e=x_mm / 1000.0)) is not None]
 
-    # Espesor crítico donde Rae == Rac (inicio de convección en celda)
-    dT_val = max(1.0, valores["T2"] - valores["T1"])
-    e_crit_m = ((valores["Rac"] * valores["nu"] * valores["alpha"]) / (valores["g"] * valores["beta"] * dT_val)) ** (1.0 / 3.0)
-    e_crit_mm = e_crit_m * 1000.0
+    # Espesor óptimo donde la pérdida térmica Em es mínima (y el ahorro Eah es máximo)
+    opt_e = min(pts_e, key=lambda d: d["Em"]) if pts_e else None
+    opt_e_mm = round(opt_e["e"] * 1000.0, 2) if opt_e else None
 
     grafica_aislante = {
         "id": "aislante",
@@ -613,17 +633,17 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
         "titulo_corto": "Aislante: Ahorro vs. Pérdida",
         "subtitulo": (
             "Cómo influye el Espesor de la Capa Celular (e) en la Energía Ahorrada (Eah), la Energía Perdida (Em), "
-            "la Masa de Propano necesaria (mgm) y la Masa Total del Dirigible (mtot)."
+            "el Número de Nusselt celular (Nuc), la Masa de Propano necesaria (mgm) y la Masa Total (mtot)."
         ),
-        "variables": vars_meta(["e", "Eah", "Em", "Em0", "dQp", "Qp", "Qp0", "fais", "mc", "mtot", "mgm"]),
+        "variables": vars_meta(["e", "dTi", "dTcel", "fcal", "Eah", "Em", "Em0", "U0", "U", "Nuc", "hi", "he", "mc", "mtot", "mgm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
                 "titulo": "A. Espesor del Aislante (e) vs. Energía Ahorrada (Eah), Energía Perdida (Em) y Propano (mgm)",
                 "x_label": "Espesor del aislante celular e (mm)",
                 "x_actual": round(e_actual_mm, 2),
-                "x_optimo": round(e_crit_mm, 2) if 2.0 <= e_crit_mm <= 60.0 else None,
-                "x_optimo_label": f"Ra_e = Ra_c ({e_crit_mm:.1f} mm)",
+                "x_optimo": opt_e_mm,
+                "x_optimo_label": f"Óptimo térmico ({opt_e_mm:.1f} mm)" if opt_e_mm else "",
                 "y1_label": "Energía térmica en misión (kJ)",
                 "y2_label": "Masa de propano necesaria mgm (g)",
                 "xs": [round(p["e"] * 1000.0, 2) for p in pts_e],
@@ -664,6 +684,8 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                 "titulo": "B. Espesor del Aislante (e) vs. Potencias Térmicas (dQp, Qp), Masa Celular (mc) y Masa Total (mtot)",
                 "x_label": "Espesor del aislante celular e (mm)",
                 "x_actual": round(e_actual_mm, 2),
+                "x_optimo": opt_e_mm,
+                "x_optimo_label": f"Óptimo térmico ({opt_e_mm:.1f} mm)" if opt_e_mm else "",
                 "y1_label": "Potencia térmica: Ahorrada dQp y Perdida Qp (W)",
                 "y2_label": "Masa cuadrícula mc (g) / Masa total mtot (kg)",
                 "xs": [round(p["e"] * 1000.0, 2) for p in pts_e],
@@ -711,7 +733,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     qp_w = valores["Qp"]
     dqp_w = valores["dQp"]
     pelec_w = valores["Pelec"]
-    pc_val = valores["PC"]
+    pc_ef = valores["ncal"] * valores["PC"]
 
     grafica_propano = {
         "id": "propano_energia",
@@ -720,9 +742,9 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
         "titulo_corto": "Propano y Balance Térmico",
         "subtitulo": (
             "Evolución acumulada a lo largo del Tiempo de Vuelo (tm) de la Energía Perdida, la Energía Ahorrada "
-            "gracias al aislante, la Energía Total Consumida y la Masa de Propano necesaria para terminar el vuelo."
+            "gracias al aislante, la Energía Total Consumida y la Masa de Propano necesaria (con eficiencia ncal)."
         ),
-        "variables": vars_meta(["mgm", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "tm", "dm"]),
+        "variables": vars_meta(["mgm", "ncal", "fcal", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "tm", "dm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
@@ -767,7 +789,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "unidad": "g",
                         "eje": "y2",
                         "color": "#f97316",
-                        "valores": [round(((qp_w * t) / pc_val) * 1000.0, 3) for t in ts_vuelo],
+                        "valores": [round(((qp_w * t) / pc_ef) * 1000.0, 3) for t in ts_vuelo],
                     },
                 ],
             },

@@ -50,7 +50,8 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-muted);
-  min-width: 20px;
+  min-width: 26px;
+  flex-shrink: 0;
 }
 
 .category-btn.active .category-index {
