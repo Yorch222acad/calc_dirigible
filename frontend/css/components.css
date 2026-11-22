@@ -143,10 +143,33 @@
   border-color: var(--color-penalized-border);
 }
 
+.equation-row-card.equation-flash-highlight {
+  border-color: var(--color-fixed);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45), 0 0 18px rgba(56, 189, 248, 0.35);
+  animation: eqHighlightPulse 2.4s ease-out;
+}
+
+@keyframes eqHighlightPulse {
+  0% {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: var(--color-fixed);
+  }
+  45% {
+    background: rgba(56, 189, 248, 0.1);
+    border-color: var(--color-cyan);
+  }
+  100% {
+    background: var(--bg-card);
+    border-color: var(--border-normal);
+  }
+}
+
 .equation-row-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
   padding: 8px 14px;
   background: rgba(15, 23, 42, 0.65);
   border-bottom: 1px solid var(--border-subtle);
@@ -157,12 +180,50 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--color-cyan);
+  margin: 0;
 }
 
-.equation-row-category-tag {
+.equation-row-title.equation-title-clickable {
+  cursor: pointer;
+  transition: color 0.14s ease;
+}
+
+.equation-row-title.equation-title-clickable:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
+.equation-goto-cat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.1);
+  color: #bae6fd;
+  font-family: inherit;
   font-size: 11.5px;
-  color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.equation-goto-cat-btn:hover {
+  background: rgba(56, 189, 248, 0.24);
+  border-color: var(--color-cyan);
+  color: #ffffff;
+}
+
+.equation-goto-cat-code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--color-fixed);
+}
+
+.equation-goto-arrow {
+  color: var(--color-cyan);
+  font-weight: 700;
 }
 
 .equation-three-cols {

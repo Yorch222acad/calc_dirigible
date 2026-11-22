@@ -75,6 +75,9 @@ def _serializar_variable(
     }
 
 
+_CAT_INDICES = {nombre: idx for idx, nombre in enumerate(modelo.CATEGORIAS)}
+
+
 def _serializar_ecuacion(
     categoria: str,
     nombre_eq: str,
@@ -85,8 +88,11 @@ def _serializar_ecuacion(
 ) -> dict[str, Any]:
     vars_eq = formateo.variables_de_ecuacion(eq, valores_vista, fijas, penalizado=penalizado)
     tiene_penalizada = any(v["penalizada"] for v in vars_eq)
+    cat_idx = _CAT_INDICES.get(categoria, 0)
     return {
         "categoria": categoria,
+        "categoria_id": cat_idx,
+        "categoria_codigo": f"C{cat_idx + 1}",
         "nombre": nombre_eq,
         "latex_general": formateo.renderizar_general_latex(eq),
         "latex_sustitucion": formateo.renderizar_sustitucion_latex(

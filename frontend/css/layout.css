@@ -262,16 +262,53 @@
 /* Panel inferior de ingreso y detalle de variable */
 .bottom-panel {
   background: var(--bg-panel);
-  border-top: 2px solid var(--border-cyan);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   max-height: 44vh;
-  transition: max-height 0.2s ease;
+  transition: max-height 0.2s ease, height 0.2s ease;
+}
+
+.bottom-panel.is-resizing {
+  transition: none !important;
 }
 
 .bottom-panel.bottom-expanded {
   max-height: 72vh;
+}
+
+/* Barra superior arrastrable para redimensionar el panel inferior */
+.bottom-resizer {
+  height: 9px;
+  background: #0f172a;
+  border-top: 2px solid var(--border-cyan);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.bottom-resizer:hover,
+.bottom-panel.is-resizing .bottom-resizer {
+  background: rgba(56, 189, 248, 0.18);
+  border-top-color: #7dd3fc;
+}
+
+.bottom-resizer-grip {
+  width: 48px;
+  height: 3px;
+  border-radius: 999px;
+  background: #475569;
+  transition: background 0.15s ease, width 0.15s ease;
+}
+
+.bottom-resizer:hover .bottom-resizer-grip,
+.bottom-panel.is-resizing .bottom-resizer-grip {
+  width: 68px;
+  background: var(--color-cyan);
 }
 
 .bottom-bar {

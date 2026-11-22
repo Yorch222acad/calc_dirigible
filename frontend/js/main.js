@@ -9,19 +9,19 @@ import {
   fetchDetalleVariable,
   postModificar,
   postReiniciar,
-} from "./api.js";
-import { store } from "./state.js";
+} from "./api.js?v=4";
+import { store } from "./state.js?v=4";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=2";
-import { renderizarPanelEcuaciones } from "./components/equations.js?v=2";
-import { renderizarPanelGraficas } from "./components/charts.js";
+} from "./components/sidebar.js?v=4";
+import { renderizarPanelEcuaciones } from "./components/equations.js?v=4";
+import { renderizarPanelGraficas } from "./components/charts.js?v=4";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js";
+} from "./components/varInput.js?v=4";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");
@@ -45,6 +45,7 @@ const chartsHeader = document.getElementById("charts-header");
 const chartsList = document.getElementById("charts-list");
 
 const bottomPanel = document.getElementById("bottom-panel");
+const bottomResizer = document.getElementById("bottom-resizer");
 const varQuickForm = document.getElementById("var-quick-form");
 const varKeyboardInput = document.getElementById("var-keyboard-input");
 const varAutocomplete = document.getElementById("var-autocomplete");
@@ -56,6 +57,84 @@ const catalogContainer = document.getElementById("catalog-container");
 const variableDetailContainer = document.getElementById("variable-detail-container");
 
 let feedbackTimeout = null;
+let flashTimeout = null;
+
+function irACategoriaYEcuacion(eqData) {
+  if (!eqData || !store.sistema) return;
+
+  let catId = eqData.categoria_id;
+  if (catId === undefined || catId === null) {
+    const encontrada = store.sistema.categorias.find(
+      (c) => c.nombre === eqData.categoria
+    );
+    catId = encontrada ? encontrada.id : 0;
+  }
+
+  store.seleccionarCategoria(catId);
+
+  requestAnimationFrame(() => {
+    const activeCatBtn = categoryList?.querySelector(".category-btn.active");
+    if (activeCatBtn) {
+      activeCatBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    const cards = equationsList.querySelectorAll(".equation-row-card");
+    const targetCard = Array.from(cards).find(
+      (el) => el.getAttribute("data-eq-nombre") === eqData.nombre
+    );
+    if (targetCard) {
+      targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
+      cards.forEach((c) => c.classList.remove("equation-flash-highlight"));
+      targetCard.classList.add("equation-flash-highlight");
+      if (flashTimeout) clearTimeout(flashTimeout);
+      flashTimeout = setTimeout(() => {
+        targetCard.classList.remove("equation-flash-highlight");
+      }, 2400);
+    }
+  });
+}
+
+function inicializarRedimensionPanelInferior() {
+  if (!bottomPanel || !bottomResizer) return;
+  let isDragging = false;
+
+  bottomResizer.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    isDragging = true;
+    bottomPanel.classList.add("is-resizing");
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    const minAltura = 64;
+    const maxAltura = Math.max(
+      minAltura + 40,
+      Math.min(window.innerHeight * 0.80, window.innerHeight - 150)
+    );
+    const nuevaAltura = window.innerHeight - e.clientY;
+    const alturaSegura = Math.max(minAltura, Math.min(maxAltura, nuevaAltura));
+
+    bottomPanel.style.height = `${alturaSegura}px`;
+    bottomPanel.style.maxHeight = `${alturaSegura}px`;
+
+    const esExpandido = alturaSegura > window.innerHeight * 0.55;
+    bottomPanel.classList.toggle("bottom-expanded", esExpandido);
+    btnToggleBottomSize.textContent = esExpandido
+      ? "⇕ Reducir panel"
+      : "⇕ Expandir panel";
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (!isDragging) return;
+    isDragging = false;
+    bottomPanel.classList.remove("is-resizing");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  });
+}
 
 function mostrarMensaje(texto, tipo = "error") {
   if (!bottomFeedback) return;
@@ -196,12 +275,14 @@ function renderizarTodo(estadoApp) {
     estadoApp,
     (nomVar) => seleccionarVariable(nomVar),
     aplicarModificacion,
-    mostrarMensaje
+    mostrarMensaje,
+    irACategoriaYEcuacion
   );
 }
 
 async function iniciarApp() {
   store.suscribir(renderizarTodo);
+  inicializarRedimensionPanelInferior();
 
   inicializarEntradaTeclado(
     varQuickForm,
@@ -223,6 +304,8 @@ async function iniciarApp() {
   });
 
   btnToggleBottomSize.addEventListener("click", () => {
+    bottomPanel.style.height = "";
+    bottomPanel.style.maxHeight = "";
     const exp = bottomPanel.classList.toggle("bottom-expanded");
     btnToggleBottomSize.textContent = exp ? "⇕ Reducir panel" : "⇕ Expandir panel";
   });

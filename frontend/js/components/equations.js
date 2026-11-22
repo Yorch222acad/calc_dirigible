@@ -19,24 +19,53 @@ function claseColorVariable(color) {
 /**
  * Crea un nodo DOM con la estructura de 3 columnas para una ecuación individual.
  */
-export function crearFilaEcuacion(eqData, variableSeleccionadaNombre, alClickVariable, mostrarCategoria = false) {
+export function crearFilaEcuacion(
+  eqData,
+  variableSeleccionadaNombre,
+  alClickVariable,
+  mostrarCategoria = false,
+  alClickIrAEcuacion = null
+) {
   const card = document.createElement("article");
   card.className = `equation-row-card ${eqData.tiene_penalizada ? "equation-penalized" : ""}`;
+  card.setAttribute("data-eq-nombre", eqData.nombre);
 
-  // Cabecera con el título de la ecuación (y categoría opcional en el panel de detalle)
+  // Cabecera con el título de la ecuación (y enlace a categoría + ecuación en el panel de detalle)
   const header = document.createElement("div");
   header.className = "equation-row-header";
 
   const title = document.createElement("h3");
   title.className = "equation-row-title";
-  title.textContent = eqData.nombre;
+  title.textContent = eqData.categoria_codigo
+    ? `${eqData.categoria_codigo} - ${eqData.nombre}`
+    : eqData.nombre;
+  if (mostrarCategoria && alClickIrAEcuacion) {
+    title.classList.add("equation-title-clickable");
+    title.title = `Ir a ${eqData.categoria_codigo ? `${eqData.categoria_codigo}. ` : ""}${eqData.categoria || ""} y resaltar esta ecuación`;
+    title.addEventListener("click", () => alClickIrAEcuacion(eqData));
+  }
   header.appendChild(title);
 
   if (mostrarCategoria && eqData.categoria) {
-    const catTag = document.createElement("span");
-    catTag.className = "equation-row-category-tag";
-    catTag.textContent = `(${eqData.categoria})`;
-    header.appendChild(catTag);
+    const catCodigo = eqData.categoria_codigo ? `${eqData.categoria_codigo}.` : "";
+    if (alClickIrAEcuacion) {
+      const gotoBtn = document.createElement("button");
+      gotoBtn.type = "button";
+      gotoBtn.className = "equation-goto-cat-btn";
+      gotoBtn.title = `Ir a la categoría "${eqData.categoria}" y ubicar esta ecuación`;
+      gotoBtn.innerHTML = `
+        ${catCodigo ? `<span class="equation-goto-cat-code">${escaparHtml(catCodigo)}</span>` : ""}
+        <span>${escaparHtml(eqData.categoria)}</span>
+        <span class="equation-goto-arrow">↗ Ir a categoría y ecuación</span>
+      `;
+      gotoBtn.addEventListener("click", () => alClickIrAEcuacion(eqData));
+      header.appendChild(gotoBtn);
+    } else {
+      const catTag = document.createElement("span");
+      catTag.className = "equation-row-category-tag";
+      catTag.textContent = `(${catCodigo ? `${catCodigo} ` : ""}${eqData.categoria})`;
+      header.appendChild(catTag);
+    }
   }
 
   card.appendChild(header);

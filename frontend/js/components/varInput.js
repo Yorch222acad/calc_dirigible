@@ -8,8 +8,8 @@
  *    - Todas las ecuaciones donde interviene la variable en formato de 3 columnas (`equations.js`).
  */
 
-import { crearFilaEcuacion } from "./equations.js";
-import { renderizarAsistenteModificacion } from "./balancer.js";
+import { crearFilaEcuacion } from "./equations.js?v=4";
+import { renderizarAsistenteModificacion } from "./balancer.js?v=4";
 
 export function inicializarEntradaTeclado(
   formEl,
@@ -229,7 +229,8 @@ export function renderizarDetalleVariable(
   estadoApp,
   alSeleccionarVariable,
   alAplicarModificacion,
-  mostrarMensaje
+  mostrarMensaje,
+  alIrAEcuacion = null
 ) {
   const detalle = estadoApp.variableDetalle;
   if (!detalle || !estadoApp.sistema) {
@@ -290,7 +291,7 @@ export function renderizarDetalleVariable(
 
   ecuaciones.forEach((eq) => {
     eqSection.appendChild(
-      crearFilaEcuacion(eq, variable.nombre, alSeleccionarVariable, true)
+      crearFilaEcuacion(eq, variable.nombre, alSeleccionarVariable, true, alIrAEcuacion)
     );
   });
 
