@@ -82,12 +82,16 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         Q = m * cp * dT
 
         v = max(0.2, p["v"])
+        vv = max(0.0, p.get("vv", 0.0))
+        vg = v - vv
+        if vg <= 0.05:
+            return None
         if "tm" in overrides and "dm" not in overrides and "v" not in overrides:
             tm = max(1.0, overrides["tm"])
-            dm = v * tm
+            dm = vg * tm
         else:
             dm = max(1.0, p["dm"])
-            tm = dm / v
+            tm = dm / vg
 
         mu, kp = p["mu"], p["kp"]
         ReL = (rho1 * v * L) / mu
@@ -156,7 +160,9 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         Em0 = Qp0 * tm
         Em = Qp * tm
         Eah = dQp * tm
-        mgm = Em / (ncal * PC)
+        Eprop = Em / ncal
+        mgm = Eprop / PC
+        ED = FD * dm
 
         N, mmot, mp, mad, mcarga, fap = p["N"], p["mmot"], p["mp"], p["mad"], p["mcarga"], p["fap"]
         vz, vx, ta = p["vz"], p["vx"], p["ta"]
@@ -164,14 +170,23 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
         ax = vx / ta
         dp = p["dp"]
         Ap = math.pi * (dp ** 2) / 4.0
-        ntot = p["nprop"] * p["nm"] * p["nESC"]
+        nprop0 = p["nprop0"]
+        vpitch = p["vpitch"]
+        nprop = nprop0 * (1.0 - (v / vpitch) ** 2)
+        if nprop <= 0.0:
+            return None
+        ntot = nprop * p["nm"] * p["nESC"]
         km = p["km"]
-        ebat, DoD, ntemp = p["ebat"], p["DoD"], p["ntemp"]
-        Tmax1 = p["Tmax1"]
+        ebat, DoD, ntemp, Cmax = p["ebat"], p["DoD"], p["ntemp"], p["Cmax"]
+        Tmax1, Pmax1 = p["Tmax1"], p["Pmax1"]
+        Pmax = N * Pmax1
+        thmax, mbmax = p["thmax"], p["mbmax"]
 
-        # Iteración de punto fijo para el lazo cerrado masa <-> batería <-> propulsión
-        mbat = max(0.005, base.get("mbat", 0.02))
-        for _ in range(12):
+        # Iteración de punto fijo para el lazo cerrado masa <-> batería (energía + potencia) <-> propulsión
+        mbat = max(0.005, base.get("mbat", 0.05))
+        mbe = 0.01
+        mbp = 0.01
+        for _ in range(15):
             mart = mc + N * mmot + mp + mad + mbat
             mtot = mart + mcarga
             mres = mtot - mflot
@@ -183,7 +198,9 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
                 (Ttot ** 1.5) / math.sqrt(2.0 * rho1 * N * Ap) + FX * v
             )
             Ereq = (Pelec * tm) / 3600.0
-            nuevo_mbat = Ereq / (ebat * DoD * ntemp)
+            mbe = Ereq / (ebat * DoD * ntemp)
+            mbp = Pelec / (ebat * Cmax * ntemp)
+            nuevo_mbat = (mbe ** 6 + mbp ** 6) ** (1.0 / 6.0)
             if abs(nuevo_mbat - mbat) < 1e-9:
                 mbat = nuevo_mbat
                 break
@@ -193,12 +210,22 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
             return None
 
         celec = Ereq / dm
-        Etot = Em + 3600.0 * Ereq
+        Eelec = 3600.0 * Ereq
+        Etot = Eprop + Eelec
         ctot = Etot / dm
         theta = math.degrees(math.atan2(FX, FL)) if FL > 0 else 90.0
         cap_sq = (N * Tmax1) ** 2 - FX ** 2
         FLmax = math.sqrt(cap_sq) if cap_sq > 0 else 0.0
         Fexc = F + FLmax - mtot * g
+        dPelec = Pmax - Pelec
+        dTtot = N * Tmax1 - Ttot
+        valido = (
+            (mbat <= mbmax)
+            and (theta <= thmax)
+            and (Pelec <= Pmax)
+            and (Ttot <= N * Tmax1)
+            and (Fexc >= 0.0)
+        )
 
         return {
             "lam": lam,
@@ -221,13 +248,17 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
             "Qc": Qc,
             "mgc": mgc,
             "v": v,
+            "vv": vv,
+            "vg": vg,
             "dm": dm,
             "tm": tm,
             "Em0": Em0,
             "Em": Em,
             "Eah": Eah,
+            "Eprop": Eprop,
             "mgm": mgm,
             "FD": FD,
+            "ED": ED,
             "mart": mart,
             "mtot": mtot,
             "mflot": mflot,
@@ -235,15 +266,23 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
             "FL": FL,
             "FX": FX,
             "Ttot": Ttot,
+            "dTtot": dTtot,
             "theta": theta,
             "FLmax": FLmax,
             "Fexc": Fexc,
+            "nprop": nprop,
             "Pelec": Pelec,
+            "Pmax": Pmax,
+            "dPelec": dPelec,
             "Ereq": Ereq,
-            "Eelec_J": 3600.0 * Ereq,
+            "Eelec": Eelec,
+            "Eelec_J": Eelec,
             "Etot": Etot,
             "ctot": ctot,
+            "mbe": mbe,
+            "mbp": mbp,
             "mbat": mbat,
+            "valido": valido,
         }
     except (ValueError, ZeroDivisionError, OverflowError):
         return None
@@ -299,40 +338,45 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     xs_lam = _linspace(lam_min, lam_max, 45, incluir=lam_actual)
     pts_lam = [p for x in xs_lam if (p := simular_punto(valores, lam=x)) is not None]
 
-    # Encontrar el punto de mínima energía total en el barrido de esbeltez
-    opt_lam = min(pts_lam, key=lambda d: d["Etot"]) if pts_lam else None
+    # Encontrar el punto de mínima energía total físicamente válido (límites de motor y batería)
+    pts_lam_validos = [p for p in pts_lam if p["valido"]]
+    opt_lam = min(pts_lam_validos, key=lambda d: d["Etot"]) if pts_lam_validos else None
 
     grafica_esbeltez = {
         "id": "esbeltez",
         "indice": 1,
-        "titulo": "Esbeltez (λ) vs. Energía Total y Dimensiones (L, D)",
-        "titulo_corto": "Esbeltez vs. Energía y Casco",
+        "titulo": "Esbeltez (λ) vs. Energías de Misión y Dimensiones/Masa (L, D, mtot)",
+        "titulo_corto": "Esbeltez vs. Energías y Casco",
         "subtitulo": (
-            "Cómo varía la Energía Total Consumida (térmica + eléctrica), la Masa Total y "
-            "la Geometría del Dirigible (Longitud L y Diámetro máximo D) respecto a la Relación de Esbeltez (λ = L/D)."
+            "Todas las series del Panel A están en la misma unidad de energía total (kJ): Energía suministrada por propano (Eprop), "
+            "Energía calorífica perdida (Em), Energía eléctrica usada en misión (Eelec) y Energía perdida por arrastre aerodinámico (ED). "
+            "El Panel B compara Longitud (L), Diámetro máximo (D) y Masa total (mtot) frente a la Relación de Esbeltez (λ = L/D)."
         ),
-        "variables": vars_meta(["lam", "L", "D", "R", "Etot", "mtot", "Em", "Ereq", "FD"]),
+        "variables": vars_meta(["lam", "v", "vv", "vg", "Eprop", "Em", "Eelec", "ED", "Etot", "Pelec", "Pmax", "mbat", "ncal", "L", "D", "mtot", "mres", "FD"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": "A. Relación de Esbeltez (λ) vs. Energía Consumida Total y Masa Total",
+                "titulo": "A. Relación de Esbeltez (λ) vs. Energías Totales de Misión (kJ)",
                 "x_label": "Relación de esbeltez λ = L/D (adim)",
                 "x_actual": lam_actual,
                 "x_optimo": opt_lam["lam"] if opt_lam else None,
-                "x_optimo_label": f"Mín. Etot (λ={opt_lam['lam']:.2f})" if opt_lam else "",
-                "y1_label": "Energía en misión (kJ)",
-                "y2_label": "Energía eléctrica (kJ) / Masa total (kg)",
+                "x_optimo_label": f"Mín. Etot válido (λ={opt_lam['lam']:.2f})" if opt_lam else "",
+                "permitir_escala_unica": True,
+                "escala_unica_inicial": False,
+                "y1_label": "Energías térmicas: Eprop y Em (kJ)",
+                "y2_label": "Energías eléctrica y arrastre: Eelec y ED (kJ)",
+                "y_unica_label": "Energía total en misión (kJ) — misma escala",
                 "xs": [round(p["lam"], 4) for p in pts_lam],
                 "series": [
                     {
-                        "nombre": "Energía total consumida (Etot)",
+                        "nombre": "Energía suministrada por propano (Eprop)",
                         "unidad": "kJ",
                         "eje": "y1",
                         "color": "#38bdf8",
-                        "valores": [round(p["Etot"] / 1000.0, 3) for p in pts_lam],
+                        "valores": [round(p["Eprop"] / 1000.0, 3) for p in pts_lam],
                     },
                     {
-                        "nombre": "Energía térmica perdida (Em)",
+                        "nombre": "Energía calorífica perdida (Em)",
                         "unidad": "kJ",
                         "eje": "y1",
                         "color": "#f97316",
@@ -340,28 +384,28 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["Em"] / 1000.0, 3) for p in pts_lam],
                     },
                     {
-                        "nombre": "Energía eléctrica motores (3600·Ereq)",
+                        "nombre": "Energía eléctrica usada en misión (Eelec)",
                         "unidad": "kJ",
                         "eje": "y2",
                         "color": "#facc15",
-                        "valores": [round(p["Eelec_J"] / 1000.0, 3) for p in pts_lam],
+                        "valores": [round(p["Eelec"] / 1000.0, 3) for p in pts_lam],
                     },
                     {
-                        "nombre": "Masa total del dirigible (mtot)",
-                        "unidad": "kg",
+                        "nombre": "Energía perdida por arrastre aerodinámico (ED)",
+                        "unidad": "kJ",
                         "eje": "y2",
-                        "color": "#4ade80",
-                        "valores": [round(p["mtot"], 4) for p in pts_lam],
+                        "color": "#f87171",
+                        "valores": [round(p["ED"] / 1000.0, 3) for p in pts_lam],
                     },
                 ],
             },
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": "B. Relación de Esbeltez (λ) vs. Longitud (L), Diámetro Máximo (D) y Arrastre (FD)",
+                "titulo": "B. Relación de Esbeltez (λ) vs. Longitud (L), Diámetro Máximo (D) y Masa Total (mtot)",
                 "x_label": "Relación de esbeltez λ = L/D (adim)",
                 "x_actual": lam_actual,
                 "y1_label": "Dimensiones del casco: L y D (m)",
-                "y2_label": "Resistencia aerodinámica FD (N)",
+                "y2_label": "Masa total del dirigible mtot (kg)",
                 "xs": [round(p["lam"], 4) for p in pts_lam],
                 "series": [
                     {
@@ -379,11 +423,11 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["D"], 3) for p in pts_lam],
                     },
                     {
-                        "nombre": "Fuerza de arrastre aerodinámico (FD)",
-                        "unidad": "N",
+                        "nombre": "Masa total del dirigible (mtot)",
+                        "unidad": "kg",
                         "eje": "y2",
-                        "color": "#f87171",
-                        "valores": [round(p["FD"], 3) for p in pts_lam],
+                        "color": "#4ade80",
+                        "valores": [round(p["mtot"], 4) for p in pts_lam],
                     },
                 ],
             },
@@ -410,7 +454,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Comparación directa de la Carga de Sustentación (mflot vs. mres) y de la Fuerza Vertical "
             "ejercida por cada fuente (F del aire caliente vs. FL de los 4 motores) junto con la Masa Total."
         ),
-        "variables": vars_meta(["mflot", "mres", "mtot", "F", "FL", "FLmax", "Fexc", "Etot"]),
+        "variables": vars_meta(["mflot", "mres", "mtot", "mbat", "mbe", "mbp", "F", "FL", "FLmax", "Fexc", "Pelec", "Pmax", "Etot"]),
         "paneles": [
             {
                 "tipo": "barras_comparativas",
@@ -474,11 +518,11 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             },
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": "B. Variación de Fuerzas (F, FL), Carga de Motores (mres) y Masa Total (mtot) según mflot",
+                "titulo": "B. Variación de Fuerzas (F, FL), Carga de Motores (mres), Batería (mbat) y Masa Total (mtot) según mflot",
                 "x_label": "Carga de sustentación destinada al aire caliente mflot (kg)",
                 "x_actual": mflot_actual,
                 "y1_label": "Fuerza vertical de sustentación (N)",
-                "y2_label": "Masas: mres y mtot (kg)",
+                "y2_label": "Masas: mres, mbat y mtot (kg)",
                 "xs": [round(p["mflot"], 4) for p in pts_mflot],
                 "series": [
                     {
@@ -503,6 +547,13 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["mres"], 4) for p in pts_mflot],
                     },
                     {
+                        "nombre": "Masa de batería requerida (mbat)",
+                        "unidad": "kg",
+                        "eje": "y2",
+                        "color": "#f472b6",
+                        "valores": [round(p["mbat"], 4) for p in pts_mflot],
+                    },
+                    {
                         "nombre": "Masa Total del Dirigible (mtot)",
                         "unidad": "kg",
                         "eje": "y2",
@@ -525,30 +576,36 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     pts_dm = [p for x in xs_dm if (p := simular_punto(valores, dm=x)) is not None]
 
     v_actual = valores["v"]
-    xs_v = _linspace(1.5, 9.0, 42, incluir=v_actual)
+    vv_actual = max(0.0, valores.get("vv", 0.0))
+    vpitch_actual = valores["vpitch"]
+    v_min = max(0.8, vv_actual + 0.35)
+    v_max_techo = max(min(vpitch_actual * 0.85, max(9.0, v_actual + 2.5)), min(vpitch_actual * 0.96, v_actual))
+    v_max = v_max_techo if v_max_techo > v_min + 0.3 else min(vpitch_actual * 0.96, v_min + 1.5)
+    xs_v = _linspace(v_min, v_max, 42, incluir=v_actual)
     pts_v = [p for x in xs_v if (p := simular_punto(valores, v=x)) is not None]
-    opt_v = min(pts_v, key=lambda d: d["Etot"]) if pts_v else None
+    pts_v_validos = [p for p in pts_v if p["valido"]]
+    opt_v = min(pts_v_validos, key=lambda d: d["Etot"]) if pts_v_validos else None
 
     grafica_distancia = {
         "id": "distancia_tiempo",
         "indice": 3,
-        "titulo": "Distancia (dm) y Tiempo de Vuelo (tm) vs. Energía Total y Propano",
+        "titulo": "Distancia (dm) y Tiempo de Vuelo (tm) vs. Energía Total, Propano y Batería",
         "titulo_corto": "Distancia y Tiempo de Vuelo",
         "subtitulo": (
-            "Cómo escalan el Tiempo de Vuelo (tm), la Energía Consumida en Total (Etot) y la Masa de Propano "
-            "necesaria (mgm) con la Distancia (dm), y el compromiso velocidad/tiempo para cubrir la distancia fija."
+            "Cómo escalan Tiempo de Vuelo (tm), Energía Total (Etot), Propano (mgm) y Batería (mbat) con la Distancia (dm), "
+            "y el compromiso velocidad/viento en contra (vg = v - vv) considerando la caída de nprop hacia vpitch y los límites de motor y batería."
         ),
-        "variables": vars_meta(["dm", "tm", "v", "Etot", "mgm", "mtot", "ctot", "Em", "Ereq"]),
+        "variables": vars_meta(["dm", "tm", "v", "vv", "vg", "nprop", "vpitch", "Etot", "mgm", "mbat", "mbe", "mbp", "mtot", "Pelec", "Pmax", "Ttot", "dTtot", "theta", "ctot", "Em", "Ereq"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": "A. Distancia a Recorrer (dm) vs. Tiempo de Vuelo (tm), Energía Total (Etot) y Propano (mgm)",
+                "titulo": "A. Distancia a Recorrer (dm) vs. Tiempo (tm), Energía Total (Etot), Propano (mgm) y Batería (mbat)",
                 "x_label": "Distancia de misión dm (m)",
                 "x_actual": dm_actual,
                 "x_optimo": 240.0,
                 "x_optimo_label": "Base 240 m",
                 "y1_label": "Energía total Etot (kJ) / Tiempo tm (s)",
-                "y2_label": "Masa de propano mgm (g) / Masa total mtot (kg)",
+                "y2_label": "Propano mgm y Batería mbat (g) / Masa total (kg)",
                 "xs": [round(p["dm"], 2) for p in pts_dm],
                 "series": [
                     {
@@ -574,6 +631,13 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["mgm"] * 1000.0, 3) for p in pts_dm],
                     },
                     {
+                        "nombre": "Masa de batería requerida (mbat)",
+                        "unidad": "g",
+                        "eje": "y2",
+                        "color": "#f472b6",
+                        "valores": [round(p["mbat"] * 1000.0, 3) for p in pts_dm],
+                    },
+                    {
                         "nombre": "Masa total del dirigible (mtot)",
                         "unidad": "kg",
                         "eje": "y2",
@@ -584,11 +648,11 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             },
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": f"B. Efecto de la Velocidad (v) y Tiempo de Vuelo (tm = dm/v) para recorrer dm = {dm_actual:.0f} m",
-                "x_label": "Velocidad de crucero v (m/s)  [← más tiempo tm | menos tiempo tm →]",
+                "titulo": f"B. Velocidad (v) vs. Tiempo (tm = dm/(v - vv)) con viento en contra vv = {vv_actual:.1f} m/s",
+                "x_label": "Velocidad relativa al aire v (m/s)  [← más tiempo tm | menos tiempo tm →]",
                 "x_actual": v_actual,
                 "x_optimo": opt_v["v"] if opt_v else None,
-                "x_optimo_label": f"Mín. Etot (v={opt_v['v']:.2f} m/s)" if opt_v else "",
+                "x_optimo_label": f"Mín. Etot válido (v={opt_v['v']:.2f} m/s)" if opt_v else "",
                 "y1_label": "Energías en misión: Etot y Em (kJ)",
                 "y2_label": "Tiempo de vuelo tm (s) / Energía eléc. (kJ)",
                 "xs": [round(p["v"], 3) for p in pts_v],
@@ -756,7 +820,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Evolución acumulada a lo largo del Tiempo de Vuelo (tm) de la Energía Perdida, la Energía Ahorrada "
             "gracias al aislante, la Energía Total Consumida y la Masa de Propano necesaria (con eficiencia ncal)."
         ),
-        "variables": vars_meta(["mgm", "ncal", "fcal", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "tm", "dm"]),
+        "variables": vars_meta(["mgm", "ncal", "fcal", "Eprop", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "mbat", "mbe", "mbp", "mbmax", "dmbat", "Pelec", "Pmax", "tm", "dm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
@@ -794,7 +858,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "unidad": "kJ",
                         "eje": "y1",
                         "color": "#38bdf8",
-                        "valores": [round(((qp_w + pelec_w) * t) / 1000.0, 3) for t in ts_vuelo],
+                        "valores": [round((((qp_w / valores["ncal"]) + pelec_w) * t) / 1000.0, 3) for t in ts_vuelo],
                     },
                     {
                         "nombre": "Masa de propano consumida (mgm)",
@@ -807,7 +871,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             },
             {
                 "tipo": "barras_comparativas",
-                "titulo": "B. Resumen Comparativo de Energías de Misión (kJ) y Masa de Propano (g)",
+                "titulo": "B. Resumen Comparativo de Energías de Misión (kJ) y Masas de Propano/Batería (g)",
                 "grupos": [
                     {
                         "subtitulo": "Comparativa de Energías en la Misión (kJ)",
@@ -835,16 +899,23 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                                 "detalle": f"Qp = {valores['Qp']:.1f} W",
                             },
                             {
+                                "etiqueta": "Suministrada por Propano (Eprop)",
+                                "codigo": "Eprop",
+                                "valor": round(valores["Eprop"] / 1000.0, 3),
+                                "color": "#a78bfa",
+                                "detalle": f"Em / ncal (ncal = {valores['ncal']:.2f})",
+                            },
+                            {
                                 "etiqueta": "Total Consumida (Etot)",
                                 "codigo": "Etot",
                                 "valor": round(valores["Etot"] / 1000.0, 3),
                                 "color": "#38bdf8",
-                                "detalle": f"Em + {valores['Ereq']:.2f} Wh eléc.",
+                                "detalle": f"Eprop + {valores['Eelec'] / 1000.0:.2f} kJ eléc.",
                             },
                         ],
                     },
                     {
-                        "subtitulo": "Masa de Propano Requerida vs. Disponible (g)",
+                        "subtitulo": "Masas de Propano y Batería: Requerida vs. Límite (g)",
                         "unidad": "g",
                         "barras": [
                             {
@@ -867,6 +938,20 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                                 "valor": round(valores["mp"] * 1000.0, 3),
                                 "color": "#4ade80",
                                 "detalle": f"Autonomía térmica x{(valores['mp'] / max(1e-9, valores['mgm'])):.1f} vuelos",
+                            },
+                            {
+                                "etiqueta": "Batería requerida (mbat)",
+                                "codigo": "mbat",
+                                "valor": round(valores["mbat"] * 1000.0, 3),
+                                "color": "#f472b6",
+                                "detalle": f"Energía: {valores['mbe'] * 1000.0:.1f} g | Potencia: {valores['mbp'] * 1000.0:.1f} g",
+                            },
+                            {
+                                "etiqueta": "Límite máximo batería (mbmax)",
+                                "codigo": "mbmax",
+                                "valor": round(valores["mbmax"] * 1000.0, 3),
+                                "color": "#94a3b8",
+                                "detalle": f"Margen dmbat = {valores['dmbat'] * 1000.0:.1f} g",
                             },
                         ],
                     },

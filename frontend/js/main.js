@@ -9,19 +9,19 @@ import {
   fetchDetalleVariable,
   postModificar,
   postReiniciar,
-} from "./api.js?v=4";
-import { store } from "./state.js?v=4";
+} from "./api.js?v=5";
+import { store } from "./state.js?v=5";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=4";
-import { renderizarPanelEcuaciones } from "./components/equations.js?v=4";
-import { renderizarPanelGraficas } from "./components/charts.js?v=4";
+} from "./components/sidebar.js?v=5";
+import { renderizarPanelEcuaciones } from "./components/equations.js?v=5";
+import { renderizarPanelGraficas } from "./components/charts.js?v=5";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=4";
+} from "./components/varInput.js?v=5";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");

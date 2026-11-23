@@ -45,6 +45,33 @@ function crearPanelLineasDobleEje(panel) {
   const titleBar = document.createElement("div");
   titleBar.className = "chart-subpanel-header";
   titleBar.innerHTML = `<h4 class="chart-subpanel-title">${panel.titulo}</h4>`;
+
+  let escalaUnica = Boolean(panel.escala_unica_inicial);
+  const axisTags = [];
+
+  if (panel.permitir_escala_unica) {
+    const scaleBtn = document.createElement("button");
+    scaleBtn.type = "button";
+    scaleBtn.className = `chart-scale-toggle-btn ${escalaUnica ? "active" : ""}`;
+    const actualizarTextoEscala = () => {
+      scaleBtn.textContent = escalaUnica
+        ? "⇄ Escala detallada (Izq./Der.)"
+        : "⇄ Misma escala (comparar magnitudes)";
+      scaleBtn.title = escalaUnica
+        ? "Volver a ejes separados (Izq./Der.) para ver mejor la forma de las curvas menores"
+        : "Mostrar todas las energías en un único eje Y desde 0 kJ para comparar magnitudes reales";
+      axisTags.forEach((tag) => tag.classList.toggle("hidden", escalaUnica));
+    };
+    actualizarTextoEscala();
+    scaleBtn.addEventListener("click", () => {
+      escalaUnica = !escalaUnica;
+      scaleBtn.classList.toggle("active", escalaUnica);
+      actualizarTextoEscala();
+      dibujarSvg();
+    });
+    titleBar.appendChild(scaleBtn);
+  }
+
   card.appendChild(titleBar);
 
   // Leyenda interactiva + barra de lectura en vivo al pasar el ratón
@@ -63,10 +90,17 @@ function crearPanelLineasDobleEje(panel) {
   function dibujarSvg() {
     svgWrapper.innerHTML = "";
 
+    const seriesY1 = escalaUnica
+      ? panel.series.filter((_, idx) => seriesVisibles[idx])
+      : panel.series.filter((s, idx) => s.eje === "y1" && seriesVisibles[idx]);
+    const seriesY2 = escalaUnica
+      ? []
+      : panel.series.filter((s, idx) => s.eje === "y2" && seriesVisibles[idx]);
+
     const W = 820;
     const H = 370;
     const padL = 68;
-    const padR = 68;
+    const padR = !escalaUnica && seriesY2.length > 0 ? 68 : 28;
     const padT = 26;
     const padB = 50;
     const plotW = W - padL - padR;
@@ -89,11 +123,7 @@ function crearPanelLineasDobleEje(panel) {
     const xSpan = Math.max(1e-9, xMax - xMin);
     const toX = (x) => padL + ((x - xMin) / xSpan) * plotW;
 
-    // Calcular rangos de eje izquierdo (y1) y eje derecho (y2)
-    const seriesY1 = panel.series.filter((s, idx) => s.eje === "y1" && seriesVisibles[idx]);
-    const seriesY2 = panel.series.filter((s, idx) => s.eje === "y2" && seriesVisibles[idx]);
-
-    function rangoEje(listaSeries) {
+    function rangoEje(listaSeries, forzarCero = false) {
       if (!listaSeries.length) return [0, 1];
       let minV = Infinity;
       let maxV = -Infinity;
@@ -106,16 +136,19 @@ function crearPanelLineasDobleEje(panel) {
         }
       }
       if (!Number.isFinite(minV) || !Number.isFinite(maxV)) return [0, 1];
+      if (forzarCero && minV > 0) {
+        minV = 0;
+      }
       if (Math.abs(maxV - minV) < 1e-9) {
         const delta = Math.max(1, Math.abs(maxV) * 0.1);
         return [minV - delta, maxV + delta];
       }
       const pad = (maxV - minV) * 0.08;
-      return [minV - pad * 0.5, maxV + pad];
+      return [forzarCero && minV === 0 ? 0 : minV - pad * 0.5, maxV + pad];
     }
 
-    const [y1Min, y1Max] = rangoEje(seriesY1);
-    const [y2Min, y2Max] = rangoEje(seriesY2);
+    const [y1Min, y1Max] = rangoEje(seriesY1, escalaUnica);
+    const [y2Min, y2Max] = rangoEje(seriesY2, false);
 
     const toY1 = (v) => padT + plotH - ((v - y1Min) / Math.max(1e-9, y1Max - y1Min)) * plotH;
     const toY2 = (v) => padT + plotH - ((v - y2Min) / Math.max(1e-9, y2Max - y2Min)) * plotH;
@@ -158,7 +191,7 @@ function crearPanelLineasDobleEje(panel) {
           x: padL - 8,
           y: yPos + 4,
           "text-anchor": "end",
-          fill: seriesY1[0].color || "#cbd5e1",
+          fill: escalaUnica ? "#cbd5e1" : seriesY1[0].color || "#cbd5e1",
           "font-size": "11",
           "font-family": "monospace",
         });
@@ -224,21 +257,22 @@ function crearPanelLineasDobleEje(panel) {
     lblX.textContent = panel.x_label || "";
     svg.appendChild(lblX);
 
-    if (panel.y1_label) {
+    const y1Titulo = escalaUnica && panel.y_unica_label ? panel.y_unica_label : panel.y1_label;
+    if (y1Titulo) {
       const lblY1 = crearSvgEl("text", {
         x: 15,
         y: padT + plotH / 2,
         "text-anchor": "middle",
-        fill: seriesY1[0]?.color || "#38bdf8",
+        fill: escalaUnica ? "#e2e8f0" : seriesY1[0]?.color || "#38bdf8",
         "font-size": "11.5",
         "font-weight": "600",
         transform: `rotate(-90, 15, ${padT + plotH / 2})`,
       });
-      lblY1.textContent = `◀ ${panel.y1_label}`;
+      lblY1.textContent = escalaUnica ? y1Titulo : `◀ ${y1Titulo}`;
       svg.appendChild(lblY1);
     }
 
-    if (panel.y2_label) {
+    if (!escalaUnica && panel.y2_label && seriesY2.length > 0) {
       const lblY2 = crearSvgEl("text", {
         x: W - 12,
         y: padT + plotH / 2,
@@ -330,7 +364,7 @@ function crearPanelLineasDobleEje(panel) {
     // Trazado de cada serie de curvas
     panel.series.forEach((serie, sIdx) => {
       if (!seriesVisibles[sIdx]) return;
-      const toY = serie.eje === "y2" ? toY2 : toY1;
+      const toY = !escalaUnica && serie.eje === "y2" ? toY2 : toY1;
       const ptsStr = serie.valores
         .map((val, i) => `${toX(xs[i]).toFixed(1)},${toY(val).toFixed(1)}`)
         .join(" ");
@@ -432,7 +466,7 @@ function crearPanelLineasDobleEje(panel) {
           return;
         }
         const val = serie.valores[bestI];
-        const toY = serie.eje === "y2" ? toY2 : toY1;
+        const toY = !escalaUnica && serie.eje === "y2" ? toY2 : toY1;
         hoverDots[sIdx].setAttribute("cx", String(snapX));
         hoverDots[sIdx].setAttribute("cy", String(toY(val)));
         hoverDots[sIdx].setAttribute("visibility", "visible");
@@ -463,6 +497,11 @@ function crearPanelLineasDobleEje(panel) {
       <span>${serie.nombre} (${serie.unidad})</span>
       <span class="chart-legend-axis-tag">${serie.eje === "y2" ? "Eje Der." : "Eje Izq."}</span>
     `;
+    const tagEl = pill.querySelector(".chart-legend-axis-tag");
+    if (tagEl) {
+      tagEl.classList.toggle("hidden", escalaUnica);
+      axisTags.push(tagEl);
+    }
     pill.addEventListener("click", () => {
       seriesVisibles[idx] = !seriesVisibles[idx];
       pill.classList.toggle("active", seriesVisibles[idx]);

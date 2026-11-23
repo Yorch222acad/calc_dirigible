@@ -8,7 +8,8 @@ Para ampliar el programa solo hay que:
   4. Si la variable es un dato de entrada, incluirla en FIJAS_INI
      (regla: nº de variables calculadas == nº de ecuaciones independientes).
 """
-from itertools import combinations
+from collections.abc import Callable
+import math
 import sympy as sp
 
 # =============================================================
@@ -97,9 +98,12 @@ VARIABLES = {
     "Em0":    ("Energía perdida sin aislante en misión", "J",           None),
     "Em":     ("Energía térmica perdida en misión",      "J",           None),
     "Eah":    ("Energía ahorrada gracias al aislante",   "J",           None),
+    "Eprop":  ("Energía suministrada por propano en misión", "J",       None),
     "mgm":    ("Masa de GLP consumida en misión",        "kg",          None),
     # Resistencia aerodinámica en el desplazamiento (arrastre)
     "v":      ("Velocidad relativa al aire",             "m/s",         4.5),
+    "vv":     ("Velocidad del viento en contra",         "m/s",         2.5),
+    "vg":     ("Velocidad neta respecto al suelo (v-vv)","m/s",         None),
     "dm":     ("Distancia de misión a recorrer",         "m",           280.0),
     "mu":     ("Viscosidad dinámica del aire",           "Pa·s",        1.75e-5),
     "ReL":    ("Número de Reynolds longitudinal",        "adim",        None),
@@ -108,6 +112,7 @@ VARIABLES = {
     "kp":     ("Factor de penalización parásita",        "adim",        1.4),
     "CDV":    ("Coef. de resistencia volumétrico",       "adim",        None),
     "FD":     ("Fuerza de resistencia aerodinámica",     "N",           None),
+    "ED":     ("Energía perdida por resistencia aerodinámica", "J",     None),
     # Masas y balance de peso del dirigible híbrido
     "N":      ("Número de motores activos",              "adim",        4.0),
     "mmot":   ("Masa de cada motor A2212 (1000KV)",      "kg",          0.047),
@@ -133,24 +138,34 @@ VARIABLES = {
     "thmax":  ("Ángulo máximo de rotación admisible",    "°",           75.0),
     "dth":    ("Margen de ángulo de rotación",           "°",           None),
     "Tmax1":  ("Empuje máximo por motor A2212",          "N",           5.5),
+    "dTtot":  ("Margen de empuje de los 4 motores",      "N",           None),
     "FLmax":  ("Sustentación vertical máx. de motores",  "N",           None),
     "Fexc":   ("Excedente de sustentación total",        "N",           None),
     "dp":     ("Diámetro de cada hélice (10 pulg)",      "m",           0.254),
     "Ap":     ("Área de disco barrida por hélice",       "m²",          None),
-    "nprop":  ("Eficiencia aerodinámica de hélice",      "adim",        0.60),
+    "nprop0": ("Eficiencia máx. de hélice (estática)",   "adim",        0.60),
+    "vpitch": ("Velocidad de paso nulo de hélice",       "m/s",         14.0),
+    "nprop":  ("Eficiencia aerodinámica de hélice",      "adim",        None),
     "nm":     ("Eficiencia electromecánica A2212",       "adim",        0.78),
     "nESC":   ("Eficiencia de variadores ESC",           "adim",        0.95),
     "ntot":   ("Eficiencia propulsiva global",           "adim",        None),
     "km":     ("Factor de margen de control/maniobra",   "adim",        1.20),
     "Pelec":  ("Potencia eléctrica de los 4 motores",    "W",           None),
+    "Pmax1":  ("Potencia eléctrica máx. continua/motor", "W",           160.0),
+    "Pmax":   ("Potencia eléctrica máx. de 4 motores",   "W",           None),
+    "dPelec": ("Margen de potencia eléctrica motores",   "W",           None),
     # Batería requerida, distancia y coste energético de misión
     "Ereq":   ("Energía eléctrica requerida en misión",  "Wh",          None),
+    "Eelec":  ("Energía eléctrica total usada en misión","J",           None),
     "celec":  ("Coste energético eléctrico por metro",   "Wh/m",        None),
     "Etot":   ("Energía total en misión (eléc. + GLP)",  "J",           None),
     "ctot":   ("Coste energético total por metro",       "J/m",         None),
     "ebat":   ("Energía específica de batería",          "Wh/kg",       150.0),
     "DoD":    ("Profundidad de descarga máxima (DoD)",   "adim",        0.80),
     "ntemp":  ("Factor de derateo térmico de batería",   "adim",        0.92),
+    "Cmax":   ("Tasa máx. de descarga continua batería", "h⁻¹",         10.0),
+    "mbe":    ("Masa de batería por energía requerida",  "kg",          None),
+    "mbp":    ("Masa de batería por potencia pico",      "kg",          None),
     "mbat":   ("Masa de batería requerida",              "kg",          None),
     "mbmax":  ("Masa máxima admisible de batería",       "kg",          1.0),
     "dmbat":  ("Margen de masa de batería",              "kg",          None),
@@ -177,6 +192,7 @@ UNIDAD_NOMBRE = {
     "K/s":      "grados Kelvin por segundo",
     "s":        "segundos",
     "K⁻¹":      "inverso de grado Kelvin",
+    "h⁻¹":      "inverso de hora (tasa C)",
     "m²/s":     "metros cuadrados por segundo",
     "kg/m²":    "kilogramos por metro cuadrado",
     "J/kg":     "Joules por kilogramo",
@@ -189,8 +205,8 @@ UNIDAD_NOMBRE = {
     "J/m":      "Joules por metro",
 }
 
-# Variables de entrada al iniciar (121 variables - 72 ecuaciones = 49 fijas)
-# Se fijan dm (distancia de misión) y mflot (carga aire caliente); U0, tm, mbat y mres se despejan automáticamente.
+# Variables de entrada al iniciar (139 variables - 86 ecuaciones = 53 fijas)
+# Se fijan dm (distancia de misión), vv (viento en contra) y mflot (carga aire caliente); vg, U0, tm, mbat y mres se despejan automáticamente.
 FIJAS_INI = [
     "P1", "T1", "R1", "P2", "T2", "R2",
     "lam", "xf",
@@ -198,10 +214,10 @@ FIJAS_INI = [
     "e", "W", "ep", "ke", "fcal", "beta", "nu", "alpha", "Rac", "ka", "sigma",
     "dTc",
     "PC", "ncal",
-    "v", "dm", "mu", "kp",
+    "v", "vv", "dm", "mu", "kp",
     "N", "mmot", "mp", "mad", "mcarga", "mflot", "fap",
-    "vz", "vx", "ta", "thmax", "Tmax1", "dp", "nprop", "nm", "nESC", "km",
-    "ebat", "DoD", "ntemp", "mbmax",
+    "vz", "vx", "ta", "thmax", "Tmax1", "dp", "nprop0", "vpitch", "nm", "nESC", "km", "Pmax1",
+    "ebat", "DoD", "ntemp", "Cmax", "mbmax",
 ]
 
 # Variables que físicamente deben ser estrictamente positivas
@@ -216,12 +232,12 @@ POSITIVAS = {
     "dTcel", "Rae", "Rac", "Nuc", "ka", "U",
     "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
     "vT", "dTc", "Qc", "tc",
-    "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "mgm",
-    "v", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD",
+    "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "Eprop", "mgm",
+    "v", "vg", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD", "ED",
     "N", "mmot", "mp", "mad", "mart", "mcarga", "mtot", "mflot", "mres", "fap", "map",
     "vz", "vx", "ta", "az", "ax", "FL", "FX", "Ttot", "theta", "thmax",
-    "Tmax1", "FLmax", "dp", "Ap", "nprop", "nm", "nESC", "ntot", "km", "Pelec",
-    "Ereq", "celec", "Etot", "ctot", "ebat", "DoD", "ntemp", "mbat", "mbmax",
+    "Tmax1", "FLmax", "dp", "Ap", "nprop0", "vpitch", "nprop", "nm", "nESC", "ntot", "km", "Pelec", "Pmax1", "Pmax",
+    "Ereq", "Eelec", "celec", "Etot", "ctot", "ebat", "DoD", "ntemp", "Cmax", "mbe", "mbp", "mbat", "mbmax",
 }
 
 # Unidad para notación de ingeniería: nombre -> (unidad prefijable, resto, factor)
@@ -290,9 +306,12 @@ UNIDAD_ING = {
     "Em0":    ("J", "", 1),
     "Em":     ("J", "", 1),
     "Eah":    ("J", "", 1),
+    "Eprop":  ("J", "", 1),
     "mgm":    ("g", "", 1000),
     # Resistencia aerodinámica
     "v":      ("m", "/s", 1),
+    "vv":     ("m", "/s", 1),
+    "vg":     ("m", "/s", 1),
     "dm":     ("m", "", 1),
     "mu":     ("Pa·s", "", 1),
     "ReL":    ("adim", "", 1),
@@ -301,6 +320,7 @@ UNIDAD_ING = {
     "kp":     (None, "adim", 1),
     "CDV":    ("adim", "", 1),
     "FD":     ("N", "", 1),
+    "ED":     ("J", "", 1),
     # Masas y balance de peso
     "N":      (None, "adim", 1),
     "mmot":   ("g", "", 1000),
@@ -326,24 +346,34 @@ UNIDAD_ING = {
     "thmax":  (None, "°", 1),
     "dth":    (None, "°", 1),
     "Tmax1":  ("N", "", 1),
+    "dTtot":  ("N", "", 1),
     "FLmax":  ("N", "", 1),
     "Fexc":   ("N", "", 1),
     "dp":     ("m", "", 1),
     "Ap":     ("m²", "", 1),
+    "nprop0": (None, "adim", 1),
+    "vpitch": ("m", "/s", 1),
     "nprop":  (None, "adim", 1),
     "nm":     (None, "adim", 1),
     "nESC":   (None, "adim", 1),
     "ntot":   (None, "adim", 1),
     "km":     (None, "adim", 1),
     "Pelec":  ("W", "", 1),
+    "Pmax1":  ("W", "", 1),
+    "Pmax":   ("W", "", 1),
+    "dPelec": ("W", "", 1),
     # Batería, distancia y coste energético
     "Ereq":   ("Wh", "", 1),
+    "Eelec":  ("J", "", 1),
     "celec":  ("Wh", "/m", 1),
     "Etot":   ("J", "", 1),
     "ctot":   ("J", "/m", 1),
     "ebat":   ("Wh", "/kg", 1),
     "DoD":    (None, "adim", 1),
     "ntemp":  (None, "adim", 1),
+    "Cmax":   (None, "h⁻¹", 1),
+    "mbe":    ("g", "", 1000),
+    "mbp":    ("g", "", 1000),
     "mbat":   ("g", "", 1000),
     "mbmax":  ("g", "", 1000),
     "dmbat":  ("g", "", 1000),
@@ -467,15 +497,19 @@ CATEGORIAS = {
         "Tiempo de enfriamiento sin aporte": sp.Eq(S["tc"], S["Qc"] / S["Qp"]),
     },
     "Quemador de propano/butano (compensación térmica)": {
-        "Masa de gas para recuperar caída dTc":     sp.Eq(S["mgc"], S["Qc"] / (S["ncal"] * S["PC"])),
-        "Energía perdida sin aislante en misión":   sp.Eq(S["Em0"], S["Qp0"] * S["tm"]),
-        "Energía perdida con aislante en misión":   sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
-        "Energía ahorrada gracias al aislante":     sp.Eq(S["Eah"], S["dQp"] * S["tm"]),
-        "Masa de gas para mantener T en misión":    sp.Eq(S["mgm"], S["Em"] / (S["ncal"] * S["PC"])),
+        "Masa de gas para recuperar caída dTc":          sp.Eq(S["mgc"], S["Qc"] / (S["ncal"] * S["PC"])),
+        "Energía perdida sin aislante en misión":        sp.Eq(S["Em0"], S["Qp0"] * S["tm"]),
+        "Energía perdida con aislante en misión":        sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
+        "Energía ahorrada gracias al aislante":          sp.Eq(S["Eah"], S["dQp"] * S["tm"]),
+        "Energía suministrada por propano en misión (Eprop)": sp.Eq(S["Eprop"], S["Em"] / S["ncal"]),
+        "Masa de gas para mantener T en misión":         sp.Eq(S["mgm"], S["Eprop"] / S["PC"]),
     },
     "Desplazamiento y resistencia aerodinámica": {
+        "Velocidad neta de avance respecto al suelo (vg)": sp.Eq(
+            S["vg"], S["v"] - S["vv"]
+        ),
         "Distancia recorrida en misión (dm)": sp.Eq(
-            S["dm"], S["v"] * S["tm"]
+            S["dm"], S["vg"] * S["tm"]
         ),
         "Número de Reynolds longitudinal (ReL)": sp.Eq(
             S["ReL"], (S["rho1"] * S["v"] * S["L"]) / S["mu"]
@@ -496,6 +530,9 @@ CATEGORIAS = {
         ),
         "Fuerza de resistencia aerodinámica (FD)": sp.Eq(
             S["FD"], sp.Rational(1, 2) * S["rho1"] * S["v"] ** 2 * S["CDV"] * S["V"] ** sp.Rational(2, 3)
+        ),
+        "Energía perdida por resistencia aerodinámica (ED)": sp.Eq(
+            S["ED"], S["FD"] * S["dm"]
         ),
     },
     "Masas y balance de peso (dirigible híbrido)": {
@@ -531,6 +568,9 @@ CATEGORIAS = {
         "Empuje vectorial total de los 4 motores (Ttot)": sp.Eq(
             S["Ttot"], sp.sqrt(S["FL"] ** 2 + S["FX"] ** 2)
         ),
+        "Margen de empuje disponible de los 4 motores (dTtot)": sp.Eq(
+            S["dTtot"], S["N"] * S["Tmax1"] - S["Ttot"]
+        ),
         "Ángulo de rotación respecto a la vertical (theta)": sp.Eq(
             S["theta"], sp.Integer(180) * sp.atan(S["FX"] / S["FL"]) / sp.pi
         ),
@@ -548,6 +588,9 @@ CATEGORIAS = {
         "Área de disco barrida por cada hélice (Ap)": sp.Eq(
             S["Ap"], sp.pi * S["dp"] ** 2 / 4
         ),
+        "Eficiencia aerodinámica de hélice según velocidad (nprop)": sp.Eq(
+            S["nprop"], S["nprop0"] * (1 - (S["v"] / S["vpitch"]) ** 2)
+        ),
         "Eficiencia propulsiva global (ntot)": sp.Eq(
             S["ntot"], S["nprop"] * S["nm"] * S["nESC"]
         ),
@@ -558,24 +601,39 @@ CATEGORIAS = {
                 + S["FX"] * S["v"]
             ),
         ),
+        "Potencia eléctrica máxima continua de 4 motores (Pmax)": sp.Eq(
+            S["Pmax"], S["N"] * S["Pmax1"]
+        ),
+        "Margen de potencia eléctrica de los motores (dPelec)": sp.Eq(
+            S["dPelec"], S["Pmax"] - S["Pelec"]
+        ),
     },
     "Energía y coste energético de misión": {
         "Energía eléctrica requerida en misión (Ereq)": sp.Eq(
             S["Ereq"], (S["Pelec"] * S["tm"]) / S_POR_H
         ),
+        "Energía eléctrica total usada en misión (Eelec)": sp.Eq(
+            S["Eelec"], S_POR_H * S["Ereq"]
+        ),
         "Coste energético eléctrico por distancia (celec)": sp.Eq(
             S["celec"], S["Ereq"] / S["dm"]
         ),
         "Energía total consumida en misión (Etot)": sp.Eq(
-            S["Etot"], S["Em"] + S_POR_H * S["Ereq"]
+            S["Etot"], S["Eprop"] + S["Eelec"]
         ),
         "Coste energético total por distancia (ctot)": sp.Eq(
             S["ctot"], S["Etot"] / S["dm"]
         ),
     },
     "Dimensionamiento de batería y límites": {
+        "Masa de batería por energía de misión (mbe)": sp.Eq(
+            S["mbe"], S["Ereq"] / (S["ebat"] * S["DoD"] * S["ntemp"])
+        ),
+        "Masa de batería por potencia pico (mbp)": sp.Eq(
+            S["mbp"], S["Pelec"] / (S["ebat"] * S["Cmax"] * S["ntemp"])
+        ),
         "Masa de batería requerida (mbat)": sp.Eq(
-            S["mbat"], S["Ereq"] / (S["ebat"] * S["DoD"] * S["ntemp"])
+            S["mbat"], (S["mbe"] ** 6 + S["mbp"] ** 6) ** sp.Rational(1, 6)
         ),
         "Margen respecto al peso máximo de batería (dmbat)": sp.Eq(
             S["dmbat"], S["mbmax"] - S["mbat"]
@@ -583,8 +641,15 @@ CATEGORIAS = {
     },
 }
 
-# Lista plana de ecuaciones para el solucionador
+# Lista plana de ecuaciones y estructuras precalculadas para emparejamiento y evaluación rápida
 ECUACIONES = {nombre: eq for cat in CATEGORIAS.values() for nombre, eq in cat.items()}
+_ECUACIONES_LIST: list[tuple[str, sp.Eq]] = list(ECUACIONES.items())
+_EQ_VARS: list[frozenset[str]] = [
+    frozenset(sim.name for sim in eq.free_symbols if sim.name in VARIABLES)
+    for _, eq in _ECUACIONES_LIST
+]
+_DIRECT_EVAL_CACHE: dict[tuple[int, str], tuple[tuple[str, ...], Callable[..., float]]] = {}
+_RESIDUAL_EVAL_CACHE: list[tuple[str, tuple[str, ...], Callable[..., tuple[float, float]]]] | None = None
 
 
 def valores_iniciales() -> dict[str, float]:
@@ -602,11 +667,11 @@ def ecuaciones_de_variable(nombre: str) -> list[tuple[str, str, sp.Eq]]:
     ]
 
 
-def _tamano_emparejamiento(incognitas: set[str]) -> int:
-    """Calcula el tamaño del emparejamiento máximo bipartito (ecuaciones <-> incógnitas)."""
+def _emparejar_bipartito(incognitas: set[str]) -> dict[str, int]:
+    """Calcula un emparejamiento máximo bipartito (`nombre_incognita -> idx_ecuacion`)."""
     eq_vars = [
-        [str(sim) for sim in eq.free_symbols if str(sim) in incognitas]
-        for eq in ECUACIONES.values()
+        [v for v in vars_eq if v in incognitas]
+        for vars_eq in _EQ_VARS
     ]
     match_var: dict[str, int] = {}
 
@@ -620,11 +685,14 @@ def _tamano_emparejamiento(incognitas: set[str]) -> int:
                 return True
         return False
 
-    emparejadas = 0
     for u in range(len(eq_vars)):
-        if dfs(u, set()):
-            emparejadas += 1
-    return emparejadas
+        dfs(u, set())
+    return match_var
+
+
+def _tamano_emparejamiento(incognitas: set[str]) -> int:
+    """Calcula el tamaño del emparejamiento máximo bipartito (ecuaciones <-> incógnitas)."""
+    return len(_emparejar_bipartito(incognitas))
 
 
 def _tiene_emparejamiento_perfecto(incognitas: set[str]) -> bool:
@@ -693,6 +761,24 @@ def estado_equilibrio(
     return faltan_fijar, candidatas_fijar, faltan_liberar, candidatas_liberar
 
 
+_FRACCIONES_UNITARIAS = frozenset({
+    "ef", "er", "fais", "xf", "nprop0", "nprop", "nm", "nESC", "ntot", "DoD", "ntemp"
+})
+
+
+def _es_valida_float(nombre: str, v: float) -> bool:
+    """Verifica de forma rápida que un float respete los dominios físicos del modelo."""
+    if not math.isfinite(v):
+        return False
+    if nombre in POSITIVAS and v <= 0.0:
+        return False
+    if nombre in _FRACCIONES_UNITARIAS and not (0.0 < v < 1.0):
+        return False
+    if nombre == "theta" and not (0.0 < v < 90.0):
+        return False
+    return True
+
+
 def _es_valida(nombre: str, val: sp.Expr) -> bool:
     """Verifica que un valor simbólico sea numérico, real y respete dominios físicos."""
     try:
@@ -704,13 +790,127 @@ def _es_valida(nombre: str, val: sp.Expr) -> bool:
         v = float(sp.re(val_num))
     except Exception:
         return False
-    if nombre in POSITIVAS and v <= 0:
-        return False
-    if nombre in ("ef", "er", "fais", "xf", "nprop", "nm", "nESC", "ntot", "DoD", "ntemp") and not (0 < v < 1):
-        return False
-    if nombre == "theta" and not (0 < v < 90):
-        return False
-    return True
+    return _es_valida_float(nombre, v)
+
+
+def _resolver_lineal(A: list[list[float]], b: list[float]) -> list[float] | None:
+    """Resuelve Ax = b mediante eliminación gaussiana con pivoteo parcial."""
+    n = len(b)
+    M = [row[:] + [b[i]] for i, row in enumerate(A)]
+    for col in range(n):
+        piv_row = max(range(col, n), key=lambda r: abs(M[r][col]))
+        if abs(M[piv_row][col]) < 1e-14:
+            return None
+        if piv_row != col:
+            M[col], M[piv_row] = M[piv_row], M[col]
+        piv = M[col][col]
+        for r in range(col + 1, n):
+            factor = M[r][col] / piv
+            if factor == 0.0:
+                continue
+            for c in range(col, n + 1):
+                M[r][c] -= factor * M[col][c]
+    x = [0.0] * n
+    for r in range(n - 1, -1, -1):
+        suma = M[r][n] - sum(M[r][c] * x[c] for c in range(r + 1, n))
+        x[r] = suma / M[r][r]
+    return x
+
+
+def _newton_rapido(
+    exprs: list[sp.Expr],
+    inc_reducidas: list[sp.Symbol],
+    valores_semilla: list[float],
+) -> list[float] | None:
+    """
+    Intenta resolver `exprs(inc_reducidas) = 0` en aritmética `float` nativa
+    usando Newton-Raphson amortiguado con diferencias finitas. Devuelve None si falla.
+    """
+    n = len(inc_reducidas)
+    if n == 0 or len(exprs) != n:
+        return None
+    nombres = [sym.name for sym in inc_reducidas]
+    try:
+        fn_raw = sp.lambdify(inc_reducidas, exprs, "math")
+    except Exception:
+        return None
+
+    def eval_f(vec: list[float]) -> list[float]:
+        out = fn_raw(*vec)
+        res = [float(val) for val in out]
+        if any(not math.isfinite(val) for val in res):
+            raise ValueError("Residual no finito")
+        return res
+
+    def en_dominio(vec: list[float]) -> bool:
+        return all(_es_valida_float(nombres[i], vec[i]) for i in range(n))
+
+    x = [float(v) for v in valores_semilla]
+    if not en_dominio(x):
+        return None
+    try:
+        f0 = eval_f(x)
+    except Exception:
+        return None
+
+    norm0 = max(abs(r) for r in f0)
+    if norm0 < 1e-10:
+        return x
+
+    for _ in range(40):
+        # Construir jacobiano n x n por diferencias finitas
+        J: list[list[float]] = [[0.0] * n for _ in range(n)]
+        for j in range(n):
+            h = 1e-7 * max(1.0, abs(x[j]))
+            x_pert = x[:]
+            x_pert[j] = x[j] + h
+            signo = 1.0
+            try:
+                f_pert = eval_f(x_pert)
+            except Exception:
+                x_pert[j] = x[j] - h
+                signo = -1.0
+                if not _es_valida_float(nombres[j], x_pert[j]):
+                    return None
+                try:
+                    f_pert = eval_f(x_pert)
+                except Exception:
+                    return None
+            inv_h = signo / h
+            for i in range(n):
+                J[i][j] = (f_pert[i] - f0[i]) * inv_h
+
+        dx = _resolver_lineal(J, [-r for r in f0])
+        if dx is None:
+            return None
+
+        # Búsqueda de paso amortiguado respetando el dominio físico
+        alpha = 1.0
+        acepto = False
+        for _ in range(12):
+            x_try = [x[i] + alpha * dx[i] for i in range(n)]
+            if en_dominio(x_try):
+                try:
+                    f_try = eval_f(x_try)
+                    norm_try = max(abs(r) for r in f_try)
+                    if norm_try < norm0 or norm_try < 1e-10:
+                        x = x_try
+                        f0 = f_try
+                        norm0 = norm_try
+                        acepto = True
+                        break
+                except Exception:
+                    pass
+            alpha *= 0.5
+
+        if not acepto:
+            return None
+
+        step_rel = max(abs(alpha * dx[i]) / max(1.0, abs(x[i])) for i in range(n))
+        if norm0 < 1e-10 or (norm0 < 1e-8 and step_rel < 1e-11):
+            return x
+
+    return x if norm0 < 1e-7 else None
 
 
 def _resolver_bloque(
@@ -723,7 +923,7 @@ def _resolver_bloque(
     if len(eqs_bloque) == 1 and len(incognitas_bloque) == 1:
         eq = eqs_bloque[0]
         inc = incognitas_bloque[0]
-        nombre = str(inc)
+        nombre = inc.name
         if eq.lhs == inc and inc not in eq.rhs.free_symbols:
             if _es_valida(nombre, eq.rhs):
                 return {nombre: float(sp.re(eq.rhs.evalf()))}
@@ -731,7 +931,72 @@ def _resolver_bloque(
             if _es_valida(nombre, eq.lhs):
                 return {nombre: float(sp.re(eq.lhs.evalf()))}
 
-    # Intento 1: resolución simbólica con SymPy (para bloques pequeños sin potencias fraccionarias acopladas)
+    # Reducción por sustitución simbólica dentro del bloque (aprovechada por Newton rápido y SymPy)
+    sust_interna: dict[sp.Symbol, sp.Expr] = {}
+    orden_elim: list[tuple[sp.Symbol, sp.Expr]] = []
+    eqs_reducidas = list(eqs_bloque)
+    inc_set = set(incognitas_bloque)
+    cambio = True
+    while cambio and len(eqs_reducidas) > 1:
+        cambio = False
+        for idx, eq in enumerate(eqs_reducidas):
+            if eq.lhs in inc_set and eq.lhs not in eq.rhs.free_symbols:
+                v_elim = eq.lhs
+                expr_elim = eq.rhs
+            elif eq.rhs in inc_set and eq.rhs not in eq.lhs.free_symbols:
+                v_elim = eq.rhs
+                expr_elim = eq.lhs
+            else:
+                continue
+            eqs_reducidas.pop(idx)
+            eqs_reducidas = [e.xreplace({v_elim: expr_elim}) for e in eqs_reducidas]
+            sust_interna = {k: v.xreplace({v_elim: expr_elim}) for k, v in sust_interna.items()}
+            sust_interna[v_elim] = expr_elim
+            orden_elim.append((v_elim, expr_elim))
+            cambio = True
+            break
+
+    inc_reducidas = [inc for inc in incognitas_bloque if inc not in sust_interna]
+    exprs = [e.lhs - e.rhs for e in eqs_reducidas]
+    semillas_defecto = {
+        "mbat": 0.1,
+        "mbe": 0.05,
+        "mbp": 0.1,
+        "mres": 0.1,
+        "dTi0": 55.0,
+        "dTi": 35.0,
+        "dTcel": 36.0,
+        "U": 2.0,
+        "U0": 3.5,
+        "hi0": 5.0,
+        "hi": 4.3,
+    }
+    valores_semilla = [
+        semilla.get(inc.name, semillas_defecto.get(inc.name, 1.0))
+        for inc in inc_reducidas
+    ]
+
+    # Intento rápido: Newton-Raphson en float sobre el bloque reducido
+    sol_fast = _newton_rapido(exprs, inc_reducidas, valores_semilla)
+    if sol_fast is not None:
+        res_fast = {inc_reducidas[i].name: sol_fast[i] for i in range(len(inc_reducidas))}
+        try:
+            if orden_elim:
+                res_sim_fast: dict[sp.Symbol, float] = {
+                    S[nom]: val for nom, val in res_fast.items()
+                }
+                for inc_elim, expr_elim in reversed(orden_elim):
+                    val_f = float(sp.re(expr_elim.xreplace(res_sim_fast).evalf()))
+                    if not _es_valida_float(inc_elim.name, val_f):
+                        raise ValueError("Fuera de dominio en retrosustitución")
+                    res_sim_fast[inc_elim] = val_f
+                    res_fast[inc_elim.name] = val_f
+            if len(res_fast) == len(incognitas_bloque):
+                return res_fast
+        except Exception:
+            pass
+
+    # Respaldo 1: resolución simbólica con SymPy (para bloques pequeños)
     if len(eqs_bloque) <= 3:
         try:
             soluciones = sp.solve(eqs_bloque, incognitas_bloque, dict=True)
@@ -745,49 +1010,8 @@ def _resolver_bloque(
         except Exception:
             pass
 
-    # Intento 2: reducción simbólica + resolución numérica (para ciclos acoplados o ecuaciones trascendentes)
+    # Respaldo 2: sp.nsolve (precisión arbitraria mpmath)
     try:
-        # Reducción por sustitución simbólica dentro del bloque
-        sust_interna: dict[sp.Symbol, sp.Expr] = {}
-        orden_elim: list[tuple[sp.Symbol, sp.Expr]] = []
-        eqs_reducidas = list(eqs_bloque)
-        cambio = True
-        while cambio and len(eqs_reducidas) > 1:
-            cambio = False
-            for idx, eq in enumerate(eqs_reducidas):
-                if eq.lhs in incognitas_bloque and eq.lhs not in eq.rhs.free_symbols:
-                    v_elim = eq.lhs
-                    expr_elim = eq.rhs
-                elif eq.rhs in incognitas_bloque and eq.rhs not in eq.lhs.free_symbols:
-                    v_elim = eq.rhs
-                    expr_elim = eq.lhs
-                else:
-                    continue
-                eqs_reducidas.pop(idx)
-                eqs_reducidas = [e.xreplace({v_elim: expr_elim}) for e in eqs_reducidas]
-                sust_interna = {k: v.xreplace({v_elim: expr_elim}) for k, v in sust_interna.items()}
-                sust_interna[v_elim] = expr_elim
-                orden_elim.append((v_elim, expr_elim))
-                cambio = True
-                break
-
-        inc_reducidas = [inc for inc in incognitas_bloque if inc not in sust_interna]
-        exprs = [e.lhs - e.rhs for e in eqs_reducidas]
-        semillas_defecto = {
-            "mbat": 0.1,
-            "mres": 0.1,
-            "dTi0": 55.0,
-            "dTi": 35.0,
-            "dTcel": 36.0,
-            "U": 2.0,
-            "U0": 3.5,
-            "hi0": 5.0,
-            "hi": 4.3,
-        }
-        valores_semilla = [
-            semilla.get(str(inc), semillas_defecto.get(str(inc), 1.0))
-            for inc in inc_reducidas
-        ]
         if len(exprs) == 1 and len(inc_reducidas) == 1:
             try:
                 sol_unica = sp.nsolve(exprs[0], inc_reducidas[0], valores_semilla[0])
@@ -804,9 +1028,9 @@ def _resolver_bloque(
 
         res = {}
         for inc, val in res_sim.items():
-            if not _es_valida(str(inc), val):
+            if not _es_valida(inc.name, val):
                 raise ValueError(f"Solución fuera de dominio físico para '{inc}'.")
-            res[str(inc)] = float(sp.re(val))
+            res[inc.name] = float(sp.re(val))
         return res
     except Exception as exc:
         raise ValueError(
@@ -815,60 +1039,75 @@ def _resolver_bloque(
         ) from exc
 
 
-def _podar_hojas(eqs_sust: list[sp.Eq]) -> list[int]:
+def _bloques_tarjan(incognitas: set[str]) -> list[tuple[list[int], list[str]]]:
     """
-    Descarta iterativamente las ecuaciones que contienen una incógnita que solo
-    aparece en esa ecuación (grado 1), pues nunca pueden pertenecer a un ciclo
-    cerrado mínimo de tamaño k >= 2.
+    Descompone el sistema completo en subsistemas cuadrados irreducibles mínimos
+    (forma triangular por bloques / BLT) ya ordenados topológicamente usando
+    emparejamiento bipartito + algoritmo de componentes fuertemente conexas de Tarjan.
     """
-    activos = list(range(len(eqs_sust)))
-    inc_por_eq = {
-        i: {sim for sim in eqs_sust[i].free_symbols if str(sim) in VARIABLES}
-        for i in activos
-    }
-    while True:
-        conteo: dict[sp.Symbol, int] = {}
-        for i in activos:
-            for sim in inc_por_eq[i]:
-                conteo[sim] = conteo.get(sim, 0) + 1
-        quitar = [
-            i for i in activos
-            if any(conteo[sim] == 1 for sim in inc_por_eq[i])
+    n_eq = len(_ECUACIONES_LIST)
+    if len(incognitas) != n_eq:
+        raise ValueError(
+            "Esa combinación de variables está sobre/sub-determinada y no permite despejar el sistema."
+        )
+
+    match_var = _emparejar_bipartito(incognitas)
+    if len(match_var) != n_eq:
+        raise ValueError(
+            "Esa combinación de variables está sobre/sub-determinada y no permite despejar el sistema."
+        )
+
+    match_eq = {eq_i: var for var, eq_i in match_var.items()}
+    # Arista u -> v significa: la ecuación u usa la incógnita asignada a la ecuación v (v debe resolverse antes)
+    adj: list[list[int]] = [
+        [
+            match_var[var]
+            for var in (_EQ_VARS[u] & incognitas)
+            if match_var[var] != u
         ]
-        if not quitar:
-            break
-        activos = [i for i in activos if i not in set(quitar)]
-    return activos
+        for u in range(n_eq)
+    ]
 
+    indice_actual = 0
+    indices_dfs = [-1] * n_eq
+    lowlink = [0] * n_eq
+    en_pila = [False] * n_eq
+    pila: list[int] = []
+    bloques: list[tuple[list[int], list[str]]] = []
 
-def _componentes_conexas(eqs_sust: list[sp.Eq], indices: list[int]) -> list[list[int]]:
-    """
-    Agrupa los índices de ecuaciones en componentes conexas según las incógnitas que comparten.
-    Ordena las componentes de menor a mayor tamaño para resolver primero los bloques más simples.
-    """
-    inc_por_eq = {
-        i: {sim for sim in eqs_sust[i].free_symbols if str(sim) in VARIABLES}
-        for i in indices
-    }
-    visitados: set[int] = set()
-    componentes: list[list[int]] = []
-    for i in indices:
-        if i in visitados:
-            continue
-        comp: list[int] = []
-        cola = [i]
-        visitados.add(i)
-        while cola:
-            actual = cola.pop()
-            comp.append(actual)
-            sims_actual = inc_por_eq[actual]
-            for j in indices:
-                if j not in visitados and (inc_por_eq[j] & sims_actual):
-                    visitados.add(j)
-                    cola.append(j)
-        componentes.append(sorted(comp))
-    componentes.sort(key=len)
-    return componentes
+    def strongconnect(u: int) -> None:
+        nonlocal indice_actual
+        indices_dfs[u] = indice_actual
+        lowlink[u] = indice_actual
+        indice_actual += 1
+        pila.append(u)
+        en_pila[u] = True
+
+        for w in adj[u]:
+            if indices_dfs[w] == -1:
+                strongconnect(w)
+                if lowlink[w] < lowlink[u]:
+                    lowlink[u] = lowlink[w]
+            elif en_pila[w] and indices_dfs[w] < lowlink[u]:
+                lowlink[u] = indices_dfs[w]
+
+        if lowlink[u] == indices_dfs[u]:
+            scc_eqs: list[int] = []
+            scc_vars: list[str] = []
+            while True:
+                w = pila.pop()
+                en_pila[w] = False
+                scc_eqs.append(w)
+                scc_vars.append(match_eq[w])
+                if w == u:
+                    break
+            bloques.append((scc_eqs, scc_vars))
+
+    for eq_i in range(n_eq):
+        if indices_dfs[eq_i] == -1:
+            strongconnect(eq_i)
+
+    return bloques
 
 
 def resolver(
@@ -877,85 +1116,67 @@ def resolver(
 ) -> dict[str, float]:
     """
     Dadas las variables fijas (nombre -> valor), calcula todas las demás
-    resolviendo escalonadamente los subsistemas acoplados.
+    resolviendo escalonadamente los subsistemas irreducibles (BLT).
     Lanza ValueError si el sistema no tiene solución única real.
     """
-    conocidas: dict[str, float] = dict(fijas)
+    global _RESIDUAL_EVAL_CACHE
+
+    conocidas: dict[str, float] = {k: float(v) for k, v in fijas.items()}
     semilla = referencia if referencia is not None else conocidas
-    pendientes = list(ECUACIONES.values())
+    incognitas = set(VARIABLES) - set(conocidas)
 
-    while pendientes:
-        sust = {S[n]: sp.Float(v) for n, v in conocidas.items()}
-        # Descartar ecuaciones cuyas variables ya estén todas conocidas (se validan al final)
-        pendientes = [
-            e for e in pendientes
-            if any(str(sim) in VARIABLES for sim in e.xreplace(sust).free_symbols)
-        ]
-        if not pendientes:
-            break
+    bloques = _bloques_tarjan(incognitas)
 
-        eqs_sust = [e.xreplace(sust) for e in pendientes]
-        avance = False
+    for scc_eqs, scc_vars in bloques:
+        # Vía ultrarrápida para bloques 1x1 con incógnita aislada
+        if len(scc_eqs) == 1:
+            eq_idx = scc_eqs[0]
+            var_nom = scc_vars[0]
+            cache_key = (eq_idx, var_nom)
+            entrada = _DIRECT_EVAL_CACHE.get(cache_key)
+            if entrada is None:
+                _, eq = _ECUACIONES_LIST[eq_idx]
+                inc_sym = S[var_nom]
+                if eq.lhs == inc_sym and inc_sym not in eq.rhs.free_symbols:
+                    expr_aislada = eq.rhs
+                elif eq.rhs == inc_sym and inc_sym not in eq.lhs.free_symbols:
+                    expr_aislada = eq.lhs
+                else:
+                    expr_aislada = None
 
-        # Paso 1: ecuaciones directas de 1 incógnita (k = 1)
-        for i, e_s in enumerate(eqs_sust):
-            incognitas = sorted(
-                {sim for sim in e_s.free_symbols if str(sim) in VARIABLES},
-                key=str,
-            )
-            if len(incognitas) == 1:
-                nuevos = _resolver_bloque([e_s], incognitas, semilla)
-                conocidas.update(nuevos)
-                pendientes.pop(i)
-                avance = True
-                break
+                if expr_aislada is not None:
+                    args_ord = tuple(sorted(_EQ_VARS[eq_idx] - {var_nom}))
+                    fn_directa = sp.lambdify([S[a] for a in args_ord], expr_aislada, "math")
+                    entrada = (args_ord, fn_directa)
+                    _DIRECT_EVAL_CACHE[cache_key] = entrada
 
-        if avance:
-            continue
-
-        # Paso 2: podar incógnitas hoja (grado 1) y separar en componentes conexas independientes
-        candidatos = _podar_hojas(eqs_sust)
-        if not candidatos:
-            candidatos = list(range(len(pendientes)))
-
-        componentes = _componentes_conexas(eqs_sust, candidatos)
-        for comp in componentes:
-            inc_comp = sorted(
-                {
-                    sim for idx in comp for sim in eqs_sust[idx].free_symbols
-                    if str(sim) in VARIABLES
-                },
-                key=str,
-            )
-            # Si la componente conexa completa ya es un sistema cuadrado, probar sus sub-bloques pequeños o ella misma
-            for k in range(2, len(comp) + 1):
-                if k > 4 and len(inc_comp) == len(comp):
-                    k = len(comp)
-                for indices in combinations(comp, k):
-                    sub_eqs_sust = [eqs_sust[i] for i in indices]
-                    incognitas = sorted(
-                        {
-                            sim for e in sub_eqs_sust for sim in e.free_symbols
-                            if str(sim) in VARIABLES
-                        },
-                        key=str,
+            if entrada is not None:
+                args_ord, fn_directa = entrada
+                try:
+                    val = float(fn_directa(*(conocidas[a] for a in args_ord)))
+                except Exception as exc:
+                    raise ValueError(
+                        "Esa combinación no tiene solución única o físicamente válida "
+                        "(verifica p. ej. que cf > R, cr > R y que el empuje supere el arrastre)."
+                    ) from exc
+                if not _es_valida_float(var_nom, val):
+                    raise ValueError(
+                        "Esa combinación no tiene solución única o físicamente válida "
+                        "(verifica p. ej. que cf > R, cr > R y que el empuje supere el arrastre)."
                     )
-                    if len(incognitas) == k:
-                        nuevos = _resolver_bloque(sub_eqs_sust, incognitas, semilla)
-                        conocidas.update(nuevos)
-                        for i in sorted(indices, reverse=True):
-                            pendientes.pop(i)
-                        avance = True
-                        break
-                if avance:
-                    break
-            if avance:
-                break
+                conocidas[var_nom] = val
+                continue
 
-        if not avance:
-            raise ValueError(
-                "Esa combinación de variables está sobre/sub-determinada y no permite despejar el sistema."
-            )
+        # Sustituir únicamente las variables conocidas que intervienen en este bloque
+        scc_var_set = set(scc_vars)
+        vars_conocidas_bloque = {
+            v for eq_i in scc_eqs for v in _EQ_VARS[eq_i] if v not in scc_var_set
+        }
+        sust_bloque = {S[v]: sp.Float(conocidas[v]) for v in vars_conocidas_bloque}
+        sub_eqs_sust = [_ECUACIONES_LIST[eq_i][1].xreplace(sust_bloque) for eq_i in scc_eqs]
+        inc_syms = [S[v] for v in sorted(scc_vars)]
+        nuevos = _resolver_bloque(sub_eqs_sust, inc_syms, semilla)
+        conocidas.update(nuevos)
 
     if len(conocidas) != len(VARIABLES):
         raise ValueError("Quedaron variables sin determinar.")
@@ -964,12 +1185,26 @@ def resolver(
     if conocidas["cf"] <= conocidas["R"] or conocidas["cr"] <= conocidas["R"]:
         raise ValueError("El modelo prolado requiere que cf > R y cr > R.")
 
-    sust_final = {S[n]: sp.Float(v) for n, v in conocidas.items()}
-    for nombre_eq, eq in ECUACIONES.items():
-        lhs_v = float(sp.re(eq.lhs.xreplace(sust_final).evalf()))
-        rhs_v = float(sp.re(eq.rhs.xreplace(sust_final).evalf()))
-        escala = max(abs(lhs_v), abs(rhs_v), 1.0)
-        if abs(lhs_v - rhs_v) / escala > 1e-4:
+    if _RESIDUAL_EVAL_CACHE is None:
+        cache_res = []
+        for idx, (nombre_eq, eq) in enumerate(_ECUACIONES_LIST):
+            args_ord = tuple(sorted(_EQ_VARS[idx]))
+            fn_eq = sp.lambdify([S[a] for a in args_ord], (eq.lhs, eq.rhs), "math")
+            cache_res.append((nombre_eq, args_ord, fn_eq))
+        _RESIDUAL_EVAL_CACHE = cache_res
+
+    for nombre_eq, args_ord, fn_eq in _RESIDUAL_EVAL_CACHE:
+        try:
+            lhs_v, rhs_v = fn_eq(*(conocidas[a] for a in args_ord))
+            lhs_f = float(lhs_v)
+            rhs_f = float(rhs_v)
+        except Exception:
+            sust_final = {S[a]: sp.Float(conocidas[a]) for a in args_ord}
+            eq = ECUACIONES[nombre_eq]
+            lhs_f = float(sp.re(eq.lhs.xreplace(sust_final).evalf()))
+            rhs_f = float(sp.re(eq.rhs.xreplace(sust_final).evalf()))
+        escala = max(abs(lhs_f), abs(rhs_f), 1.0)
+        if abs(lhs_f - rhs_f) / escala > 1e-4:
             raise ValueError(f"Inconsistencia en '{nombre_eq}': la combinación no es válida.")
 
     return conocidas

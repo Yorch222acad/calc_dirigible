@@ -69,8 +69,9 @@ def formatear_ingenieria(nombre: str, valor: float) -> str:
 
 def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float], list[str]]:
     """
-    Verifica si se excede el peso máximo de batería (mbmax) o el ángulo máximo de
-    rotación (thmax). Si se supera algún límite, pone en negativo los valores de
+    Verifica si se excede el peso máximo de batería (mbmax), el ángulo máximo de
+    rotación (thmax), la potencia eléctrica continua de motores (Pmax) o el empuje
+    máximo (N·Tmax1). Si se supera algún límite, pone en negativo los valores de
     sustentación en la vista y devuelve los mensajes de alerta correspondientes.
     """
     alertas: list[str] = []
@@ -84,6 +85,19 @@ def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float]
         alertas.append(
             f"ÁNGULO DE ROTACIÓN EXCEDIDO: theta = {valores['theta']:.2f}° "
             f"supera el máximo permitido thmax = {valores['thmax']:.2f}°. "
+            "Cálculos de sustentación puestos en NEGATIVO."
+        )
+    if valores["Pelec"] > valores["Pmax"]:
+        alertas.append(
+            f"POTENCIA ELÉCTRICA EXCEDIDA: Pelec = {formatear_ingenieria('Pelec', valores['Pelec'])} "
+            f"supera el límite continuo de motores Pmax = {formatear_ingenieria('Pmax', valores['Pmax'])}. "
+            "Cálculos de sustentación puestos en NEGATIVO."
+        )
+    tmax_total = valores["N"] * valores["Tmax1"]
+    if valores["Ttot"] > tmax_total:
+        alertas.append(
+            f"EMPUJE MÁXIMO EXCEDIDO: Ttot = {formatear_ingenieria('Ttot', valores['Ttot'])} "
+            f"supera la capacidad de {valores['N']:.0f} motores ({tmax_total:.2f} N). "
             "Cálculos de sustentación puestos en NEGATIVO."
         )
 
