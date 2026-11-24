@@ -14,6 +14,20 @@ from __future__ import annotations
 import math
 from typing import Callable
 
+SIGMA_SB = 5.670374419e-8
+
+
+def nuc_hollands(rae: float, rac: float) -> float:
+    """
+    Correlación de Hollands (1976) para convección en cavidad celular superior
+    con piso físico exacto en 1.0 cuando Ra_e <= Ra_c.
+    """
+    if rae <= rac:
+        return 1.0
+    t1 = 1.44 * max(0.0, 1.0 - rac / rae)
+    t2 = max(0.0, (rae / 5830.0) ** (1.0 / 3.0) - 1.0)
+    return 1.0 + t1 + t2
+
 
 def brent_1d(
     fn: Callable[[float], float],
@@ -152,46 +166,56 @@ def resolver_tearing_u(
     dT: float,
     D: float,
     e: float,
-    W: float,
+    ncapS: float,
+    ncapI: float,
     g: float,
     beta: float,
     nu: float,
     alpha: float,
     fcal: float,
+    fmamp: float,
     ka: float,
     ep: float,
     ke: float,
     Rac: float,
-    he: float,
+    hrad: float,
+    hetot: float,
     dTi_ini: float | None = None,
     dTcel_ini: float | None = None,
-) -> tuple[float, float, float, float, float, float, float, float]:
+) -> tuple[float, float, float, float, float, float, float, float, float, float]:
     """
-    Resuelve el bloque térmico con capa celular intermedia (C5) mediante dos variables
-    de corte `(dTi, dTcel)` con Newton 2x2 amortiguado y respaldo por punto fijo.
-    Devuelve `(dTi, RaD, Nui, hi, dTcel, Rae, Nuc, U)`.
+    Resuelve el bloque térmico asimétrico con Mylar multicapa y mamparos (C5)
+    mediante dos variables de corte `(dTi, dTcel)` con Newton 2x2 amortiguado
+    y respaldo por punto fijo.
+    Devuelve `(dTi, RaD, Nui, hi, dTcel, Rae, Nuc, Usup, Uinf, U)`.
     """
     inv_nualpha = 1.0 / (nu * alpha)
     k_rad = g * beta * (D ** 3) * inv_nualpha
     k_rae = g * beta * (e ** 3) * inv_nualpha
-    r_fijas = (2.0 * ep / ke) + (1.0 / he)
+    r_fijas_s = (((ncapS + 1.0) * ep) / ke) + (1.0 / hetot)
+    r_fijas_i = (((ncapI + 1.0) * ep) / ke) + (1.0 / hetot)
+    h_inf_cel = (ka / e) + hrad
 
-    def eval_vars(x1: float, x2: float) -> tuple[float, float, float, float, float, float, float]:
+    def eval_vars(x1: float, x2: float) -> tuple[float, float, float, float, float, float, float, float, float]:
         rad = k_rad * x1
         nui = 0.13 * (rad ** (1.0 / 3.0))
-        hi = fcal * (nui * ka) / D
+        hi = fcal * fmamp * (nui * ka) / D
         rae = k_rae * x2
-        ratio = rae / Rac
-        nuc = 1.0 + (ratio ** 0.25) + (e / W) * (ratio ** 0.75)
-        u = 1.0 / ((1.0 / hi) + r_fijas + (e / (ka * nuc)))
-        return rad, nui, hi, rae, nuc, u, ((u * e) / (ka * nuc)) * dT
+        nuc = nuc_hollands(rae, Rac)
+        h_sup_cel = (ka * nuc) / e + hrad
+        usup = 1.0 / ((1.0 / hi) + r_fijas_s + (ncapS / h_sup_cel))
+        uinf = 1.0 / ((1.0 / hi) + r_fijas_i + (ncapI / h_inf_cel))
+        u = 0.5 * (usup + uinf)
+        rhs2 = (usup / h_sup_cel) * dT
+        return rad, nui, hi, rae, nuc, usup, uinf, u, rhs2
 
     def eval_res(x1: float, x2: float) -> tuple[float, float]:
-        _, _, hi, _, _, u, rhs2 = eval_vars(x1, x2)
+        _, _, hi, _, _, _, _, u, rhs2 = eval_vars(x1, x2)
         return x1 - (u / hi) * dT, x2 - rhs2
 
-    x1 = max(1e-4, min(0.99 * dT, dTi_ini if (dTi_ini and 0.0 < dTi_ini < dT) else 0.35 * dT))
-    x2 = max(1e-4, min(0.99 * dT, dTcel_ini if (dTcel_ini and 0.0 < dTcel_ini < dT) else 0.45 * dT))
+    x1 = max(1e-4, min(0.99 * dT, dTi_ini if (dTi_ini and 0.0 < dTi_ini < dT) else 0.20 * dT))
+    x2_def = (0.70 * dT) / max(1.0, ncapS)
+    x2 = max(1e-4, min(0.99 * dT, dTcel_ini if (dTcel_ini and 0.0 < dTcel_ini < dT) else x2_def))
 
     f1, f2 = eval_res(x1, x2)
     norm = max(abs(f1), abs(f2))
@@ -232,8 +256,8 @@ def resolver_tearing_u(
 
     # Respaldo de punto fijo amortiguado si Newton no alcanzó tolerancia
     if norm > 1e-9:
-        for _ in range(60):
-            _, _, hi, _, _, u, rhs2 = eval_vars(x1, x2)
+        for _ in range(80):
+            _, _, hi, _, _, _, _, u, rhs2 = eval_vars(x1, x2)
             nx1 = max(1e-6, (u / hi) * dT)
             nx2 = max(1e-6, rhs2)
             x1 = 0.6 * nx1 + 0.4 * x1
@@ -242,8 +266,8 @@ def resolver_tearing_u(
             if max(abs(f1), abs(f2)) < 1e-11:
                 break
 
-    rad, nui, hi, rae, nuc, u, _ = eval_vars(x1, x2)
-    return x1, rad, nui, hi, x2, rae, nuc, u
+    rad, nui, hi, rae, nuc, usup, uinf, u, _ = eval_vars(x1, x2)
+    return x1, rad, nui, hi, x2, rae, nuc, usup, uinf, u
 
 
 def resolver_tearing_mbat(
@@ -329,12 +353,10 @@ def resolver_tearing_mbat(
 def evaluar_termica_T2(base: dict[str, float], T2_val: float) -> tuple[float, float] | None:
     """
     Recalcula `(Qp, m)` para una temperatura instantánea `T2_val` manteniendo fijos la
-    geometría del casco (`V, D, S`) y los parámetros ambientales/viento (`he`), sin SymPy.
+    geometría del casco (`V, D, S`) y el coeficiente externo convectivo (`he`), sin SymPy.
     """
     try:
-        P1 = base["P1"]
         T1 = base["T1"]
-        R1 = base["R1"]
         P2 = base["P2"]
         R2 = base["R2"]
         rho2 = P2 / (R2 * (T2_val + 273.15))
@@ -342,22 +364,28 @@ def evaluar_termica_T2(base: dict[str, float], T2_val: float) -> tuple[float, fl
         m = rho2 * base["V"]
         if dT <= 0.05:
             return 0.0, m
-        he = base["he"]
-        _, _, _, _, _, _, _, U = resolver_tearing_u(
+        Tm = 0.5 * (T1 + T2_val) + 273.15
+        epsef = base["epsef"]
+        hrad = 4.0 * epsef * SIGMA_SB * (Tm ** 3)
+        hetot = base.get("hetot", base["he"] + base.get("hrade", 0.0))
+        _, _, _, _, _, _, _, _, _, U = resolver_tearing_u(
             dT=dT,
             D=base["D"],
             e=base["e"],
-            W=base["W"],
+            ncapS=base["ncapS"],
+            ncapI=base["ncapI"],
             g=base["g"],
             beta=base["beta"],
             nu=base["nu"],
             alpha=base["alpha"],
             fcal=base["fcal"],
+            fmamp=base["fmamp"],
             ka=base["ka"],
             ep=base["ep"],
             ke=base["ke"],
             Rac=base["Rac"],
-            he=he,
+            hrad=hrad,
+            hetot=hetot,
             dTi_ini=base.get("dTi"),
             dTcel_ini=base.get("dTcel"),
         )
@@ -372,7 +400,7 @@ def evaluar_punto(
     **overrides: float,
 ) -> dict[str, float] | None:
     """
-    Evalúa las 141 variables del modelo en ~40 microsegundos usando aritmética `float`
+    Evalúa las 167 variables del modelo en ~60 microsegundos usando aritmética `float`
     y descomposición por variables de corte (`tearing`).
     Si `estricto_prolado=True`, exige todas las restricciones de dominio del solver CAS.
     """
@@ -430,9 +458,13 @@ def evaluar_punto(
 
         m = rho2 * V
         cp = float(p["cp"])
-        if cp <= 0.0:
+        npre = float(p["npre"])
+        cpre = float(p["cpre"])
+        if cp <= 0.0 or not (0.0 < npre < 1.0) or cpre < 0.0:
             return None
         Q = m * cp * dT
+        Epre = Q / npre
+        Cpre = (Epre / 1.0e6) * cpre
 
         v = float(p["v"]) if estricto_prolado else max(0.2, float(p["v"]))
         vv = float(p.get("vv", 0.0))
@@ -442,11 +474,25 @@ def evaluar_punto(
         if vg <= (0.0 if estricto_prolado else 0.05):
             return None
 
-        if "tm" in overrides and "dm" not in overrides and "v" not in overrides:
+        d1 = float(p["d1"])
+        nv = float(p["nv"])
+        if d1 <= 0.0 or nv <= 0.0:
+            return None
+
+        if "tm" in overrides and "dm" not in overrides and "nv" not in overrides and "v" not in overrides:
             tm = max(1.0, float(overrides["tm"]))
             dm = vg * tm
+            nv = dm / d1
+        elif "dm" in overrides and "nv" not in overrides:
+            dm = float(overrides["dm"]) if estricto_prolado else max(1.0, float(overrides["dm"]))
+            if dm <= 0.0:
+                return None
+            nv = dm / d1
+            tm = dm / vg
         else:
-            dm = float(p["dm"]) if estricto_prolado else max(1.0, float(p["dm"]))
+            dm = nv * d1
+            if not estricto_prolado:
+                dm = max(1.0, dm)
             if dm <= 0.0:
                 return None
             tm = dm / vg
@@ -464,23 +510,41 @@ def evaluar_punto(
 
         e = float(p["e"]) if estricto_prolado else max(1e-5, float(p["e"]))
         W = float(p["W"])
-        ep, ke, fcal = float(p["ep"]), float(p["ke"]), float(p["fcal"])
+        ncapS = float(p["ncapS"])
+        ncapI = float(p["ncapI"])
+        ep, ke, eps = float(p["ep"]), float(p["ke"]), float(p["eps"])
+        fcal, fmamp, nmamp = float(p["fcal"]), float(p["fmamp"]), float(p["nmamp"])
         beta, nu, alpha = float(p["beta"]), float(p["nu"]), float(p["alpha"])
         Rac, ka, sigma = float(p["Rac"]), float(p["ka"]), float(p["sigma"])
-        if min(e, W, ep, ke, fcal, beta, nu, alpha, Rac, ka, sigma) <= 0.0:
+        if min(e, W, ncapS, ep, ke, fcal, fmamp, beta, nu, alpha, Rac, ka, sigma) <= 0.0:
             return None
+        if ncapI < 0.0 or (estricto_prolado and ncapI <= 0.0) or nmamp < 0.0:
+            return None
+        if not (0.0 < eps < 1.0):
+            return None
+
+        ncap = 0.5 * (ncapS + ncapI)
+        Smamp = nmamp * (2.0 / 3.0) * math.pi * (R ** 2)
+        mmamp = Smamp * sigma
 
         Pr = nu / alpha
         Nue = 0.037 * (ReL ** 0.8) * (Pr ** (1.0 / 3.0))
         he = (Nue * ka) / L
+        hrade = 4.0 * eps * SIGMA_SB * ((T1 + 273.15) ** 3)
+        hetot = he + hrade
 
+        Tm = 0.5 * (T1 + T2) + 273.15
+        epsef = eps / (2.0 - eps)
+        hrad = 4.0 * epsef * SIGMA_SB * (Tm ** 3)
+
+        # U0: estrictamente independiente de e, W, ncapS, ncapI, fmamp, nmamp, Nuc y hrad
         dTi0, RaD0, Nui0, hi0, U0 = resolver_tearing_u0(
             dT=dT, D=D, g=g, beta=beta, nu=nu, alpha=alpha,
-            fcal=fcal, ka=ka, ep=ep, ke=ke, he=he,
+            fcal=fcal, ka=ka, ep=ep, ke=ke, he=hetot,
         )
-        dTi, RaD, Nui, hi, dTcel, Rae, Nuc, U = resolver_tearing_u(
-            dT=dT, D=D, e=e, W=W, g=g, beta=beta, nu=nu, alpha=alpha,
-            fcal=fcal, ka=ka, ep=ep, ke=ke, Rac=Rac, he=he,
+        dTi, RaD, Nui, hi, dTcel, Rae, Nuc, Usup, Uinf, U = resolver_tearing_u(
+            dT=dT, D=D, e=e, ncapS=ncapS, ncapI=ncapI, g=g, beta=beta, nu=nu, alpha=alpha,
+            fcal=fcal, fmamp=fmamp, ka=ka, ep=ep, ke=ke, Rac=Rac, hrad=hrad, hetot=hetot,
             dTi_ini=base.get("dTi"), dTcel_ini=base.get("dTcel"),
         )
 
@@ -490,13 +554,15 @@ def evaluar_punto(
         fais = dQp / Qp0 if Qp0 > 0.0 else 0.0
         if estricto_prolado and not (0.0 < fais < 1.0):
             return None
-        Sc = S * (1.0 + 2.0 * e / W)
+        Sc = ncap * S * (1.0 + 2.0 * e / W)
         mc = Sc * sigma
 
         dTc = float(p["dTc"])
         PC = float(p["PC"])
         ncal = float(p["ncal"])
-        if min(dTc, PC, ncal) <= 0.0:
+        ccomb = float(p["ccomb"])
+        celecU = float(p["celecU"])
+        if min(dTc, PC, ncal) <= 0.0 or ccomb < 0.0 or celecU < 0.0:
             return None
         vT = Qp / (m * cp)
         Qc = m * cp * dTc
@@ -543,7 +609,7 @@ def evaluar_punto(
         Pmax = N * Pmax1
 
         sol_mbat = resolver_tearing_mbat(
-            mc=mc, N=N, mmot=mmot, mp=mp, mad=mad, mcarga=mcarga,
+            mc=mc + mmamp, N=N, mmot=mmot, mp=mp, mad=mad, mcarga=mcarga,
             mflot=mflot, fap=fap, g=g, az=az, ax=ax, FD=FD,
             v=v, tm=tm, rho1=rho1, Ap=Ap, ntot=ntot, km=km,
             Pad=Pad, ebat=ebat, DoD=DoD, ntemp=ntemp, Cmax=Cmax,
@@ -559,6 +625,9 @@ def evaluar_punto(
         Eelec = 3600.0 * Ereq
         Etot = Eprop + Eelec
         ctot = Etot / dm
+        Ccomb = mgm * ccomb
+        Celec = (Ereq / 1000.0) * celecU
+        Cop = Cpre + Ccomb + Celec
 
         theta = math.degrees(math.atan2(FX, FL)) if FL > 0.0 else 90.0
         if estricto_prolado and not (0.0 < theta < 90.0):
@@ -592,17 +661,23 @@ def evaluar_punto(
             "cf": cf, "cr": cr, "L": L, "V": V, "ef": ef, "er": er,
             "Sf": Sf, "Sr": Sr, "S": S,
             "m": m, "cp": cp, "dT": dT, "Q": Q, "g": g, "F": F,
-            "e": e, "W": W, "ep": ep, "ke": ke, "fcal": fcal,
-            "beta": beta, "nu": nu, "alpha": alpha, "Pr": Pr, "Nue": Nue, "he": he,
+            "e": e, "W": W, "ncapS": ncapS, "ncapI": ncapI, "ncap": ncap,
+            "ep": ep, "ke": ke, "eps": eps, "fcal": fcal, "fmamp": fmamp,
+            "nmamp": nmamp, "Smamp": Smamp, "mmamp": mmamp,
+            "beta": beta, "nu": nu, "alpha": alpha, "Pr": Pr, "Nue": Nue,
+            "he": he, "hrade": hrade, "hetot": hetot,
             "dTi0": dTi0, "RaD0": RaD0, "Nui0": Nui0, "hi0": hi0, "U0": U0,
             "dTi": dTi, "RaD": RaD, "Nui": Nui, "hi": hi,
-            "dTcel": dTcel, "Rae": Rae, "Rac": Rac, "Nuc": Nuc, "ka": ka, "U": U,
+            "Tm": Tm, "epsef": epsef, "hrad": hrad,
+            "dTcel": dTcel, "Rae": Rae, "Rac": Rac, "Nuc": Nuc, "ka": ka,
+            "Usup": Usup, "Uinf": Uinf, "U": U,
             "Qp0": Qp0, "Qp": Qp, "dQp": dQp, "fais": fais,
             "Sc": Sc, "sigma": sigma, "mc": mc,
             "vT": vT, "dTc": dTc, "Qc": Qc, "tc": tc,
+            "npre": npre, "Epre": Epre, "cpre": cpre, "Cpre": Cpre,
             "PC": PC, "ncal": ncal, "mgc": mgc, "tm": tm,
             "Em0": Em0, "Em": Em, "Eah": Eah, "Eprop": Eprop, "mgm": mgm,
-            "v": v, "vv": vv, "vg": vg, "dm": dm, "mu": mu,
+            "v": v, "vv": vv, "vg": vg, "d1": d1, "nv": nv, "dm": dm, "mu": mu,
             "ReL": ReL, "Cf": Cf, "CDVc": CDVc, "kp": kp, "CDV": CDV, "FD": FD, "ED": ED,
             "N": N, "mmot": mmot, "mp": mp, "mad": mad, "mart": mart,
             "mcarga": mcarga, "mtot": mtot, "mflot": mflot, "mres": mres,
@@ -616,6 +691,7 @@ def evaluar_punto(
             "Pad": Pad, "Ptot": Ptot,
             "Ereq": Ereq, "Eelec": Eelec, "Eelec_J": Eelec, "celec": celec,
             "Etot": Etot, "ctot": ctot,
+            "ccomb": ccomb, "Ccomb": Ccomb, "celecU": celecU, "Celec": Celec, "Cop": Cop,
             "ebat": ebat, "DoD": DoD, "ntemp": ntemp, "Cmax": Cmax,
             "mbe": mbe, "mbp": mbp, "mbat": mbat, "mbmax": mbmax, "dmbat": dmbat,
             "valido": valido,

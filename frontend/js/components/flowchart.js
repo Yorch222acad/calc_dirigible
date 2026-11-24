@@ -1952,7 +1952,7 @@ export function renderizarMapaFlujoGlobal(contenedorHeader, contenedorBody, esta
     </div>
     <div class="flow-chain-card" style="--grp-color: #fb923c;">
       <div class="flow-chain-title">2. Cadena Térmica (C4 → C5 → C6 → C7)</div>
-      <p class="flow-chain-desc">Usando <strong>L, D, S, m</strong> y el Reynolds de viento <strong>ReL</strong> (C8), se resuelven los lazos de convección interna y externa en casco base <strong>U0</strong> (C4) y con cavidad aislante <strong>U</strong> (C5). De ahí salen las pérdidas <strong>Qp0, Qp</strong>, el ahorro <strong>fais</strong>, el enfriamiento <strong>vT, tc</strong> (C6) y la energía/masa de GLP <strong>Eprop, mgm</strong> (C7).</p>
+      <p class="flow-chain-desc">Usando <strong>L, D, S, m</strong> y el Reynolds de viento <strong>ReL</strong> (C8), se resuelven los lazos de convección interna y externa en casco base <strong>U0</strong> (C4) y con cavidad aislante <strong>U</strong> (C5). De ahí salen las pérdidas <strong>Qp0, Qp</strong>, el ahorro <strong>fais</strong>, el enfriamiento <strong>vT, tc</strong> (C6) y la energía/masa de combustible térmico <strong>Eprop, mgm</strong> (C7).</p>
     </div>
     <div class="flow-chain-card" style="--grp-color: #a78bfa;">
       <div class="flow-chain-title">3. Cadena Aerodinámica (C8)</div>

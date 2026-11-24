@@ -10,21 +10,21 @@ import {
   postModificar,
   postReiniciar,
   postOptimizar,
-} from "./api.js?v=9";
-import { store } from "./state.js?v=9";
+} from "./api.js?v=10";
+import { store } from "./state.js?v=10";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=9";
-import { renderizarPanelEcuaciones } from "./components/equations.js?v=9";
-import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=9";
-import { renderizarPanelSimulacion } from "./components/simulation.js?v=9";
-import { renderizarPanelGraficas } from "./components/charts.js?v=9";
+} from "./components/sidebar.js?v=10";
+import { renderizarPanelEcuaciones } from "./components/equations.js?v=10";
+import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=11";
+import { renderizarPanelSimulacion } from "./components/simulation.js?v=10";
+import { renderizarPanelGraficas } from "./components/charts.js?v=10";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=9";
+} from "./components/varInput.js?v=10";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");

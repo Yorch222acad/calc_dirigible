@@ -17,7 +17,7 @@ import evaluador
 # =============================================================
 # VARIABLES: nombre -> (descripción, unidad, valor inicial o None)
 # Calibradas para La Paz - Zona Sur a 100 m (~3.350 m s.n.m.)
-# Geometría inicial calculada para mflot = 3.0 kg y mres = 0.5 kg: R ≈ 1.173 m, L ≈ 5.631 m, V ≈ 16.23 m³
+# Diseño base: 3 viajes (nv=3, d1=280 m), Mylar 6 um (3/2 capas 14 mm), T2=85°C, v=5.5 m/s, lam=2.3
 # =============================================================
 VARIABLES = {
     # Caso 1: gas a temperatura ambiente (exterior)
@@ -27,14 +27,14 @@ VARIABLES = {
     "rho1":   ("Densidad caso 1 (ambiente)",             "kg/m³",       None),
     # Caso 2: mismo gas a mayor temperatura (aire caliente interior)
     "P2":     ("Presión caso 2 (aire caliente)",         "Pa",          67120.0),
-    "T2":     ("Temperatura caso 2 (aire caliente)",     "°C",          100.0),
+    "T2":     ("Temperatura caso 2 (aire caliente)",     "°C",          85.0),
     "R2":     ("Constante R caso 2",                     "J/(kg·K)",    287.058),
     "rho2":   ("Densidad caso 2 (aire caliente)",        "kg/m³",       None),
     "drho":   ("Diferencia de densidades",               "kg/m³",       None),
     # Geometría del casco (dos semielipsoides prolados, cf > R y cr > R)
     "R":      ("Radio máximo transversal",               "m",           None),
     "D":      ("Diámetro máximo del dirigible (2R)",     "m",           None),
-    "lam":    ("Relación de esbeltez (L/D)",             "adim",        2.6),
+    "lam":    ("Relación de esbeltez (L/D)",             "adim",        2.3),
     "xf":     ("Fracción de nariz (cf/L)",               "adim",        0.35),
     "cf":     ("Longitud semielipsoide nariz",           "m",           None),
     "cr":     ("Longitud semielipsoide cola",            "m",           None),
@@ -53,18 +53,28 @@ VARIABLES = {
     # Sustentación aerostática (Arquímedes)
     "g":      ("Aceleración de la gravedad",             "m/s²",        9.775),
     "F":      ("Fuerza de sustentación aerostática",     "N",           None),
-    # Convección interna/externa del casco y aislamiento por capa intermedia de celdas
-    "e":      ("Espesor de capa intermedia celular",     "m",           0.016),
+    # Convección, radiación Mylar, aislamiento celular asimétrico y mamparos internos
+    "e":      ("Espesor por capa celular aislante",      "m",           0.014),
     "W":      ("Ancho de celda cuadrada",                "m",           0.20),
-    "ep":     ("Espesor de película envolvente HDPE",    "m",           1.0e-5),
-    "ke":     ("Conductividad térmica película HDPE",    "W/(m·K)",     0.45),
+    "ncapS":  ("Capas celulares en mitad superior",      "adim",        3.0),
+    "ncapI":  ("Capas celulares en mitad inferior",      "adim",        2.0),
+    "ncap":   ("Número promedio de capas celulares",     "adim",        None),
+    "ep":     ("Espesor de película Mylar aluminizado",  "m",           6.0e-6),
+    "ke":     ("Conductividad térmica película Mylar",   "W/(m·K)",     0.15),
+    "eps":    ("Emisividad infrarroja de película Mylar","adim",        0.04),
     "fcal":   ("Factor de agitación convectiva calefactor", "adim",     1.15),
+    "fmamp":  ("Factor convectivo por mamparos y estratificación", "adim", 0.78),
+    "nmamp":  ("Número de mamparos/deflectores internos","adim",        2.0),
+    "Smamp":  ("Área de película en mamparos internos",  "m²",          None),
+    "mmamp":  ("Masa de mamparos/deflectores internos",  "kg",          None),
     "beta":   ("Coef. expansión térmica del aire",       "K⁻¹",         0.00302),
     "nu":     ("Viscosidad cinemática del aire",         "m²/s",        2.65e-5),
     "alpha":  ("Difusividad térmica del aire",           "m²/s",        3.80e-5),
     "Pr":     ("Número de Prandtl del aire",             "adim",        None),
     "Nue":    ("Número de Nusselt externo del casco",    "adim",        None),
     "he":     ("Coef. convectivo externo del casco",     "W/(m²·K)",    None),
+    "hrade":  ("Coef. radiativo externo del casco Mylar","W/(m²·K)",    None),
+    "hetot":  ("Coef. externo total (convección + radiación)", "W/(m²·K)", None),
     "dTi0":   ("Caída térmica interna sin aislante",     "K",           None),
     "RaD0":   ("Rayleigh interno del casco sin aislante","adim",        None),
     "Nui0":   ("Nusselt interno del casco sin aislante", "adim",        None),
@@ -74,56 +84,67 @@ VARIABLES = {
     "RaD":    ("Rayleigh interno del casco con aislante","adim",        None),
     "Nui":    ("Nusselt interno del casco con aislante", "adim",        None),
     "hi":     ("Coef. convectivo interno con aislante",  "W/(m²·K)",    None),
-    "dTcel":  ("Caída térmica en la celda aislante",     "K",           None),
+    "Tm":     ("Temperatura media absoluta de pared",    "K",           None),
+    "epsef":  ("Emisividad efectiva entre láminas Mylar","adim",        None),
+    "hrad":   ("Coef. radiativo interno entre capas Mylar", "W/(m²·K)", None),
+    "dTcel":  ("Caída térmica por celda superior",       "K",           None),
     "Rae":    ("Número de Rayleigh en la celda",         "adim",        None),
-    "Rac":    ("Rayleigh crítico de convección",         "adim",        2000.0),
+    "Rac":    ("Rayleigh crítico de convección",         "adim",        1708.0),
     "Nuc":    ("Número de Nusselt en la celda",          "adim",        None),
     "ka":     ("Conductividad térmica del aire",         "W/(m·K)",     0.0285),
-    "U":      ("Coef. global con capa celular",          "W/(m²·K)",    None),
+    "Usup":   ("Coef. global mitad superior (ncapS capas)", "W/(m²·K)", None),
+    "Uinf":   ("Coef. global mitad inferior (ncapI capas, Nu=1)", "W/(m²·K)", None),
+    "U":      ("Coef. global promedio con capa celular", "W/(m²·K)",    None),
     "Qp0":    ("Potencia perdida sin capa celular",      "W",           None),
     "Qp":     ("Potencia perdida con capa celular",      "W",           None),
     "dQp":    ("Potencia ahorrada por capa celular",     "W",           None),
     "fais":   ("Fracción de ahorro térmico celular",     "adim",        None),
     "Sc":     ("Área de película de la cuadrícula",      "m²",          None),
-    "sigma":  ("Gramaje de película HDPE",               "kg/m²",       0.0095),
+    "sigma":  ("Gramaje de película Mylar aluminizado",  "kg/m²",       0.0084),
     "mc":     ("Masa total de la cuadrícula celular",    "kg",          None),
     # Pérdida de calor y enfriamiento (con aislante celular incorporado)
     "vT":     ("Velocidad de enfriamiento (dT/dt)",      "K/s",         None),
     "dTc":    ("Caída admisible de temperatura",         "K",           20.0),
     "Qc":     ("Energía perdida en caída dTc",           "J",           None),
     "tc":     ("Tiempo de enfriamiento para dTc",        "s",           None),
-    # Quemador de propano/butano (GLP) e intercambiador sin contacto de llama
-    "PC":     ("Poder calorífico del GLP (propano)",     "J/kg",        4.6e7),
-    "ncal":   ("Eficiencia térmica calefactor indirecto","adim",        0.80),
-    "mgc":    ("Masa de GLP para recuperar caída dTc",   "kg",          None),
+    # Precalentamiento en tierra y quemador térmico en vuelo (etanol/GLP genérico)
+    "npre":   ("Eficiencia de precalentamiento en tierra", "adim",      0.65),
+    "Epre":   ("Energía total de precalentamiento en tierra", "J",      None),
+    "cpre":   ("Costo unitario de energía en tierra",    "Bs/MJ",       0.24),
+    "Cpre":   ("Costo de precalentamiento en tierra",    "Bs",          None),
+    "PC":     ("Poder calorífico del combustible térmico", "J/kg",      2.5e7),
+    "ncal":   ("Eficiencia térmica calefactor indirecto","adim",        0.75),
+    "mgc":    ("Masa de combustible para recuperar caída dTc", "kg",    None),
     "tm":     ("Tiempo de misión (vuelo/mantenimiento)", "s",           None),
     "Em0":    ("Energía perdida sin aislante en misión", "J",           None),
     "Em":     ("Energía térmica perdida en misión",      "J",           None),
     "Eah":    ("Energía ahorrada gracias al aislante",   "J",           None),
-    "Eprop":  ("Energía suministrada por propano en misión", "J",       None),
-    "mgm":    ("Masa de GLP consumida en misión",        "kg",          None),
-    # Resistencia aerodinámica en el desplazamiento (arrastre)
-    "v":      ("Velocidad relativa al aire",             "m/s",         4.5),
+    "Eprop":  ("Energía suministrada por combustible en misión", "J",   None),
+    "mgm":    ("Masa de combustible consumida en misión","kg",          None),
+    # Resistencia aerodinámica y desplazamiento multi-viaje
+    "v":      ("Velocidad relativa al aire",             "m/s",         5.5),
     "vv":     ("Velocidad del viento en contra",         "m/s",         2.5),
     "vg":     ("Velocidad neta respecto al suelo (v-vv)","m/s",         None),
-    "dm":     ("Distancia de misión a recorrer",         "m",           280.0),
+    "d1":     ("Distancia de un viaje base",             "m",           280.0),
+    "nv":     ("Número de viajes consecutivos en misión","adim",        3.0),
+    "dm":     ("Distancia total de misión (nv·d1)",      "m",           None),
     "mu":     ("Viscosidad dinámica del aire",           "Pa·s",        1.75e-5),
     "ReL":    ("Número de Reynolds longitudinal",        "adim",        None),
     "Cf":     ("Coef. de fricción superficial",          "adim",        None),
     "CDVc":   ("Coef. volumétrico del casco limpio",     "adim",        None),
-    "kp":     ("Factor de penalización parásita",        "adim",        1.4),
+    "kp":     ("Factor de penalización parásita",        "adim",        1.45),
     "CDV":    ("Coef. de resistencia volumétrico",       "adim",        None),
     "FD":     ("Fuerza de resistencia aerodinámica",     "N",           None),
     "ED":     ("Energía perdida por resistencia aerodinámica", "J",     None),
     # Masas y balance de peso del dirigible híbrido
     "N":      ("Número de motores activos",              "adim",        4.0),
     "mmot":   ("Masa de cada motor A2212 (1000KV)",      "kg",          0.047),
-    "mp":     ("Masa de combustible propano a bordo",    "kg",          0.220),
-    "mad":    ("Masa adicional de componentes",          "kg",          1.1),
+    "mp":     ("Masa de combustible térmico a bordo",    "kg",          0.220),
+    "mad":    ("Masa adicional de componentes",          "kg",          1.15),
     "mart":   ("Masa del artefacto con componentes",     "kg",          None),
     "mcarga": ("Carga útil",                             "kg",          1.0),
     "mtot":   ("Masa total del dirigible",               "kg",          None),
-    "mflot":  ("Masa compensada por aire caliente",      "kg",          2.55),
+    "mflot":  ("Masa compensada por aire caliente",      "kg",          3.20),
     "mres":   ("Masa residual a sostener por motores",   "kg",          None),
     "fap":    ("Factor de masa aparente virtual",        "adim",        1.15),
     "map":    ("Masa aparente traslacional",             "kg",          None),
@@ -156,14 +177,19 @@ VARIABLES = {
     "Pmax1":  ("Potencia eléctrica máx. continua/motor", "W",           160.0),
     "Pmax":   ("Potencia eléctrica máx. de 4 motores",   "W",           None),
     "dPelec": ("Margen de potencia eléctrica motores",   "W",           None),
-    "Pad":    ("Potencia adicional (placa, cámara, antena, vacío)", "W", 40.0),
+    "Pad":    ("Potencia adicional (placa, cámara, antena, ventilador)", "W", 45.0),
     "Ptot":   ("Potencia eléctrica total a bordo (motores + electr.)", "W", None),
-    # Batería requerida, distancia y coste energético de misión
+    # Batería requerida, costes energéticos y económicos de misión
     "Ereq":   ("Energía eléctrica requerida en misión",  "Wh",          None),
     "Eelec":  ("Energía eléctrica total usada en misión","J",           None),
     "celec":  ("Coste energético eléctrico por metro",   "Wh/m",        None),
-    "Etot":   ("Energía total en misión (eléc. + GLP)",  "J",           None),
+    "Etot":   ("Energía total en misión (eléc. + comb.)","J",           None),
     "ctot":   ("Coste energético total por metro",       "J/m",         None),
+    "ccomb":  ("Costo unitario de combustible térmico",  "Bs/kg",       18.0),
+    "Ccomb":  ("Costo de combustible térmico en vuelo",  "Bs",          None),
+    "celecU": ("Costo unitario de electricidad (batería)","Bs/kWh",     0.85),
+    "Celec":  ("Costo de recarga eléctrica de batería",  "Bs",          None),
+    "Cop":    ("Costo operativo total de misión (tierra + vuelo)", "Bs", None),
     "ebat":   ("Energía específica de batería",          "Wh/kg",       150.0),
     "DoD":    ("Profundidad de descarga máxima (DoD)",   "adim",        0.80),
     "ntemp":  ("Factor de derateo térmico de batería",   "adim",        0.92),
@@ -207,20 +233,27 @@ UNIDAD_NOMBRE = {
     "Wh/kg":    "Watts hora por kilogramo",
     "Wh/m":     "Watts hora por metro",
     "J/m":      "Joules por metro",
+    "Bs":       "Bolivianos",
+    "Bs/MJ":    "Bolivianos por MegaJoule",
+    "Bs/kg":    "Bolivianos por kilogramo",
+    "Bs/kWh":   "Bolivianos por kilovatio hora",
 }
 
-# Variables de entrada al iniciar (141 variables - 87 ecuaciones = 54 fijas)
-# Se fijan dm (distancia de misión), vv (viento en contra), Pad (consumo adicional) y mflot (carga aire caliente); vg, U0, tm, Ptot, mbat y mres se despejan automáticamente.
+# Variables de entrada al iniciar (167 variables - 103 ecuaciones = 64 fijas)
+# Se fijan d1 y nv (multi-viaje), capas asimétricas Mylar (ncapS, ncapI, eps), mamparos (fmamp, nmamp),
+# precalentamiento y costos (npre, cpre, ccomb, celecU), vv, Pad y mflot; dm, U0, U, Cop, mbat y mres se despejan automáticamente.
 FIJAS_INI = [
     "P1", "T1", "R1", "P2", "T2", "R2",
     "lam", "xf",
     "cp", "g",
-    "e", "W", "ep", "ke", "fcal", "beta", "nu", "alpha", "Rac", "ka", "sigma",
+    "e", "W", "ncapS", "ncapI", "ep", "ke", "eps", "fcal", "fmamp", "nmamp",
+    "beta", "nu", "alpha", "Rac", "ka", "sigma",
     "dTc",
-    "PC", "ncal",
-    "v", "vv", "dm", "mu", "kp",
+    "npre", "cpre", "PC", "ncal",
+    "v", "vv", "d1", "nv", "mu", "kp",
     "N", "mmot", "mp", "mad", "mcarga", "mflot", "fap",
     "vz", "vx", "ta", "thmax", "Tmax1", "dp", "nprop0", "vpitch", "nm", "nESC", "km", "Pmax1", "Pad",
+    "ccomb", "celecU",
     "ebat", "DoD", "ntemp", "Cmax", "mbmax",
 ]
 
@@ -229,15 +262,16 @@ POSITIVAS = {
     "P1", "R1", "rho1", "P2", "R2", "rho2",
     "R", "D", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
-    "e", "W", "ep", "ke", "fcal", "beta", "nu", "alpha",
-    "Pr", "Nue", "he",
+    "e", "W", "ncapS", "ncapI", "ncap", "ep", "ke", "eps", "epsef", "fcal", "fmamp",
+    "beta", "nu", "alpha",
+    "Pr", "Nue", "he", "hrade", "hetot",
     "dTi0", "RaD0", "Nui0", "hi0", "U0",
-    "dTi", "RaD", "Nui", "hi",
-    "dTcel", "Rae", "Rac", "Nuc", "ka", "U",
+    "dTi", "RaD", "Nui", "hi", "Tm", "hrad",
+    "dTcel", "Rae", "Rac", "Nuc", "ka", "Usup", "Uinf", "U",
     "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
     "vT", "dTc", "Qc", "tc",
-    "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "Eprop", "mgm",
-    "v", "vg", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD", "ED",
+    "npre", "Epre", "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "Eprop", "mgm",
+    "v", "vg", "d1", "nv", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD", "ED",
     "N", "mmot", "mp", "mad", "mart", "mcarga", "mtot", "mflot", "mres", "fap", "map",
     "vz", "vx", "ta", "az", "ax", "FL", "FX", "Ttot", "theta", "thmax",
     "Tmax1", "FLmax", "dp", "Ap", "nprop0", "vpitch", "nprop", "nm", "nESC", "ntot", "km", "Pelec", "Pmax1", "Pmax", "Ptot",
@@ -263,18 +297,28 @@ UNIDAD_ING = {
     "Q":      ("J", "", 1),
     "g":      (None, "m/s²", 1),
     "F":      ("N", "", 1),
-    # Convección interna/externa y capa intermedia de celdas
+    # Convección, radiación Mylar, capas asimétricas y mamparos
     "e":      ("m", "", 1),
     "W":      ("m", "", 1),
+    "ncapS":  (None, "adim", 1),
+    "ncapI":  (None, "adim", 1),
+    "ncap":   (None, "adim", 1),
     "ep":     ("m", "", 1),
     "ke":     ("W", "/(m·K)", 1),
+    "eps":    (None, "adim", 1),
     "fcal":   (None, "adim", 1),
+    "fmamp":  (None, "adim", 1),
+    "nmamp":  (None, "adim", 1),
+    "Smamp":  ("m²", "", 1),
+    "mmamp":  ("g", "", 1000),
     "beta":   ("K⁻¹", "", 1),
     "nu":     ("m²/s", "", 1),
     "alpha":  ("m²/s", "", 1),
     "Pr":     (None, "adim", 1),
     "Nue":    ("adim", "", 1),
     "he":     ("W", "/(m²·K)", 1),
+    "hrade":  ("W", "/(m²·K)", 1),
+    "hetot":  ("W", "/(m²·K)", 1),
     "dTi0":   ("K", "", 1),
     "RaD0":   ("adim", "", 1),
     "Nui0":   ("adim", "", 1),
@@ -284,11 +328,16 @@ UNIDAD_ING = {
     "RaD":    ("adim", "", 1),
     "Nui":    ("adim", "", 1),
     "hi":     ("W", "/(m²·K)", 1),
+    "Tm":     ("K", "", 1),
+    "epsef":  (None, "adim", 1),
+    "hrad":   ("W", "/(m²·K)", 1),
     "dTcel":  ("K", "", 1),
     "Rae":    ("adim", "", 1),
     "Rac":    ("adim", "", 1),
     "Nuc":    (None, "adim", 1),
     "ka":     ("W", "/(m·K)", 1),
+    "Usup":   ("W", "/(m²·K)", 1),
+    "Uinf":   ("W", "/(m²·K)", 1),
     "U":      ("W", "/(m²·K)", 1),
     "Qp0":    ("W", "", 1),
     "Qp":     ("W", "", 1),
@@ -302,7 +351,11 @@ UNIDAD_ING = {
     "dTc":    ("K", "", 1),
     "Qc":     ("J", "", 1),
     "tc":     ("s", "", 1),
-    # Quemador de GLP e intercambiador
+    # Precalentamiento en tierra y quemador térmico
+    "npre":   (None, "adim", 1),
+    "Epre":   ("J", "", 1),
+    "cpre":   (None, "Bs/MJ", 1),
+    "Cpre":   (None, "Bs", 1),
     "PC":     ("J", "/kg", 1),
     "ncal":   (None, "adim", 1),
     "mgc":    ("g", "", 1000),
@@ -312,10 +365,12 @@ UNIDAD_ING = {
     "Eah":    ("J", "", 1),
     "Eprop":  ("J", "", 1),
     "mgm":    ("g", "", 1000),
-    # Resistencia aerodinámica
+    # Resistencia aerodinámica y multi-viaje
     "v":      ("m", "/s", 1),
     "vv":     ("m", "/s", 1),
     "vg":     ("m", "/s", 1),
+    "d1":     ("m", "", 1),
+    "nv":     (None, "adim", 1),
     "dm":     ("m", "", 1),
     "mu":     ("Pa·s", "", 1),
     "ReL":    ("adim", "", 1),
@@ -368,12 +423,17 @@ UNIDAD_ING = {
     "dPelec": ("W", "", 1),
     "Pad":    ("W", "", 1),
     "Ptot":   ("W", "", 1),
-    # Batería, distancia y coste energético
+    # Batería, distancia, costes energéticos y económicos
     "Ereq":   ("Wh", "", 1),
     "Eelec":  ("J", "", 1),
     "celec":  ("Wh", "/m", 1),
     "Etot":   ("J", "", 1),
     "ctot":   ("J", "/m", 1),
+    "ccomb":  (None, "Bs/kg", 1),
+    "Ccomb":  (None, "Bs", 1),
+    "celecU": (None, "Bs/kWh", 1),
+    "Celec":  (None, "Bs", 1),
+    "Cop":    (None, "Bs", 1),
     "ebat":   ("Wh", "/kg", 1),
     "DoD":    (None, "adim", 1),
     "ntemp":  (None, "adim", 1),
@@ -391,9 +451,10 @@ S = {
 }
 K = sp.Rational("273.15")  # °C -> K
 S_POR_H = sp.Integer(3600)  # s -> h
+SIGMA_SB = sp.Float("5.670374419e-8")  # Constante de Stefan-Boltzmann [W/(m²·K⁴)]
 
 # =============================================================
-# Definición única de las 86 ecuaciones del modelo (fuente de verdad del solver)
+# Definición única de las 103 ecuaciones del modelo (fuente de verdad del solver)
 # =============================================================
 ECUACIONES_DEF: dict[str, sp.Eq] = {
     # Gases ideales, aire caliente y flotabilidad
@@ -404,7 +465,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Masa de aire caliente":         sp.Eq(S["m"], S["rho2"] * S["V"]),
     "Calor sensible":                sp.Eq(S["Q"], S["m"] * S["cp"] * S["dT"]),
     "Fuerza de sustentación aerostática": sp.Eq(S["F"], S["drho"] * S["g"] * S["V"]),
-    # Geometría del casco (dos semielipsoides)
+    # Geometría del casco (dos semielipsoides) y película/mamparos
     "Diámetro máximo transversal (2R)": sp.Eq(S["D"], 2 * S["R"]),
     "Relación de esbeltez (L/D)":       sp.Eq(S["lam"], S["L"] / (2 * S["R"])),
     "Fracción de nariz (cf/L)":         sp.Eq(S["xf"], S["cf"] / S["L"]),
@@ -415,7 +476,21 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Área superficial frontal":         sp.Eq(S["Sf"], sp.pi * S["R"] * S["cf"] * sp.asin(S["ef"]) / S["ef"]),
     "Área superficial trasera":         sp.Eq(S["Sr"], sp.pi * S["R"] * S["cr"] * sp.asin(S["er"]) / S["er"]),
     "Área superficial total":           sp.Eq(S["S"], S["Sf"] + S["Sr"]),
-    # Convección del casco y modelo térmico base (U0)
+    "Número promedio de capas celulares (ncap)": sp.Eq(S["ncap"], (S["ncapS"] + S["ncapI"]) / 2),
+    "Área total de película celular": sp.Eq(
+        S["Sc"], S["ncap"] * S["S"] * (1 + 2 * S["e"] / S["W"])
+    ),
+    "Masa de la cuadrícula celular": sp.Eq(
+        S["mc"], S["Sc"] * S["sigma"]
+    ),
+    "Área de película de mamparos internos (Smamp)": sp.Eq(
+        S["Smamp"], S["nmamp"] * sp.Rational(2, 3) * sp.pi * S["R"] ** 2
+    ),
+    "Masa de mamparos/deflectores internos (mmamp)": sp.Eq(
+        S["mmamp"], S["Smamp"] * S["sigma"]
+    ),
+    # Convección externa, radiación Mylar exterior y modelo térmico base (U0)
+    # NOTA: U0 es estrictamente independiente de e, W, ncapS, ncapI, fmamp, nmamp, Nuc y hrad.
     "Número de Prandtl del aire (Pr)": sp.Eq(
         S["Pr"], S["nu"] / S["alpha"]
     ),
@@ -424,6 +499,12 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     ),
     "Coeficiente convectivo externo del casco (he)": sp.Eq(
         S["he"], (S["Nue"] * S["ka"]) / S["L"]
+    ),
+    "Coeficiente radiativo externo del casco (hrade)": sp.Eq(
+        S["hrade"], 4 * S["eps"] * SIGMA_SB * (S["T1"] + K) ** 3
+    ),
+    "Coeficiente externo total del casco (hetot)": sp.Eq(
+        S["hetot"], S["he"] + S["hrade"]
     ),
     "Caída térmica interna sin capa celular (dTi0)": sp.Eq(
         S["dTi0"], (S["U0"] / S["hi0"]) * S["dT"]
@@ -438,9 +519,9 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["hi0"], S["fcal"] * (S["Nui0"] * S["ka"]) / S["D"]
     ),
     "Coeficiente global sin capa celular (U0)": sp.Eq(
-        S["U0"], 1 / (1 / S["hi0"] + S["ep"] / S["ke"] + 1 / S["he"])
+        S["U0"], 1 / (1 / S["hi0"] + S["ep"] / S["ke"] + 1 / S["hetot"])
     ),
-    # Aislamiento por capa intermedia de celdas (U)
+    # Aislamiento Mylar multicapa asimétrico, radiación interna y mamparos (U)
     "Caída térmica interna con capa celular (dTi)": sp.Eq(
         S["dTi"], (S["U"] / S["hi"]) * S["dT"]
     ),
@@ -451,10 +532,19 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["Nui"], sp.Float("0.13") * S["RaD"] ** sp.Rational(1, 3)
     ),
     "Coeficiente convectivo interno con capa celular (hi)": sp.Eq(
-        S["hi"], S["fcal"] * (S["Nui"] * S["ka"]) / S["D"]
+        S["hi"], S["fcal"] * S["fmamp"] * (S["Nui"] * S["ka"]) / S["D"]
+    ),
+    "Temperatura media absoluta de pared (Tm)": sp.Eq(
+        S["Tm"], (S["T1"] + S["T2"]) / 2 + K
+    ),
+    "Emisividad efectiva entre láminas (epsef)": sp.Eq(
+        S["epsef"], S["eps"] / (2 - S["eps"])
+    ),
+    "Coeficiente radiativo interno de cavidad (hrad)": sp.Eq(
+        S["hrad"], 4 * S["epsef"] * SIGMA_SB * S["Tm"] ** 3
     ),
     "Caída térmica en la celda aislante (dTcel)": sp.Eq(
-        S["dTcel"], ((S["U"] * S["e"]) / (S["ka"] * S["Nuc"])) * S["dT"]
+        S["dTcel"], (S["Usup"] / ((S["ka"] * S["Nuc"]) / S["e"] + S["hrad"])) * S["dT"]
     ),
     "Número de Rayleigh en cavidad celular (Rae)": sp.Eq(
         S["Rae"], (S["g"] * S["beta"] * S["dTcel"] * S["e"] ** 3) / (S["nu"] * S["alpha"])
@@ -462,18 +552,29 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Número de Nusselt efectivo en celda (Nuc)": sp.Eq(
         S["Nuc"],
         1
-        + (S["Rae"] / S["Rac"]) ** sp.Rational(1, 4)
-        + (S["e"] / S["W"]) * (S["Rae"] / S["Rac"]) ** sp.Rational(3, 4),
+        + sp.Float("1.44") * sp.Max(0, 1 - S["Rac"] / S["Rae"])
+        + sp.Max(0, (S["Rae"] / sp.Integer(5830)) ** sp.Rational(1, 3) - 1),
+    ),
+    "Coeficiente global mitad superior (Usup)": sp.Eq(
+        S["Usup"],
+        1 / (
+            1 / S["hi"]
+            + ((S["ncapS"] + 1) * S["ep"]) / S["ke"]
+            + S["ncapS"] / ((S["ka"] * S["Nuc"]) / S["e"] + S["hrad"])
+            + 1 / S["hetot"]
+        ),
+    ),
+    "Coeficiente global mitad inferior (Uinf)": sp.Eq(
+        S["Uinf"],
+        1 / (
+            1 / S["hi"]
+            + ((S["ncapI"] + 1) * S["ep"]) / S["ke"]
+            + S["ncapI"] / (S["ka"] / S["e"] + S["hrad"])
+            + 1 / S["hetot"]
+        ),
     ),
     "Coeficiente global con capa celular (U)": sp.Eq(
-        S["U"],
-        1 / (1 / S["hi"] + (2 * S["ep"]) / S["ke"] + S["e"] / (S["ka"] * S["Nuc"]) + 1 / S["he"]),
-    ),
-    "Área total de película celular": sp.Eq(
-        S["Sc"], S["S"] * (1 + 2 * S["e"] / S["W"])
-    ),
-    "Masa de la cuadrícula celular": sp.Eq(
-        S["mc"], S["Sc"] * S["sigma"]
+        S["U"], (S["Usup"] + S["Uinf"]) / 2
     ),
     # Pérdida de calor, ahorro y enfriamiento
     "Potencia perdida sin capa celular (Qp0)": sp.Eq(
@@ -491,16 +592,23 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Velocidad de enfriamiento (dT/dt)": sp.Eq(S["vT"], S["Qp"] / (S["m"] * S["cp"])),
     "Energía cedida en caída admisible": sp.Eq(S["Qc"], S["m"] * S["cp"] * S["dTc"]),
     "Tiempo de enfriamiento sin aporte": sp.Eq(S["tc"], S["Qc"] / S["Qp"]),
-    # Quemador de propano/butano (compensación térmica)
-    "Masa de gas para recuperar caída dTc":            sp.Eq(S["mgc"], S["Qc"] / (S["ncal"] * S["PC"])),
+    # Precalentamiento en tierra y quemador térmico en vuelo
+    "Energía de precalentamiento en tierra (Epre)": sp.Eq(S["Epre"], S["Q"] / S["npre"]),
+    "Costo de precalentamiento en tierra (Cpre)": sp.Eq(
+        S["Cpre"], (S["Epre"] / sp.Integer(1000000)) * S["cpre"]
+    ),
+    "Masa de combustible térmico para recuperar caída dTc":            sp.Eq(S["mgc"], S["Qc"] / (S["ncal"] * S["PC"])),
     "Energía perdida sin aislante en misión":          sp.Eq(S["Em0"], S["Qp0"] * S["tm"]),
     "Energía perdida con aislante en misión":          sp.Eq(S["Em"],  S["Qp"] * S["tm"]),
     "Energía ahorrada gracias al aislante":            sp.Eq(S["Eah"], S["dQp"] * S["tm"]),
-    "Energía suministrada por propano en misión (Eprop)": sp.Eq(S["Eprop"], S["Em"] / S["ncal"]),
-    "Masa de gas para mantener T en misión":           sp.Eq(S["mgm"], S["Eprop"] / S["PC"]),
-    # Desplazamiento y resistencia aerodinámica
+    "Energía suministrada por combustible térmico en misión (Eprop)": sp.Eq(S["Eprop"], S["Em"] / S["ncal"]),
+    "Masa de combustible térmico para mantener T en misión":           sp.Eq(S["mgm"], S["Eprop"] / S["PC"]),
+    # Desplazamiento multi-viaje y resistencia aerodinámica
     "Velocidad neta de avance respecto al suelo (vg)": sp.Eq(
         S["vg"], S["v"] - S["vv"]
+    ),
+    "Distancia total por viajes (nv·d1)": sp.Eq(
+        S["dm"], S["nv"] * S["d1"]
     ),
     "Distancia recorrida en misión (dm)": sp.Eq(
         S["dm"], S["vg"] * S["tm"]
@@ -530,7 +638,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     ),
     # Masas y balance de peso (dirigible híbrido)
     "Masa del artefacto con sus componentes (mart)": sp.Eq(
-        S["mart"], S["mc"] + S["N"] * S["mmot"] + S["mp"] + S["mad"] + S["mbat"]
+        S["mart"], S["mc"] + S["mmamp"] + S["N"] * S["mmot"] + S["mp"] + S["mad"] + S["mbat"]
     ),
     "Masa total del dirigible con carga útil (mtot)": sp.Eq(
         S["mtot"], S["mart"] + S["mcarga"]
@@ -601,7 +709,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Potencia eléctrica total a bordo (Ptot)": sp.Eq(
         S["Ptot"], S["Pelec"] + S["Pad"]
     ),
-    # Energía y coste energético de misión
+    # Energía y costes operativos de misión
     "Energía eléctrica requerida en misión (Ereq)": sp.Eq(
         S["Ereq"], (S["Ptot"] * S["tm"]) / S_POR_H
     ),
@@ -616,6 +724,15 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     ),
     "Coste energético total por distancia (ctot)": sp.Eq(
         S["ctot"], S["Etot"] / S["dm"]
+    ),
+    "Costo de combustible térmico en vuelo (Ccomb)": sp.Eq(
+        S["Ccomb"], S["mgm"] * S["ccomb"]
+    ),
+    "Costo de recarga eléctrica de batería (Celec)": sp.Eq(
+        S["Celec"], (S["Ereq"] / sp.Integer(1000)) * S["celecU"]
+    ),
+    "Costo operativo total de misión (Cop)": sp.Eq(
+        S["Cop"], S["Cpre"] + S["Ccomb"] + S["Celec"]
     ),
     # Dimensionamiento de batería y límites
     "Masa de batería por energía de misión (mbe)": sp.Eq(
@@ -633,7 +750,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
 }
 
 # =============================================================
-# 13 categorías homogéneas (7 a 9 ecuaciones c/u; ecuaciones puente compartidas)
+# 13 categorías homogéneas (ecuaciones puente compartidas entre bloques)
 # =============================================================
 _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
     "Gases ideales, aire caliente y flotabilidad": [
@@ -655,34 +772,44 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Volumen total del casco",
         "Área superficial total",
     ],
-    "Superficies del casco y película celular": [
+    "Superficies del casco, capas Mylar y mamparos": [
         "Excentricidad frontal (cf > R)",
         "Excentricidad trasera (cr > R)",
         "Área superficial frontal",
         "Área superficial trasera",
         "Área superficial total",
+        "Número promedio de capas celulares (ncap)",
         "Área total de película celular",
         "Masa de la cuadrícula celular",
+        "Área de película de mamparos internos (Smamp)",
+        "Masa de mamparos/deflectores internos (mmamp)",
     ],
-    "Convección del casco y modelo térmico base (U0)": [
+    "Convección externa, radiación y modelo térmico base (U0)": [
         "Número de Prandtl del aire (Pr)",
         "Número de Nusselt externo por viento (Nue)",
         "Coeficiente convectivo externo del casco (he)",
+        "Coeficiente radiativo externo del casco (hrade)",
+        "Coeficiente externo total del casco (hetot)",
         "Caída térmica interna sin capa celular (dTi0)",
         "Número de Rayleigh interno sin capa celular (RaD0)",
         "Número de Nusselt interno sin capa celular (Nui0)",
         "Coeficiente convectivo interno sin capa celular (hi0)",
         "Coeficiente global sin capa celular (U0)",
     ],
-    "Aislamiento térmico por capa intermedia de celdas (U)": [
-        "Coeficiente convectivo externo del casco (he)",
+    "Aislamiento Mylar multicapa asimétrico y mamparos (U)": [
+        "Coeficiente externo total del casco (hetot)",
         "Caída térmica interna con capa celular (dTi)",
         "Número de Rayleigh interno con capa celular (RaD)",
         "Número de Nusselt interno con capa celular (Nui)",
         "Coeficiente convectivo interno con capa celular (hi)",
+        "Temperatura media absoluta de pared (Tm)",
+        "Emisividad efectiva entre láminas (epsef)",
+        "Coeficiente radiativo interno de cavidad (hrad)",
         "Caída térmica en la celda aislante (dTcel)",
         "Número de Rayleigh en cavidad celular (Rae)",
         "Número de Nusselt efectivo en celda (Nuc)",
+        "Coeficiente global mitad superior (Usup)",
+        "Coeficiente global mitad inferior (Uinf)",
         "Coeficiente global con capa celular (U)",
     ],
     "Pérdidas de calor, ahorro del aislante y enfriamiento": [
@@ -694,17 +821,20 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Energía cedida en caída admisible",
         "Tiempo de enfriamiento sin aporte",
     ],
-    "Energía térmica de misión y quemador de propano": [
+    "Precalentamiento en tierra, energía térmica y quemador": [
         "Distancia recorrida en misión (dm)",
-        "Masa de gas para recuperar caída dTc",
+        "Energía de precalentamiento en tierra (Epre)",
+        "Costo de precalentamiento en tierra (Cpre)",
+        "Masa de combustible térmico para recuperar caída dTc",
         "Energía perdida sin aislante en misión",
         "Energía perdida con aislante en misión",
         "Energía ahorrada gracias al aislante",
-        "Energía suministrada por propano en misión (Eprop)",
-        "Masa de gas para mantener T en misión",
+        "Energía suministrada por combustible térmico en misión (Eprop)",
+        "Masa de combustible térmico para mantener T en misión",
     ],
-    "Cinemática de vuelo, viento y arrastre aerodinámico": [
+    "Cinemática multi-viaje, viento y arrastre aerodinámico": [
         "Velocidad neta de avance respecto al suelo (vg)",
+        "Distancia total por viajes (nv·d1)",
         "Distancia recorrida en misión (dm)",
         "Número de Reynolds longitudinal (ReL)",
         "Coeficiente de fricción superficial (Cf)",
@@ -715,6 +845,7 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
     ],
     "Masas del dirigible y reparto de sustentación híbrida": [
         "Masa de la cuadrícula celular",
+        "Masa de mamparos/deflectores internos (mmamp)",
         "Masa de batería requerida (mbat)",
         "Masa del artefacto con sus componentes (mart)",
         "Masa total del dirigible con carga útil (mtot)",
@@ -745,9 +876,10 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Potencia eléctrica máxima continua de 4 motores (Pmax)",
         "Margen de potencia eléctrica de los motores (dPelec)",
     ],
-    "Balance energético global y coste de misión": [
-        "Energía suministrada por propano en misión (Eprop)",
+    "Balance energético global y costos operativos de misión": [
+        "Energía suministrada por combustible térmico en misión (Eprop)",
         "Energía perdida por resistencia aerodinámica (ED)",
+        "Costo de precalentamiento en tierra (Cpre)",
         "Potencia eléctrica demandada por los 4 motores (Pelec)",
         "Potencia eléctrica total a bordo (Ptot)",
         "Energía eléctrica requerida en misión (Ereq)",
@@ -755,6 +887,9 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Coste energético eléctrico por distancia (celec)",
         "Energía total consumida en misión (Etot)",
         "Coste energético total por distancia (ctot)",
+        "Costo de combustible térmico en vuelo (Ccomb)",
+        "Costo de recarga eléctrica de batería (Celec)",
+        "Costo operativo total de misión (Cop)",
     ],
     "Dimensionamiento y límites de la batería": [
         "Potencia eléctrica total a bordo (Ptot)",
@@ -774,7 +909,7 @@ CATEGORIAS: dict[str, dict[str, sp.Eq]] = {
 
 # Lista plana de ecuaciones únicas y estructuras precalculadas para emparejamiento y evaluación rápida
 ECUACIONES: dict[str, sp.Eq] = dict(ECUACIONES_DEF)
-assert len(ECUACIONES) == len(ECUACIONES_DEF) == 87
+assert len(ECUACIONES) == len(ECUACIONES_DEF) == 103
 assert {nom for eqs in _CATEGORIAS_NOMBRES.values() for nom in eqs} == set(ECUACIONES_DEF), (
     "Las categorías deben cubrir exactamente todas las ecuaciones de ECUACIONES_DEF"
 )
@@ -920,21 +1055,27 @@ def estado_equilibrio(
 
 
 _FRACCIONES_UNITARIAS = frozenset({
-    "ef", "er", "fais", "xf", "nprop0", "nprop", "nm", "nESC", "ntot", "DoD", "ntemp"
+    "ef", "er", "fais", "xf", "eps", "epsef", "npre",
+    "nprop0", "nprop", "nm", "nESC", "ntot", "DoD", "ntemp"
 })
-_NO_NEGATIVAS = frozenset({"vv", "Pad"})
+_NO_NEGATIVAS = frozenset({
+    "vv", "Pad", "nmamp", "Smamp", "mmamp", "cpre", "ccomb", "celecU", "Cpre", "Ccomb", "Celec", "Cop"
+})
 _SEMILLAS_DEFECTO = {
-    "mbat": 0.1,
-    "mbe": 0.05,
-    "mbp": 0.1,
-    "mres": 0.1,
-    "dTi0": 55.0,
-    "dTi": 35.0,
-    "dTcel": 36.0,
-    "U": 2.0,
-    "U0": 3.5,
-    "hi0": 5.0,
-    "hi": 4.3,
+    "mbat": 0.25,
+    "mbe": 0.20,
+    "mbp": 0.25,
+    "mres": 0.35,
+    "dTi0": 48.0,
+    "dTi": 12.0,
+    "dTcel": 15.0,
+    "Usup": 0.6,
+    "Uinf": 0.75,
+    "U": 0.65,
+    "U0": 3.6,
+    "hi0": 4.8,
+    "hi": 3.2,
+    "Nuc": 1.05,
 }
 
 
@@ -1396,7 +1537,7 @@ def _ejecutar_retrosustitucion(
 
 
 def _verificar_consistencia_global(conocidas: dict[str, float]) -> None:
-    """Verifica condición geométrica prolada (cf > R, cr > R) y residuo de las 87 ecuaciones."""
+    """Verifica condición geométrica prolada (cf > R, cr > R) y residuo de las 103 ecuaciones."""
     global _RESIDUAL_EVAL_CACHE
 
     if conocidas["cf"] <= conocidas["R"] or conocidas["cr"] <= conocidas["R"]:

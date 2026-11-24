@@ -11,9 +11,9 @@ from typing import Any
 import evaluador
 
 
-_OBJETIVOS_VALIDOS = ("Etot", "mtot", "mbat", "mgm")
-_VARS_OPTIMIZABLES = ("lam", "v", "mflot", "e")
-_PRIMOS_HALTON = (2, 3, 5, 7)
+_OBJETIVOS_VALIDOS = ("Etot", "Cop", "mtot", "mbat", "mgm")
+_VARS_OPTIMIZABLES = ("lam", "v", "mflot", "e", "T2")
+_PRIMOS_HALTON = (2, 3, 5, 7, 11)
 
 
 def _halton(indice: int, base: int) -> float:
@@ -234,10 +234,14 @@ def _metricas_punto(sol: dict[str, float]) -> dict[str, Any]:
         "mflot": round(sol["mflot"], 4),
         "e": round(sol["e"], 6),
         "e_mm": round(sol["e"] * 1000.0, 2),
+        "T2": round(sol["T2"], 2),
         "Etot": sol["Etot"],
         "Etot_kj": round(sol["Etot"] / 1000.0, 3),
         "Eprop_kj": round(sol["Eprop"] / 1000.0, 3),
         "Eelec_kj": round(sol["Eelec"] / 1000.0, 3),
+        "Qp_w": round(sol["Qp"], 1),
+        "Cop": sol["Cop"],
+        "Cop_bs": round(sol["Cop"], 2),
         "mtot": round(sol["mtot"], 4),
         "mbat_g": round(sol["mbat"] * 1000.0, 2),
         "mgm_g": round(sol["mgm"] * 1000.0, 2),
@@ -256,8 +260,8 @@ def optimizar_diseno(
     vars_libres: list[str] | None = None,
 ) -> dict[str, Any]:
     """
-    Capa 3: Optimiza combinaciones de `(lam, v, mflot, e)` sobre el evaluador rápido
-    para minimizar `objetivo` ('Etot', 'mtot', 'mbat' o 'mgm') respetando todas las
+    Capa 3: Optimiza combinaciones de `(lam, v, mflot, e, T2)` sobre el evaluador rápido
+    para minimizar `objetivo` ('Etot', 'Cop', 'mtot', 'mbat' o 'mgm') respetando todas las
     restricciones físicas (`mbat <= mbmax`, `theta <= thmax`, `Pelec <= Pmax`,
     `Ttot <= N*Tmax1`, `Fexc >= 0`, `cf > R`, `cr > R`).
     """
@@ -279,8 +283,9 @@ def optimizar_diseno(
     rangos: dict[str, tuple[float, float]] = {
         "lam": (1.5, 5.5),
         "v": (v_lo, v_hi),
-        "mflot": (0.6, max(4.2, float(valores["mtot"]) * 1.15)),
-        "e": (0.002, 0.060),
+        "mflot": (1.0, max(4.8, float(valores["mtot"]) * 1.2)),
+        "e": (0.005, 0.035),
+        "T2": (68.0, 110.0),
     }
 
     evaluaciones = 0

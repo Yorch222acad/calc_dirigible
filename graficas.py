@@ -93,7 +93,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
         "titulo": "Esbeltez (λ) vs. Energías de Misión y Dimensiones/Masa (L, D, mtot)",
         "titulo_corto": "Esbeltez vs. Energías y Casco",
         "subtitulo": (
-            "Todas las series del Panel A están en la misma unidad de energía total (kJ): Energía suministrada por propano (Eprop), "
+            "Todas las series del Panel A están en la misma unidad de energía total (kJ): Energía suministrada por combustible térmico (Eprop), "
             "Energía calorífica perdida (Em), Energía eléctrica usada en misión (Eelec) y Energía perdida por arrastre aerodinámico (ED). "
             "El Panel B compara Longitud (L), Diámetro máximo (D) y Masa total (mtot) frente a la Relación de Esbeltez (λ = L/D)."
         ),
@@ -114,7 +114,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                 "xs": [round(p["lam"], 4) for p in pts_lam],
                 "series": [
                     {
-                        "nombre": "Energía suministrada por propano (Eprop)",
+                        "nombre": "Energía suministrada por combustible térmico (Eprop)",
                         "unidad": "kJ",
                         "eje": "y1",
                         "color": "#38bdf8",
@@ -312,11 +312,12 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     }
 
     # =========================================================
-    # 3. DISTANCIA (dm) Y TIEMPO DE VUELO (tm) vs. ENERGÍA TOTAL Y PROPANO
+    # 3. DISTANCIA (dm), VIAJES (nv) Y TIEMPO DE VUELO (tm)
     # =========================================================
+    d1_actual = valores["d1"]
     dm_actual = valores["dm"]
-    dm_min = max(40.0, min(60.0, dm_actual * 0.25))
-    dm_max = max(750.0, dm_actual * 2.5)
+    dm_min = max(40.0, min(d1_actual * 0.5, dm_actual * 0.25))
+    dm_max = max(6.0 * d1_actual, dm_actual * 2.5)
     xs_dm = _linspace(dm_min, dm_max, 42, incluir=dm_actual)
     pts_dm = [p for x in xs_dm if (p := simular_punto(valores, dm=x)) is not None]
 
@@ -334,23 +335,23 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     grafica_distancia = {
         "id": "distancia_tiempo",
         "indice": 3,
-        "titulo": "Distancia (dm) y Tiempo de Vuelo (tm) vs. Energía Total, Propano y Batería",
-        "titulo_corto": "Distancia y Tiempo de Vuelo",
+        "titulo": "Distancia (dm), Viajes (nv) y Tiempo de Vuelo (tm) vs. Energía, Combustible, Batería y Costo",
+        "titulo_corto": "Distancia, Viajes y Tiempo",
         "subtitulo": (
-            "Cómo escalan Tiempo de Vuelo (tm), Energía Total (Etot), Propano (mgm) y Batería (mbat) con la Distancia (dm), "
-            "y el compromiso velocidad/viento en contra (vg = v - vv) considerando la caída de nprop hacia vpitch y los límites de motor y batería."
+            "Cómo escalan Tiempo de Vuelo (tm), Energía Total (Etot), Combustible (mgm), Batería (mbat) y Costo Operativo (Cop) "
+            "con la Distancia total (dm = nv·d1), y el compromiso velocidad/viento en contra (vg = v - vv)."
         ),
-        "variables": vars_meta(["dm", "tm", "v", "vv", "vg", "nprop", "vpitch", "Etot", "mgm", "mbat", "mbe", "mbp", "mtot", "Pelec", "Pad", "Ptot", "Pmax", "Ttot", "dTtot", "theta", "ctot", "Em", "Ereq"]),
+        "variables": vars_meta(["d1", "nv", "dm", "tm", "v", "vv", "vg", "nprop", "vpitch", "Etot", "mgm", "mbat", "mbe", "mbp", "mtot", "Pelec", "Pad", "Ptot", "Pmax", "Ttot", "theta", "Cop", "Cpre", "Ccomb", "Celec"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": "A. Distancia a Recorrer (dm) vs. Tiempo (tm), Energía Total (Etot), Propano (mgm) y Batería (mbat)",
-                "x_label": "Distancia de misión dm (m)",
+                "titulo": "A. Distancia (dm = nv·d1) vs. Energía (Etot), Combustible (mgm), Batería (mbat) y Costo (Cop)",
+                "x_label": f"Distancia total de misión dm (m)  [1 viaje base = {d1_actual:.0f} m]",
                 "x_actual": dm_actual,
-                "x_optimo": 240.0,
-                "x_optimo_label": "Base 240 m",
+                "x_optimo": d1_actual,
+                "x_optimo_label": f"1 viaje base ({d1_actual:.0f} m)",
                 "y1_label": "Energía total Etot (kJ) / Tiempo tm (s)",
-                "y2_label": "Propano mgm y Batería mbat (g) / Masa total (kg)",
+                "y2_label": "Combustible mgm y Batería mbat (g) / Costo Cop (Bs)",
                 "xs": [round(p["dm"], 2) for p in pts_dm],
                 "series": [
                     {
@@ -369,7 +370,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["tm"], 2) for p in pts_dm],
                     },
                     {
-                        "nombre": "Masa de propano necesaria (mgm)",
+                        "nombre": "Masa de combustible térmico (mgm)",
                         "unidad": "g",
                         "eje": "y2",
                         "color": "#f97316",
@@ -383,11 +384,12 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["mbat"] * 1000.0, 3) for p in pts_dm],
                     },
                     {
-                        "nombre": "Masa total del dirigible (mtot)",
-                        "unidad": "kg",
+                        "nombre": "Costo operativo total (Cop)",
+                        "unidad": "Bs",
                         "eje": "y2",
                         "color": "#4ade80",
-                        "valores": [round(p["mtot"], 4) for p in pts_dm],
+                        "dashed": True,
+                        "valores": [round(p["Cop"], 3) for p in pts_dm],
                     },
                 ],
             },
@@ -437,10 +439,10 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     }
 
     # =========================================================
-    # 4. ESPESOR DEL AISLANTE CELULAR (e) vs. ENERGÍA AHORRADA Y PERDIDA
+    # 4. ESPESOR DEL AISLANTE MYLAR MULTICAPA (e) vs. ENERGÍA AHORRADA Y PERDIDA
     # =========================================================
     e_actual_mm = valores["e"] * 1000.0
-    xs_e_mm = _linspace(1.5, 65.0, 48, incluir=e_actual_mm)
+    xs_e_mm = _linspace(3.0, 45.0, 46, incluir=e_actual_mm)
     pts_e = [p for x_mm in xs_e_mm if (p := simular_punto(valores, e=x_mm / 1000.0)) is not None]
 
     # Espesor óptimo donde la pérdida térmica Em es mínima (y el ahorro Eah es máximo)
@@ -450,23 +452,23 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     grafica_aislante = {
         "id": "aislante",
         "indice": 4,
-        "titulo": "Espesor del Aislante Celular (e) vs. Energía Ahorrada y Perdida",
-        "titulo_corto": "Aislante: Ahorro vs. Pérdida",
+        "titulo": "Aislante Mylar Multicapa Asimétrico (e) vs. Energía Ahorrada y Perdida",
+        "titulo_corto": "Mylar Multicapa: Ahorro vs. e",
         "subtitulo": (
-            "Cómo influye el Espesor de la Capa Celular (e) en la Energía Ahorrada (Eah), la Energía Perdida (Em), "
-            "el Número de Nusselt celular (Nuc), la Masa de Propano necesaria (mgm) y la Masa Total (mtot)."
+            "Cómo influye el Espesor por Capa (e) con Mylar aluminizado asimétrico (ncapS/ncapI), radiación (hrad) y Hollands (Nuc) "
+            "en la Energía Ahorrada (Eah), Energía Perdida (Em vs Em0 constante), Combustible (mgm) y Masa Total (mtot)."
         ),
-        "variables": vars_meta(["e", "dTi0", "hi0", "U0", "dTi", "hi", "dTcel", "Nuc", "U", "he", "Eah", "Em", "Em0", "mc", "mtot", "mgm"]),
+        "variables": vars_meta(["e", "ncapS", "ncapI", "eps", "hrad", "Nuc", "Usup", "Uinf", "U", "U0", "Eah", "Em", "Em0", "mc", "mmamp", "mtot", "mgm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
-                "titulo": "A. Espesor del Aislante (e) vs. Energía Ahorrada (Eah), Energía Perdida (Em) y Propano (mgm)",
-                "x_label": "Espesor del aislante celular e (mm)",
+                "titulo": "A. Espesor por Capa (e) vs. Energía Ahorrada (Eah), Energía Perdida (Em) y Combustible (mgm)",
+                "x_label": "Espesor por capa Mylar e (mm)",
                 "x_actual": round(e_actual_mm, 2),
                 "x_optimo": opt_e_mm,
                 "x_optimo_label": f"Óptimo térmico ({opt_e_mm:.1f} mm)" if opt_e_mm else "",
                 "y1_label": "Energía térmica en misión (kJ)",
-                "y2_label": "Masa de propano necesaria mgm (g)",
+                "y2_label": "Masa de combustible necesaria mgm (g)",
                 "xs": [round(p["e"] * 1000.0, 2) for p in pts_e],
                 "series": [
                     {
@@ -492,7 +494,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["Em0"] / 1000.0, 3) for p in pts_e],
                     },
                     {
-                        "nombre": "Masa de propano necesaria (mgm)",
+                        "nombre": "Masa de combustible necesaria (mgm)",
                         "unidad": "g",
                         "eje": "y2",
                         "color": "#f97316",
@@ -546,7 +548,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     }
 
     # =========================================================
-    # 5. BALANCE TÉRMICO, ENERGÍA PERDIDA/AHORRADA Y PROPANO EN EL VUELO
+    # 5. BALANCE TÉRMICO, ENERGÍA PERDIDA/AHORRADA Y COMBUSTIBLE TÉRMICO EN EL VUELO
     # =========================================================
     tm_actual = valores["tm"]
     ts_vuelo = _linspace(0.0, tm_actual, 36)
@@ -559,11 +561,11 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     grafica_propano = {
         "id": "propano_energia",
         "indice": 5,
-        "titulo": "Energía Perdida, Energía Ahorrada y Propano (mgm) en el Vuelo",
-        "titulo_corto": "Propano y Balance Térmico",
+        "titulo": "Energía Perdida, Energía Ahorrada y Combustible Térmico (mgm) en el Vuelo",
+        "titulo_corto": "Combustible y Balance Térmico",
         "subtitulo": (
             "Evolución acumulada a lo largo del Tiempo de Vuelo (tm) de la Energía Perdida, la Energía Ahorrada "
-            "gracias al aislante, la Energía Total Consumida y la Masa de Propano necesaria (con eficiencia ncal)."
+            "gracias al aislante, la Energía Total Consumida y la Masa de Combustible Térmico necesaria (con eficiencia ncal)."
         ),
         "variables": vars_meta(["mgm", "ncal", "fcal", "Eprop", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "mbat", "mbe", "mbp", "mbmax", "dmbat", "Pelec", "Pad", "Ptot", "Pmax", "tm", "dm"]),
         "paneles": [
@@ -573,7 +575,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                 "x_label": "Tiempo transcurrido de vuelo t (s)",
                 "x_actual": round(tm_actual, 2),
                 "y1_label": "Energía acumulada (kJ)",
-                "y2_label": "Masa de propano consumida mgm (g)",
+                "y2_label": "Masa de combustible térmico consumida mgm (g)",
                 "xs": [round(t, 2) for t in ts_vuelo],
                 "series": [
                     {
@@ -606,7 +608,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round((((qp_w / valores["ncal"]) + ptot_w) * t) / 1000.0, 3) for t in ts_vuelo],
                     },
                     {
-                        "nombre": "Masa de propano consumida (mgm)",
+                        "nombre": "Masa de combustible térmico consumida (mgm)",
                         "unidad": "g",
                         "eje": "y2",
                         "color": "#f97316",
@@ -616,7 +618,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             },
             {
                 "tipo": "barras_comparativas",
-                "titulo": "B. Resumen Comparativo de Energías de Misión (kJ) y Masas de Propano/Batería (g)",
+                "titulo": "B. Resumen Comparativo de Energías de Misión (kJ) y Masas de Combustible/Batería (g)",
                 "grupos": [
                     {
                         "subtitulo": "Comparativa de Energías en la Misión (kJ)",
@@ -644,7 +646,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                                 "detalle": f"Qp = {valores['Qp']:.1f} W",
                             },
                             {
-                                "etiqueta": "Suministrada por Propano (Eprop)",
+                                "etiqueta": "Suministrada por Combustible Térmico (Eprop)",
                                 "codigo": "Eprop",
                                 "valor": round(valores["Eprop"] / 1000.0, 3),
                                 "color": "#a78bfa",
@@ -660,25 +662,25 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         ],
                     },
                     {
-                        "subtitulo": "Masas de Propano y Batería: Requerida vs. Límite (g)",
+                        "subtitulo": "Masas de Combustible Térmico y Batería: Requerida vs. Límite (g)",
                         "unidad": "g",
                         "barras": [
                             {
-                                "etiqueta": "Propano para terminar el vuelo (mgm)",
+                                "etiqueta": "Combustible térmico para terminar el vuelo (mgm)",
                                 "codigo": "mgm",
                                 "valor": round(valores["mgm"] * 1000.0, 3),
                                 "color": "#f97316",
                                 "detalle": f"Misión de {valores['dm']:.0f} m ({valores['tm']:.1f} s)",
                             },
                             {
-                                "etiqueta": "Propano para recuperar caída dTc (mgc)",
+                                "etiqueta": "Combustible térmico para recuperar caída dTc (mgc)",
                                 "codigo": "mgc",
                                 "valor": round(valores["mgc"] * 1000.0, 3),
                                 "color": "#facc15",
                                 "detalle": f"Caída dTc = {valores['dTc']:.0f} K",
                             },
                             {
-                                "etiqueta": "Propano total a bordo (mp)",
+                                "etiqueta": "Combustible térmico total a bordo (mp)",
                                 "codigo": "mp",
                                 "valor": round(valores["mp"] * 1000.0, 3),
                                 "color": "#4ade80",
@@ -787,13 +789,19 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "color": "#60a5fa",
                     },
                     {
-                        "etiqueta": "Cuadrícula aislante celular (mc)",
+                        "etiqueta": "Cuadrícula aislante Mylar (mc)",
                         "codigo": "mc",
                         "valor_g": round(valores["mc"] * 1000.0, 2),
                         "color": "#4ade80",
                     },
                     {
-                        "etiqueta": "Propano a bordo (mp)",
+                        "etiqueta": "Mamparos internos (mmamp)",
+                        "codigo": "mmamp",
+                        "valor_g": round(valores["mmamp"] * 1000.0, 2),
+                        "color": "#2dd4bf",
+                    },
+                    {
+                        "etiqueta": "Combustible térmico a bordo (mp)",
                         "codigo": "mp",
                         "valor_g": round(valores["mp"] * 1000.0, 2),
                         "color": "#f97316",
@@ -818,6 +826,142 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
         ],
     }
 
+    # =========================================================
+    # 7. TEMPERATURA INTERIOR ÓPTIMA (T2) Y ESCALABILIDAD MULTI-VIAJE (nv)
+    # =========================================================
+    T2_actual = valores["T2"]
+    xs_T2 = _linspace(max(valores["T1"] + 30.0, 50.0), 115.0, 40, incluir=T2_actual)
+    pts_T2: list[dict[str, float]] = []
+    for t2_x in xs_T2:
+        p_t2 = simular_punto(valores, T2=t2_x)
+        if p_t2 is not None:
+            rho2_drop = p_t2["P2"] / (p_t2["R2"] * (t2_x - 10.0 + 273.15))
+            drho_drop = p_t2["rho1"] - rho2_drop
+            pct_loss_10k = 100.0 * (1.0 - drho_drop / max(1e-9, p_t2["drho"]))
+            p_t2["pct_loss_10k"] = pct_loss_10k
+            pts_T2.append(p_t2)
+
+    pts_T2_seguros = [p for p in pts_T2 if p["valido"] and p["pct_loss_10k"] <= 16.0]
+    opt_T2 = min(pts_T2_seguros, key=lambda d: d["Etot"]) if pts_T2_seguros else None
+
+    nv_actual = valores["nv"]
+    xs_nv = _linspace(1.0, max(14.0, nv_actual * 2.5), 28, incluir=nv_actual)
+    pts_nv: list[dict[str, float]] = []
+    for nv_x in xs_nv:
+        p_nv = simular_punto(valores, nv=nv_x)
+        if p_nv is not None:
+            # Batería equivalente de un dron puro con la misma masa mtot en el mismo perfil de vuelo
+            fl_dron = p_nv["mtot"] * p_nv["g"] + p_nv["mtot"] * p_nv["az"]
+            fx_dron = max(1.2, 0.35 * p_nv["FD"]) + p_nv["map"] * p_nv["ax"]
+            t_dron = math.hypot(fl_dron, fx_dron)
+            p_dron = (p_nv["km"] / p_nv["ntot"]) * (
+                (t_dron ** 1.5) / math.sqrt(2.0 * p_nv["rho1"] * p_nv["N"] * p_nv["Ap"])
+                + fx_dron * p_nv["v"]
+            ) + p_nv["Pad"]
+            ereq_dron = (p_dron * p_nv["tm"]) / 3600.0
+            mbe_dron = ereq_dron / (p_nv["ebat"] * p_nv["DoD"] * p_nv["ntemp"])
+            mbp_dron = p_dron / (p_nv["ebat"] * p_nv["Cmax"] * p_nv["ntemp"])
+            p_nv["mbat_dron_g"] = max(mbe_dron, mbp_dron) * 1000.0
+            pts_nv.append(p_nv)
+
+    grafica_temp_escalabilidad = {
+        "id": "temperatura_escalabilidad",
+        "indice": 7,
+        "titulo": "Temperatura Interior Óptima (T2) y Escalabilidad Multi-Viaje (nv)",
+        "titulo_corto": "T2 Óptima y Escalabilidad",
+        "subtitulo": (
+            "Delimitación del punto dulce de temperatura T2 (~80–90 °C): bajar T2 reduce Qp y Etot hasta que el crecimiento del volumen V "
+            "y la sensibilidad a caídas térmicas (-10 K) dominan. El Panel B demuestra la escalabilidad del dirigible frente a un dron puro."
+        ),
+        "variables": vars_meta(["T2", "dT", "V", "Qp", "Etot", "nv", "d1", "dm", "mbat", "mbmax", "mgm", "Cop", "Cpre"]),
+        "paneles": [
+            {
+                "tipo": "lineas_doble_eje",
+                "titulo": "A. Temperatura Interior (T2) vs. Pérdida (Qp), Energía (Etot), Volumen (V) y Sensibilidad (-10 K)",
+                "x_label": "Temperatura interior T2 (°C)",
+                "x_actual": round(T2_actual, 1),
+                "x_optimo": round(opt_T2["T2"], 1) if opt_T2 else None,
+                "x_optimo_label": f"Óptimo seguro (T2={opt_T2['T2']:.1f}°C)" if opt_T2 else "",
+                "y1_label": "Potencia perdida Qp (W) / Energía Etot (kJ)",
+                "y2_label": "Volumen V (m³) / Pérdida sustentación -10 K (%)",
+                "xs": [round(p["T2"], 2) for p in pts_T2],
+                "series": [
+                    {
+                        "nombre": "Potencia perdida con aislante (Qp)",
+                        "unidad": "W",
+                        "eje": "y1",
+                        "color": "#f87171",
+                        "valores": [round(p["Qp"], 1) for p in pts_T2],
+                    },
+                    {
+                        "nombre": "Energía total en misión (Etot)",
+                        "unidad": "kJ",
+                        "eje": "y1",
+                        "color": "#38bdf8",
+                        "valores": [round(p["Etot"] / 1000.0, 2) for p in pts_T2],
+                    },
+                    {
+                        "nombre": "Volumen del casco (V)",
+                        "unidad": "m³",
+                        "eje": "y2",
+                        "color": "#4ade80",
+                        "valores": [round(p["V"], 2) for p in pts_T2],
+                    },
+                    {
+                        "nombre": "Pérdida de sustentación si cae 10 K",
+                        "unidad": "%",
+                        "eje": "y2",
+                        "color": "#facc15",
+                        "dashed": True,
+                        "valores": [round(p["pct_loss_10k"], 1) for p in pts_T2],
+                    },
+                ],
+            },
+            {
+                "tipo": "lineas_doble_eje",
+                "titulo": f"B. Escalabilidad Multi-Viaje (nv × {d1_actual:.0f} m): Batería Dirigible vs. Dron Puro",
+                "x_label": f"Número de viajes consecutivos nv (tramo d1 = {d1_actual:.0f} m)",
+                "x_actual": round(nv_actual, 2),
+                "x_optimo": 1.0,
+                "x_optimo_label": "1 viaje (280 m)",
+                "y1_label": "Masa de batería requerida (g)",
+                "y2_label": "Combustible mgm (g) / Costo Cop (Bs)",
+                "xs": [round(p["nv"], 2) for p in pts_nv],
+                "series": [
+                    {
+                        "nombre": "Batería dirigible híbrido (mbat)",
+                        "unidad": "g",
+                        "eje": "y1",
+                        "color": "#4ade80",
+                        "valores": [round(p["mbat"] * 1000.0, 1) for p in pts_nv],
+                    },
+                    {
+                        "nombre": "Batería dron puro equivalente",
+                        "unidad": "g",
+                        "eje": "y1",
+                        "color": "#f87171",
+                        "dashed": True,
+                        "valores": [round(p["mbat_dron_g"], 1) for p in pts_nv],
+                    },
+                    {
+                        "nombre": "Combustible térmico consumido (mgm)",
+                        "unidad": "g",
+                        "eje": "y2",
+                        "color": "#f97316",
+                        "valores": [round(p["mgm"] * 1000.0, 2) for p in pts_nv],
+                    },
+                    {
+                        "nombre": "Costo operativo total (Cop)",
+                        "unidad": "Bs",
+                        "eje": "y2",
+                        "color": "#a78bfa",
+                        "valores": [round(p["Cop"], 2) for p in pts_nv],
+                    },
+                ],
+            },
+        ],
+    }
+
     return [
         grafica_esbeltez,
         grafica_sustentacion,
@@ -825,4 +969,5 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
         grafica_aislante,
         grafica_propano,
         grafica_geometria,
+        grafica_temp_escalabilidad,
     ]

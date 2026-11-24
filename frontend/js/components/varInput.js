@@ -8,8 +8,8 @@
  *    - Todas las ecuaciones donde interviene la variable en formato de 3 columnas (`equations.js`).
  */
 
-import { crearFilaEcuacion } from "./equations.js?v=9";
-import { renderizarAsistenteModificacion } from "./balancer.js?v=9";
+import { crearFilaEcuacion } from "./equations.js?v=10";
+import { renderizarAsistenteModificacion } from "./balancer.js?v=10";
 
 export function inicializarEntradaTeclado(
   formEl,

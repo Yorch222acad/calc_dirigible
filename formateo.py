@@ -20,6 +20,7 @@ PREFIJOS = {
     0: "", 3: "K", 6: "M", 9: "G", 12: "T", 15: "P", 18: "E", 21: "Z", 24: "Y",
 }
 K_SIMBOLO = sp.Symbol("273.15 (K)")  # constante de conversión °C -> K
+SIGMA_SB_SIMBOLO = sp.Symbol("5.67e-8 (W/(m²·K⁴))")  # constante de Stefan-Boltzmann
 LOG10_FUNC = sp.Function("log₁₀")
 VARS_SUSTENTACION = ("F", "mflot", "FL", "FLmax", "Fexc")
 
@@ -111,7 +112,7 @@ def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float]
 
 def preparar_eq_vista(eq: sp.Eq) -> sp.Eq:
     """Reemplaza constantes y logaritmos en base 10 para una presentación 2D limpia."""
-    eq = eq.xreplace({modelo.K: K_SIMBOLO})
+    eq = eq.xreplace({modelo.K: K_SIMBOLO, modelo.SIGMA_SB: SIGMA_SB_SIMBOLO})
     if "Cf" in modelo.S and eq.lhs == modelo.S["Cf"]:
         eq = sp.Eq(eq.lhs, sp.Float("0.455") * LOG10_FUNC(modelo.S["ReL"]) ** sp.Float("-2.58"))
     return eq
@@ -215,6 +216,9 @@ def _factor_unidad_a_latex(factor: str) -> str:
     elif f.endswith("³"):
         base = f[:-1]
         exp = "3"
+    elif f.endswith("⁴"):
+        base = f[:-1]
+        exp = "4"
 
     base_esc = _escapar_texto_latex(base)
     base_latex = rf"\text{{{base_esc}}}"
@@ -261,7 +265,7 @@ def formatear_ingenieria_latex(nombre: str, valor: float) -> str:
 
 def _preparar_eq_latex(eq: sp.Eq) -> sp.Eq:
     """Ajusta constantes para exportación limpia a LaTeX."""
-    return eq.xreplace({modelo.K: K_SIMBOLO})
+    return eq.xreplace({modelo.K: K_SIMBOLO, modelo.SIGMA_SB: SIGMA_SB_SIMBOLO})
 
 
 def _postprocesar_latex(codigo: str) -> str:
@@ -283,7 +287,7 @@ def _simbolo_linea_unica(nombre: str) -> str:
     mapa_especial = {
         "P1": "P₁", "T1": "T₁", "R1": "R₁", "rho1": "ρ₁",
         "P2": "P₂", "T2": "T₂", "R2": "R₂", "rho2": "ρ₂",
-        "drho": "Δρ", "lam": "λ",
+        "drho": "Δρ", "lam": "λ", "eps": "ε", "epsef": "εef",
         "beta": "β", "nu": "ν", "alpha": "α", "sigma": "σ",
         "mu": "μ", "theta": "θ", "thmax": "θmax", "dth": "Δθ",
     }
@@ -322,6 +326,9 @@ def renderizar_general_latex(eq: sp.Eq) -> str:
         clave = f"__TOK_{idx}__"
         if simbolo == K_SIMBOLO:
             marcadores[clave] = r"{\textbf{273.15}\,\left(\text{K}\right)}"
+            nombres_simbolos[simbolo] = clave
+        elif simbolo == SIGMA_SB_SIMBOLO:
+            marcadores[clave] = r"{\textbf{5.67\times 10^{-8}}\,\left(\frac{\text{W}}{\text{m}^{2} \cdot \text{K}^{4}}\right)}"
             nombres_simbolos[simbolo] = clave
         elif nombre in modelo.VARIABLES:
             marcadores[clave] = _token_general_latex(nombre)
@@ -370,6 +377,9 @@ def renderizar_sustitucion_latex(
         clave = f"__VAL_{idx}__"
         if simbolo == K_SIMBOLO:
             marcadores[clave] = r"{\textbf{273.15}\,\left(\text{K}\right)}"
+            nombres_simbolos[simbolo] = clave
+        elif simbolo == SIGMA_SB_SIMBOLO:
+            marcadores[clave] = r"{\textbf{5.67\times 10^{-8}}\,\left(\frac{\text{W}}{\text{m}^{2} \cdot \text{K}^{4}}\right)}"
             nombres_simbolos[simbolo] = clave
         elif nombre in valores:
             marcadores[clave] = _token_valor(nombre)

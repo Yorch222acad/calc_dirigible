@@ -226,7 +226,7 @@ class PeticionModificar(BaseModel):
 
 class PeticionOptimizar(BaseModel):
     objetivo: str = "Etot"
-    variables: list[str] = ["lam", "v", "mflot", "e"]
+    variables: list[str] = ["lam", "v", "mflot", "e", "T2"]
 
 
 # =============================================================

@@ -8,7 +8,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 // Persiste la elección del usuario entre renders
 const optUiState = {
   objetivo: "Etot",
-  variables: new Set(["lam", "v", "mflot", "e"]),
+  variables: new Set(["lam", "v", "mflot", "e", "T2"]),
   cargando: false,
 };
 
@@ -496,9 +496,10 @@ export function renderizarPanelSimulacion(
   selectEl.className = "opt-select";
   [
     ["Etot", "Energía total en misión (Etot)"],
+    ["Cop", "Costo operativo total de misión (Cop)"],
     ["mtot", "Masa total del dirigible (mtot)"],
     ["mbat", "Masa de batería requerida (mbat)"],
-    ["mgm", "Consumo de propano GLP (mgm)"],
+    ["mgm", "Consumo de combustible térmico (mgm)"],
   ].forEach(([val, txt]) => {
     const o = document.createElement("option");
     o.value = val;
@@ -518,7 +519,8 @@ export function renderizarPanelSimulacion(
     ["lam", "λ (esbeltez)"],
     ["v", "v (velocidad)"],
     ["mflot", "mflot (aire caliente)"],
-    ["e", "e (espesor aislante)"],
+    ["e", "e (espesor Mylar)"],
+    ["T2", "T2 (temp. interior)"],
   ].forEach(([vCod, vTxt]) => {
     const lbl = document.createElement("label");
     lbl.className = "opt-check-pill";
@@ -623,12 +625,22 @@ export function renderizarPanelSimulacion(
                 <td><b>${opt.e_mm} mm</b></td>
               </tr>
               <tr>
-                <td>Energía total misión (Etot = Eprop + Eelec)</td>
-                <td>${act.Etot_kj} kJ (${act.Eprop_kj} GLP + ${act.Eelec_kj} eléc.)</td>
-                <td><b>${opt.Etot_kj} kJ</b> (${opt.Eprop_kj} GLP + ${opt.Eelec_kj} eléc.)</td>
+                <td>Temperatura interior (<button type="button" class="flow-var-chip" data-var="T2">T2</button>)</td>
+                <td>${act.T2} °C</td>
+                <td><b>${opt.T2} °C</b></td>
               </tr>
               <tr>
-                <td>Masa total (mtot) / Batería (mbat) / Propano (mgm)</td>
+                <td>Pérdida térmica (<button type="button" class="flow-var-chip" data-var="Qp">Qp</button>) / Costo (<button type="button" class="flow-var-chip" data-var="Cop">Cop</button>)</td>
+                <td>${act.Qp_w} W / ${act.Cop_bs} Bs</td>
+                <td><b>${opt.Qp_w} W / ${opt.Cop_bs} Bs</b></td>
+              </tr>
+              <tr>
+                <td>Energía total misión (Etot = Eprop + Eelec)</td>
+                <td>${act.Etot_kj} kJ (${act.Eprop_kj} comb. + ${act.Eelec_kj} eléc.)</td>
+                <td><b>${opt.Etot_kj} kJ</b> (${opt.Eprop_kj} comb. + ${opt.Eelec_kj} eléc.)</td>
+              </tr>
+              <tr>
+                <td>Masa total (mtot) / Batería (mbat) / Combustible (mgm)</td>
                 <td>${act.mtot} kg / ${act.mbat_g} g / ${act.mgm_g} g</td>
                 <td><b>${opt.mtot} kg / ${opt.mbat_g} g / ${opt.mgm_g} g</b></td>
               </tr>
@@ -653,7 +665,7 @@ export function renderizarPanelSimulacion(
       if (optRes.requiere_cambio_fijas) {
         const nota = document.createElement("span");
         nota.className = "opt-res-note";
-        nota.textContent = "Al aplicar se restablecerán las 54 variables fijas estándar para fijar los parámetros optimizados.";
+        nota.textContent = `Al aplicar se restablecerán las ${resumen.total_fijas} variables fijas estándar para fijar los parámetros optimizados.`;
         footer.appendChild(nota);
       }
       if (optRes.entradas_optimo && alAplicarOptimo) {
