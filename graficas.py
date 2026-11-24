@@ -20,272 +20,17 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import evaluador
 import formateo
 import modelo
 
 
-def _area_semielipsoide(R: float, c: float) -> float:
-    """Calcula el área superficial lateral de un semielipsoide de radio R y semieje axial c."""
-    if c <= 0 or R <= 0:
-        return 0.0
-    if abs(c - R) < 1e-9:
-        return 2.0 * math.pi * R * R
-    if c > R:
-        # Prolado
-        e_val = math.sqrt(max(0.0, 1.0 - (R * R) / (c * c)))
-        return math.pi * R * c * math.asin(e_val) / e_val
-    # Oblado (por si en un barrido extremo c < R)
-    e_val = math.sqrt(max(0.0, 1.0 - (c * c) / (R * R)))
-    return math.pi * R * R + (math.pi * c * c / e_val) * math.atanh(min(0.999999, e_val))
-
-
 def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float] | None:
     """
-    Evalúa en ~15 microsegundos el punto de equilibrio físico a partir del estado `base`
-    aplicando las variaciones `overrides` (p. ej. lam=..., mflot=..., dm=..., v=..., e=...).
+    Delega al evaluador numérico unificado (`evaluador.evaluar_punto`) para evaluar un
+    punto paramétrico en microsegundos alrededor del estado `base`.
     """
-    p = dict(base)
-    p.update(overrides)
-
-    try:
-        P1, T1, R1 = p["P1"], p["T1"], p["R1"]
-        P2, T2, R2 = p["P2"], p["T2"], p["R2"]
-        rho1 = P1 / (R1 * (T1 + 273.15))
-        rho2 = P2 / (R2 * (T2 + 273.15))
-        drho = rho1 - rho2
-        dT = T2 - T1
-        if drho <= 0 or dT <= 0:
-            return None
-
-        g = p["g"]
-        lam = p["lam"]
-        xf = p["xf"]
-        mflot = p["mflot"]
-        if lam <= 0.4 or mflot <= 0.05:
-            return None
-
-        F = mflot * g
-        V = F / (drho * g)
-        # V = (2/3) * pi * R^2 * L = (4/3) * pi * lam * R^3
-        R = ((3.0 * V) / (4.0 * math.pi * lam)) ** (1.0 / 3.0)
-        D = 2.0 * R
-        L = lam * D
-        cf = xf * L
-        cr = L - cf
-
-        Sf = _area_semielipsoide(R, cf)
-        Sr = _area_semielipsoide(R, cr)
-        S = Sf + Sr
-
-        m = rho2 * V
-        cp = p["cp"]
-        Q = m * cp * dT
-
-        v = max(0.2, p["v"])
-        vv = max(0.0, p.get("vv", 0.0))
-        vg = v - vv
-        if vg <= 0.05:
-            return None
-        if "tm" in overrides and "dm" not in overrides and "v" not in overrides:
-            tm = max(1.0, overrides["tm"])
-            dm = vg * tm
-        else:
-            dm = max(1.0, p["dm"])
-            tm = dm / vg
-
-        mu, kp = p["mu"], p["kp"]
-        ReL = (rho1 * v * L) / mu
-        if ReL <= 10.0:
-            return None
-        Cf = 0.455 / ((math.log10(ReL)) ** 2.58)
-        CDVc = Cf * (4.0 * (lam ** (1.0 / 3.0)) + 6.0 * (lam ** -1.2) + 24.0 * (lam ** -2.7))
-        CDV = kp * CDVc
-        FD = 0.5 * rho1 * (v ** 2) * CDV * (V ** (2.0 / 3.0))
-
-        e = max(1e-5, p["e"])
-        W = p["W"]
-        ep, ke, fcal = p["ep"], p["ke"], p["fcal"]
-        beta, nu, alpha = p["beta"], p["nu"], p["alpha"]
-        Rac, ka, sigma = p["Rac"], p["ka"], p["sigma"]
-
-        Pr = nu / alpha
-        Nue = 0.037 * (ReL ** 0.8) * (Pr ** (1.0 / 3.0))
-        he = (Nue * ka) / L
-
-        # Caso 1 (Independiente): Casco sin capa celular (dTi0, RaD0, Nui0, hi0, U0)
-        dTi0 = max(1.0, base.get("dTi0", 0.65 * dT))
-        for _ in range(10):
-            RaD0 = (g * beta * max(1e-4, dTi0) * (D ** 3)) / (nu * alpha)
-            Nui0 = 0.13 * (RaD0 ** (1.0 / 3.0))
-            hi0 = fcal * (Nui0 * ka) / D
-            U0 = 1.0 / ((1.0 / hi0) + (ep / ke) + (1.0 / he))
-            nuevo_dTi0 = (U0 / hi0) * dT
-            if abs(nuevo_dTi0 - dTi0) < 1e-7:
-                dTi0 = nuevo_dTi0
-                break
-            dTi0 = nuevo_dTi0
-
-        # Caso 2 (Independiente): Casco con capa celular (dTi, RaD, Nui, hi, dTcel, Rae, Nuc, U)
-        dTi = max(1.0, base.get("dTi", 0.35 * dT))
-        dTcel = max(1.0, base.get("dTcel", 0.45 * dT))
-        for _ in range(12):
-            RaD = (g * beta * max(1e-4, dTi) * (D ** 3)) / (nu * alpha)
-            Nui = 0.13 * (RaD ** (1.0 / 3.0))
-            hi = fcal * (Nui * ka) / D
-            Rae = (g * beta * max(1e-4, dTcel) * (e ** 3)) / (nu * alpha)
-            Nuc = 1.0 + ((Rae / Rac) ** 0.25) + (e / W) * ((Rae / Rac) ** 0.75)
-            U = 1.0 / ((1.0 / hi) + (2.0 * ep / ke) + (e / (ka * Nuc)) + (1.0 / he))
-            nuevo_dTi = (U / hi) * dT
-            nuevo_dTcel = max(1e-4, ((U * e) / (ka * Nuc)) * dT)
-            if abs(nuevo_dTi - dTi) < 1e-7 and abs(nuevo_dTcel - dTcel) < 1e-7:
-                dTi, dTcel = nuevo_dTi, nuevo_dTcel
-                break
-            dTi, dTcel = nuevo_dTi, nuevo_dTcel
-
-        Qp0 = U0 * S * dT
-        Qp = U * S * dT
-        dQp = Qp0 - Qp
-        fais = dQp / Qp0 if Qp0 > 0 else 0.0
-        Sc = S * (1.0 + 2.0 * e / W)
-        mc = Sc * sigma
-
-        dTc = p["dTc"]
-        PC = p["PC"]
-        ncal = p["ncal"]
-        vT = Qp / (m * cp)
-        Qc = m * cp * dTc
-        tc = Qc / Qp
-        mgc = Qc / (ncal * PC)
-
-        Em0 = Qp0 * tm
-        Em = Qp * tm
-        Eah = dQp * tm
-        Eprop = Em / ncal
-        mgm = Eprop / PC
-        ED = FD * dm
-
-        N, mmot, mp, mad, mcarga, fap = p["N"], p["mmot"], p["mp"], p["mad"], p["mcarga"], p["fap"]
-        vz, vx, ta = p["vz"], p["vx"], p["ta"]
-        az = vz / ta
-        ax = vx / ta
-        dp = p["dp"]
-        Ap = math.pi * (dp ** 2) / 4.0
-        nprop0 = p["nprop0"]
-        vpitch = p["vpitch"]
-        nprop = nprop0 * (1.0 - (v / vpitch) ** 2)
-        if nprop <= 0.0:
-            return None
-        ntot = nprop * p["nm"] * p["nESC"]
-        km = p["km"]
-        ebat, DoD, ntemp, Cmax = p["ebat"], p["DoD"], p["ntemp"], p["Cmax"]
-        Tmax1, Pmax1 = p["Tmax1"], p["Pmax1"]
-        Pmax = N * Pmax1
-        thmax, mbmax = p["thmax"], p["mbmax"]
-
-        # Iteración de punto fijo para el lazo cerrado masa <-> batería (energía + potencia) <-> propulsión
-        mbat = max(0.005, base.get("mbat", 0.05))
-        mbe = 0.01
-        mbp = 0.01
-        for _ in range(15):
-            mart = mc + N * mmot + mp + mad + mbat
-            mtot = mart + mcarga
-            mres = mtot - mflot
-            map_val = fap * mtot
-            FL = mres * g + mtot * az
-            FX = FD + map_val * ax
-            Ttot = math.hypot(FL, FX)
-            Pelec = (km / ntot) * (
-                (Ttot ** 1.5) / math.sqrt(2.0 * rho1 * N * Ap) + FX * v
-            )
-            Ereq = (Pelec * tm) / 3600.0
-            mbe = Ereq / (ebat * DoD * ntemp)
-            mbp = Pelec / (ebat * Cmax * ntemp)
-            nuevo_mbat = (mbe ** 6 + mbp ** 6) ** (1.0 / 6.0)
-            if abs(nuevo_mbat - mbat) < 1e-9:
-                mbat = nuevo_mbat
-                break
-            mbat = nuevo_mbat
-
-        if not math.isfinite(mbat) or mbat < 0 or mbat > 25.0:
-            return None
-
-        celec = Ereq / dm
-        Eelec = 3600.0 * Ereq
-        Etot = Eprop + Eelec
-        ctot = Etot / dm
-        theta = math.degrees(math.atan2(FX, FL)) if FL > 0 else 90.0
-        cap_sq = (N * Tmax1) ** 2 - FX ** 2
-        FLmax = math.sqrt(cap_sq) if cap_sq > 0 else 0.0
-        Fexc = F + FLmax - mtot * g
-        dPelec = Pmax - Pelec
-        dTtot = N * Tmax1 - Ttot
-        valido = (
-            (mbat <= mbmax)
-            and (theta <= thmax)
-            and (Pelec <= Pmax)
-            and (Ttot <= N * Tmax1)
-            and (Fexc >= 0.0)
-        )
-
-        return {
-            "lam": lam,
-            "R": R,
-            "D": D,
-            "L": L,
-            "cf": cf,
-            "cr": cr,
-            "V": V,
-            "S": S,
-            "F": F,
-            "e": e,
-            "Rae": Rae,
-            "U": U,
-            "Qp0": Qp0,
-            "Qp": Qp,
-            "dQp": dQp,
-            "fais": fais,
-            "mc": mc,
-            "Qc": Qc,
-            "mgc": mgc,
-            "v": v,
-            "vv": vv,
-            "vg": vg,
-            "dm": dm,
-            "tm": tm,
-            "Em0": Em0,
-            "Em": Em,
-            "Eah": Eah,
-            "Eprop": Eprop,
-            "mgm": mgm,
-            "FD": FD,
-            "ED": ED,
-            "mart": mart,
-            "mtot": mtot,
-            "mflot": mflot,
-            "mres": mres,
-            "FL": FL,
-            "FX": FX,
-            "Ttot": Ttot,
-            "dTtot": dTtot,
-            "theta": theta,
-            "FLmax": FLmax,
-            "Fexc": Fexc,
-            "nprop": nprop,
-            "Pelec": Pelec,
-            "Pmax": Pmax,
-            "dPelec": dPelec,
-            "Ereq": Ereq,
-            "Eelec": Eelec,
-            "Eelec_J": Eelec,
-            "Etot": Etot,
-            "ctot": ctot,
-            "mbe": mbe,
-            "mbp": mbp,
-            "mbat": mbat,
-            "valido": valido,
-        }
-    except (ValueError, ZeroDivisionError, OverflowError):
-        return None
+    return evaluador.evaluar_punto(base, estricto_prolado=False, **overrides)
 
 
 def _info_var(nombre: str, valores: dict[str, float], fijas: set[str], penalizado: bool) -> dict[str, Any]:
@@ -454,7 +199,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Comparación directa de la Carga de Sustentación (mflot vs. mres) y de la Fuerza Vertical "
             "ejercida por cada fuente (F del aire caliente vs. FL de los 4 motores) junto con la Masa Total."
         ),
-        "variables": vars_meta(["mflot", "mres", "mtot", "mbat", "mbe", "mbp", "F", "FL", "FLmax", "Fexc", "Pelec", "Pmax", "Etot"]),
+        "variables": vars_meta(["mflot", "mres", "mtot", "mbat", "mbe", "mbp", "F", "FL", "FLmax", "Fexc", "Pelec", "Pad", "Ptot", "Pmax", "Etot"]),
         "paneles": [
             {
                 "tipo": "barras_comparativas",
@@ -595,7 +340,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Cómo escalan Tiempo de Vuelo (tm), Energía Total (Etot), Propano (mgm) y Batería (mbat) con la Distancia (dm), "
             "y el compromiso velocidad/viento en contra (vg = v - vv) considerando la caída de nprop hacia vpitch y los límites de motor y batería."
         ),
-        "variables": vars_meta(["dm", "tm", "v", "vv", "vg", "nprop", "vpitch", "Etot", "mgm", "mbat", "mbe", "mbp", "mtot", "Pelec", "Pmax", "Ttot", "dTtot", "theta", "ctot", "Em", "Ereq"]),
+        "variables": vars_meta(["dm", "tm", "v", "vv", "vg", "nprop", "vpitch", "Etot", "mgm", "mbat", "mbe", "mbp", "mtot", "Pelec", "Pad", "Ptot", "Pmax", "Ttot", "dTtot", "theta", "ctot", "Em", "Ereq"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
@@ -808,7 +553,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     qp0_w = valores["Qp0"]
     qp_w = valores["Qp"]
     dqp_w = valores["dQp"]
-    pelec_w = valores["Pelec"]
+    ptot_w = valores["Ptot"]
     pc_ef = valores["ncal"] * valores["PC"]
 
     grafica_propano = {
@@ -820,7 +565,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Evolución acumulada a lo largo del Tiempo de Vuelo (tm) de la Energía Perdida, la Energía Ahorrada "
             "gracias al aislante, la Energía Total Consumida y la Masa de Propano necesaria (con eficiencia ncal)."
         ),
-        "variables": vars_meta(["mgm", "ncal", "fcal", "Eprop", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "mbat", "mbe", "mbp", "mbmax", "dmbat", "Pelec", "Pmax", "tm", "dm"]),
+        "variables": vars_meta(["mgm", "ncal", "fcal", "Eprop", "Em", "Eah", "Em0", "Etot", "Qc", "mgc", "mp", "mbat", "mbe", "mbp", "mbmax", "dmbat", "Pelec", "Pad", "Ptot", "Pmax", "tm", "dm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
@@ -858,7 +603,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "unidad": "kJ",
                         "eje": "y1",
                         "color": "#38bdf8",
-                        "valores": [round((((qp_w / valores["ncal"]) + pelec_w) * t) / 1000.0, 3) for t in ts_vuelo],
+                        "valores": [round((((qp_w / valores["ncal"]) + ptot_w) * t) / 1000.0, 3) for t in ts_vuelo],
                     },
                     {
                         "nombre": "Masa de propano consumida (mgm)",

@@ -9,6 +9,9 @@
  */
 
 import { renderizarFormulaKaTeX } from "../katex_helper.js";
+import { renderizarFlujoCategoria } from "./flowchart.js?v=9";
+
+let localFlashTimeout = null;
 
 function claseColorVariable(color) {
   if (color === "red") return "text-penalized";
@@ -30,41 +33,85 @@ export function crearFilaEcuacion(
   card.className = `equation-row-card ${eqData.tiene_penalizada ? "equation-penalized" : ""}`;
   card.setAttribute("data-eq-nombre", eqData.nombre);
 
-  // Cabecera con el título de la ecuación (y enlace a categoría + ecuación en el panel de detalle)
+  // Cabecera con el título de la ecuación (y enlaces a categorías en detalle o en ecuaciones compartidas)
   const header = document.createElement("div");
   header.className = "equation-row-header";
 
+  const prefijo = eqData.categorias_codigo_str || eqData.categoria_codigo;
+  const listaCats =
+    eqData.categorias && eqData.categorias.length > 0
+      ? eqData.categorias
+      : eqData.categoria
+      ? [
+          {
+            id: eqData.categoria_id ?? 0,
+            codigo: eqData.categoria_codigo || "",
+            nombre: eqData.categoria,
+          },
+        ]
+      : [];
+
   const title = document.createElement("h3");
   title.className = "equation-row-title";
-  title.textContent = eqData.categoria_codigo
-    ? `${eqData.categoria_codigo} - ${eqData.nombre}`
-    : eqData.nombre;
-  if (mostrarCategoria && alClickIrAEcuacion) {
+  title.textContent = prefijo ? `${prefijo} - ${eqData.nombre}` : eqData.nombre;
+  if (mostrarCategoria && alClickIrAEcuacion && listaCats.length > 0) {
+    const primeraCat = listaCats[0];
     title.classList.add("equation-title-clickable");
-    title.title = `Ir a ${eqData.categoria_codigo ? `${eqData.categoria_codigo}. ` : ""}${eqData.categoria || ""} y resaltar esta ecuación`;
-    title.addEventListener("click", () => alClickIrAEcuacion(eqData));
+    title.title = `Ir a ${primeraCat.codigo ? `${primeraCat.codigo}. ` : ""}${primeraCat.nombre} y resaltar esta ecuación`;
+    title.addEventListener("click", () => alClickIrAEcuacion(eqData, primeraCat.id));
   }
   header.appendChild(title);
 
-  if (mostrarCategoria && eqData.categoria) {
-    const catCodigo = eqData.categoria_codigo ? `${eqData.categoria_codigo}.` : "";
-    if (alClickIrAEcuacion) {
-      const gotoBtn = document.createElement("button");
-      gotoBtn.type = "button";
-      gotoBtn.className = "equation-goto-cat-btn";
-      gotoBtn.title = `Ir a la categoría "${eqData.categoria}" y ubicar esta ecuación`;
-      gotoBtn.innerHTML = `
-        ${catCodigo ? `<span class="equation-goto-cat-code">${escaparHtml(catCodigo)}</span>` : ""}
-        <span>${escaparHtml(eqData.categoria)}</span>
-        <span class="equation-goto-arrow">↗ Ir a categoría y ecuación</span>
-      `;
-      gotoBtn.addEventListener("click", () => alClickIrAEcuacion(eqData));
-      header.appendChild(gotoBtn);
-    } else {
-      const catTag = document.createElement("span");
-      catTag.className = "equation-row-category-tag";
-      catTag.textContent = `(${catCodigo ? `${catCodigo} ` : ""}${eqData.categoria})`;
-      header.appendChild(catTag);
+  if (mostrarCategoria && listaCats.length > 0) {
+    const group = document.createElement("div");
+    group.className = "equation-goto-cats-group";
+
+    listaCats.forEach((cat) => {
+      const catCodigo = cat.codigo ? `${cat.codigo}.` : "";
+      if (alClickIrAEcuacion) {
+        const gotoBtn = document.createElement("button");
+        gotoBtn.type = "button";
+        gotoBtn.className = "equation-goto-cat-btn";
+        gotoBtn.title = `Ir a la categoría "${cat.nombre}" y ubicar esta ecuación`;
+        gotoBtn.innerHTML = `
+          ${catCodigo ? `<span class="equation-goto-cat-code">${escaparHtml(catCodigo)}</span>` : ""}
+          <span>${escaparHtml(cat.nombre)}</span>
+          <span class="equation-goto-arrow">↗</span>
+        `;
+        gotoBtn.addEventListener("click", () => alClickIrAEcuacion(eqData, cat.id));
+        group.appendChild(gotoBtn);
+      } else {
+        const catTag = document.createElement("span");
+        catTag.className = "equation-row-category-tag";
+        catTag.textContent = `(${catCodigo ? `${catCodigo} ` : ""}${cat.nombre})`;
+        group.appendChild(catTag);
+      }
+    });
+
+    header.appendChild(group);
+  } else if (!mostrarCategoria && eqData.es_compartida && listaCats.length > 1) {
+    const otras = listaCats.filter((c) => c.id !== eqData.categoria_id);
+    if (otras.length > 0) {
+      const sharedDiv = document.createElement("div");
+      sharedDiv.className = "equation-shared-links";
+      const lbl = document.createElement("span");
+      lbl.className = "equation-shared-label";
+      lbl.textContent = "También en:";
+      sharedDiv.appendChild(lbl);
+
+      otras.forEach((cat) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "equation-shared-chip";
+        chip.title = `Ver esta ecuación en ${cat.codigo}. ${cat.nombre}`;
+        chip.textContent = `${cat.codigo} ↗`;
+        chip.addEventListener("click", () => {
+          if (alClickIrAEcuacion) alClickIrAEcuacion(eqData, cat.id);
+        });
+        sharedDiv.appendChild(chip);
+      });
+
+      header.appendChild(sharedDiv);
     }
   }
 
@@ -128,17 +175,29 @@ export function crearFilaEcuacion(
   grid.appendChild(colVars);
   card.appendChild(grid);
 
+  if (!mostrarCategoria && eqData.nota_fisica) {
+    const notaBox = document.createElement("div");
+    notaBox.className = "equation-physical-note";
+    notaBox.innerHTML = `<span class="eq-note-icon" title="Interpretación física">ⓘ</span><span class="eq-note-text"></span>`;
+    notaBox.querySelector(".eq-note-text").textContent = eqData.nota_fisica;
+    card.appendChild(notaBox);
+  }
+
   return card;
 }
 
 /**
- * Renderiza el panel central completo para la categoría seleccionada (o todas).
+ * Renderiza el panel central completo para la categoría seleccionada (o todas),
+ * incluyendo al pie de cada categoría su diagrama de flujo y explicaciones.
  */
 export function renderizarPanelEcuaciones(
   contenedorHeader,
   contenedorLista,
   estadoApp,
-  alClickVariable
+  alClickVariable,
+  alClickIrAEcuacion = null,
+  alClickCategoria = null,
+  alAbrirMapaGlobal = null
 ) {
   if (!estadoApp.sistema) return;
 
@@ -151,17 +210,27 @@ export function renderizarPanelEcuaciones(
   if (estadoApp.categoriaActivaId === "all") {
     contenedorHeader.innerHTML = `
       <div class="cat-banner-title">▌ TODAS LAS CATEGORÍAS DEL SISTEMA</div>
-      <div class="cat-banner-stats">${resumen.total_categorias} categorías · ${resumen.total_ecuaciones} ecuaciones</div>
+      <div class="cat-banner-actions">
+        <div class="cat-banner-stats">${resumen.total_categorias} categorías · ${resumen.total_ecuaciones} ecuaciones únicas</div>
+        <button id="btn-open-global-flow" type="button" class="btn btn-outline cat-banner-btn">◈ Mapa de Flujo Global</button>
+      </div>
     `;
+    contenedorHeader
+      .querySelector("#btn-open-global-flow")
+      ?.addEventListener("click", () => {
+        if (alAbrirMapaGlobal) alAbrirMapaGlobal();
+      });
 
     categorias.forEach((cat) => {
       const divider = document.createElement("div");
       divider.className = "category-section-divider";
-      divider.textContent = `C${cat.id + 1}. ${cat.nombre}`;
+      divider.textContent = `C${cat.id + 1}. ${cat.nombre} (${cat.num_ecuaciones} ec.)`;
       contenedorLista.appendChild(divider);
 
       cat.ecuaciones.forEach((eq) => {
-        contenedorLista.appendChild(crearFilaEcuacion(eq, varActiva, alClickVariable, false));
+        contenedorLista.appendChild(
+          crearFilaEcuacion(eq, varActiva, alClickVariable, false, alClickIrAEcuacion)
+        );
       });
     });
     return;
@@ -170,15 +239,52 @@ export function renderizarPanelEcuaciones(
   const catActiva = categorias.find((c) => c.id === estadoApp.categoriaActivaId) || categorias[0];
   if (!catActiva) return;
 
+  const compTxt = catActiva.num_compartidas ? ` (${catActiva.num_compartidas} compartida(s))` : "";
   contenedorHeader.innerHTML = `
     <div class="cat-banner-title">▌ C${catActiva.id + 1}. ${escaparHtml(catActiva.nombre.toUpperCase())}</div>
-    <div class="cat-banner-stats">
-      ${catActiva.num_ecuaciones} ecuación(es) · ${catActiva.num_fijas} fija(s) · ${catActiva.num_calculadas} calculada(s)
+    <div class="cat-banner-actions">
+      <div class="cat-banner-stats">
+        ${catActiva.num_ecuaciones} ecuación(es)${compTxt} · ${catActiva.num_fijas} fija(s) · ${catActiva.num_calculadas} calculada(s)
+      </div>
+      <button id="btn-jump-cat-flow" type="button" class="btn btn-outline cat-banner-btn" title="Ir al diagrama de flujo y explicaciones de esta categoría">
+        ↓ Flujo y relaciones
+      </button>
     </div>
   `;
+  contenedorHeader
+    .querySelector("#btn-jump-cat-flow")
+    ?.addEventListener("click", () => {
+      const flowSec = contenedorLista.querySelector("#cat-flow-section");
+      if (flowSec) {
+        flowSec.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
 
   catActiva.ecuaciones.forEach((eq) => {
-    contenedorLista.appendChild(crearFilaEcuacion(eq, varActiva, alClickVariable, false));
+    contenedorLista.appendChild(
+      crearFilaEcuacion(eq, varActiva, alClickVariable, false, alClickIrAEcuacion)
+    );
+  });
+
+  renderizarFlujoCategoria(contenedorLista, catActiva, estadoApp, {
+    alClickCategoria,
+    alClickVariable,
+    alAbrirMapaGlobal,
+    alClickEcuacion: (nombreEq) => {
+      const cards = contenedorLista.querySelectorAll(".equation-row-card");
+      const targetCard = Array.from(cards).find(
+        (el) => el.getAttribute("data-eq-nombre") === nombreEq
+      );
+      if (targetCard) {
+        targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        cards.forEach((c) => c.classList.remove("equation-flash-highlight"));
+        targetCard.classList.add("equation-flash-highlight");
+        if (localFlashTimeout) clearTimeout(localFlashTimeout);
+        localFlashTimeout = setTimeout(() => {
+          targetCard.classList.remove("equation-flash-highlight");
+        }, 2400);
+      }
+    },
   });
 }
 

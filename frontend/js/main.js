@@ -9,19 +9,22 @@ import {
   fetchDetalleVariable,
   postModificar,
   postReiniciar,
-} from "./api.js?v=5";
-import { store } from "./state.js?v=5";
+  postOptimizar,
+} from "./api.js?v=9";
+import { store } from "./state.js?v=9";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=5";
-import { renderizarPanelEcuaciones } from "./components/equations.js?v=5";
-import { renderizarPanelGraficas } from "./components/charts.js?v=5";
+} from "./components/sidebar.js?v=9";
+import { renderizarPanelEcuaciones } from "./components/equations.js?v=9";
+import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=9";
+import { renderizarPanelSimulacion } from "./components/simulation.js?v=9";
+import { renderizarPanelGraficas } from "./components/charts.js?v=9";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=5";
+} from "./components/varInput.js?v=9";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");
@@ -29,6 +32,7 @@ const alertBanner = document.getElementById("alert-banner");
 const countFixedEl = document.getElementById("count-fixed");
 const countCalcEl = document.getElementById("count-calc");
 const legendPenalizedEl = document.getElementById("legend-penalized");
+const btnOpenSim = document.getElementById("btn-open-sim");
 const btnReset = document.getElementById("btn-reset");
 
 const sidebarCount = document.getElementById("sidebar-count");
@@ -43,6 +47,14 @@ const equationsList = document.getElementById("equations-list");
 const chartsView = document.getElementById("charts-view");
 const chartsHeader = document.getElementById("charts-header");
 const chartsList = document.getElementById("charts-list");
+
+const flowView = document.getElementById("flow-view");
+const flowHeader = document.getElementById("flow-header");
+const flowContent = document.getElementById("flow-content");
+
+const simView = document.getElementById("sim-view");
+const simHeader = document.getElementById("sim-header");
+const simContent = document.getElementById("sim-content");
 
 const bottomPanel = document.getElementById("bottom-panel");
 const bottomResizer = document.getElementById("bottom-resizer");
@@ -59,10 +71,16 @@ const variableDetailContainer = document.getElementById("variable-detail-contain
 let feedbackTimeout = null;
 let flashTimeout = null;
 
-function irACategoriaYEcuacion(eqData) {
+function irACategoriaYEcuacion(eqData, catIdObjetivo = null) {
   if (!eqData || !store.sistema) return;
 
-  let catId = eqData.categoria_id;
+  let catId =
+    catIdObjetivo !== null && catIdObjetivo !== undefined
+      ? catIdObjetivo
+      : eqData.categorias && eqData.categorias.length > 0
+      ? eqData.categorias[0].id
+      : eqData.categoria_id;
+
   if (catId === undefined || catId === null) {
     const encontrada = store.sistema.categorias.find(
       (c) => c.nombre === eqData.categoria
@@ -194,6 +212,7 @@ async function aplicarModificacion(entradas) {
   try {
     const nuevoEstado = await postModificar(entradas);
     store.sistema = nuevoEstado;
+    store.resultadoOptimizacion = null;
 
     // Si hay una variable abierta en detalle, refrescar su detalle con los nuevos cálculos
     if (store.variableDetalle) {
@@ -208,17 +227,44 @@ async function aplicarModificacion(entradas) {
   }
 }
 
+async function ejecutarOptimizacion(objetivo, variables) {
+  try {
+    const res = await postOptimizar(objetivo, variables);
+    store.establecerResultadoOptimizacion(res);
+    if (res.encontrado) {
+      mostrarMensaje(
+        `Optimización (${objetivo}) completada en ${res.tiempo_ms} ms.`,
+        "success"
+      );
+    } else {
+      mostrarMensaje(
+        "No se encontró diseño válido dentro de los límites físicos actuales.",
+        "error"
+      );
+    }
+  } catch (err) {
+    mostrarMensaje(err.message, "error");
+  }
+}
+
 function renderizarTodo(estadoApp) {
   renderizarBarraSuperiorYAlertas(estadoApp);
+
+  const abrirMapaFlujo = () => {
+    store.seleccionarMapaFlujo();
+    if (flowContent) flowContent.scrollTop = 0;
+  };
+  const abrirCategoria = (catId) => {
+    store.seleccionarCategoria(catId);
+    equationsList.scrollTop = 0;
+  };
 
   renderizarSidebarCategorias(
     categoryList,
     sidebarCount,
     estadoApp,
-    (catId) => {
-      store.seleccionarCategoria(catId);
-      equationsList.scrollTop = 0;
-    }
+    abrirCategoria,
+    abrirMapaFlujo
   );
 
   renderizarSidebarGraficas(
@@ -232,8 +278,16 @@ function renderizarTodo(estadoApp) {
   );
 
   const esVistaGraficas = estadoApp.vistaActiva === "graficas";
-  equationsView.classList.toggle("hidden", esVistaGraficas);
+  const esVistaFlujo = estadoApp.vistaActiva === "flujo";
+  const esVistaSim = estadoApp.vistaActiva === "simulacion";
+  const esVistaEcuaciones = !esVistaGraficas && !esVistaFlujo && !esVistaSim;
+
+  btnOpenSim?.classList.toggle("active", esVistaSim);
+
+  equationsView.classList.toggle("hidden", !esVistaEcuaciones);
   chartsView.classList.toggle("hidden", !esVistaGraficas);
+  flowView?.classList.toggle("hidden", !esVistaFlujo);
+  simView?.classList.toggle("hidden", !esVistaSim);
 
   if (esVistaGraficas) {
     renderizarPanelGraficas(
@@ -246,12 +300,26 @@ function renderizarTodo(estadoApp) {
         chartsList.scrollTop = 0;
       }
     );
+  } else if (esVistaFlujo) {
+    renderizarMapaFlujoGlobal(flowHeader, flowContent, estadoApp, {
+      alClickCategoria: abrirCategoria,
+      alClickVariable: (nomVar) => seleccionarVariable(nomVar),
+    });
+  } else if (esVistaSim) {
+    renderizarPanelSimulacion(simHeader, simContent, estadoApp, {
+      alEjecutarOptimizacion: ejecutarOptimizacion,
+      alAplicarOptimo: aplicarModificacion,
+      alClickVariable: (nomVar) => seleccionarVariable(nomVar),
+    });
   } else {
     renderizarPanelEcuaciones(
       equationsHeader,
       equationsList,
       estadoApp,
-      (nomVar) => seleccionarVariable(nomVar)
+      (nomVar) => seleccionarVariable(nomVar),
+      irACategoriaYEcuacion,
+      abrirCategoria,
+      abrirMapaFlujo
     );
   }
 
@@ -310,10 +378,16 @@ async function iniciarApp() {
     btnToggleBottomSize.textContent = exp ? "⇕ Reducir panel" : "⇕ Expandir panel";
   });
 
+  btnOpenSim?.addEventListener("click", () => {
+    store.seleccionarSimulacion();
+    if (simContent) simContent.scrollTop = 0;
+  });
+
   btnReset.addEventListener("click", async () => {
     try {
       const estadoInicial = await postReiniciar();
       store.sistema = estadoInicial;
+      store.resultadoOptimizacion = null;
       if (store.variableDetalle) {
         store.variableDetalle = await fetchDetalleVariable(
           store.variableDetalle.variable.nombre

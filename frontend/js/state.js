@@ -4,10 +4,11 @@
 
 export const store = {
   sistema: null,              // Respuesta completa de /api/estado
-  vistaActiva: "ecuaciones",  // "ecuaciones" | "graficas"
+  vistaActiva: "ecuaciones",  // "ecuaciones" | "graficas" | "flujo" | "simulacion"
   categoriaActivaId: 0,       // Índice de categoría seleccionada (o "all" para ver todas)
   graficaActivaId: "esbeltez",// ID de la gráfica seleccionada (o "all" para ver todas)
   variableDetalle: null,      // Respuesta de /api/variable/{nombre}
+  resultadoOptimizacion: null,// Último resultado de POST /api/optimizar
   catalogoAbierto: false,     // Si el catálogo de variables está visible
   filtroCatalogo: "all",      // "all" | "fixed" | "calc"
   listeners: new Set(),
@@ -25,6 +26,7 @@ export const store = {
 
   actualizarSistema(nuevoSistema) {
     this.sistema = nuevoSistema;
+    this.resultadoOptimizacion = null;
     this.notificar();
   },
 
@@ -37,6 +39,21 @@ export const store = {
   seleccionarGrafica(graficaId) {
     this.vistaActiva = "graficas";
     this.graficaActivaId = graficaId;
+    this.notificar();
+  },
+
+  seleccionarMapaFlujo() {
+    this.vistaActiva = "flujo";
+    this.notificar();
+  },
+
+  seleccionarSimulacion() {
+    this.vistaActiva = "simulacion";
+    this.notificar();
+  },
+
+  establecerResultadoOptimizacion(res) {
+    this.resultadoOptimizacion = res;
     this.notificar();
   },
 

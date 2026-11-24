@@ -14,9 +14,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import flujo
 import formateo
 import graficas
 import modelo
+import simulacion
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -79,7 +81,7 @@ _CAT_INDICES = {nombre: idx for idx, nombre in enumerate(modelo.CATEGORIAS)}
 
 
 def _serializar_ecuacion(
-    categoria: str,
+    categoria: str | None,
     nombre_eq: str,
     eq: sp.Eq,
     valores_vista: dict[str, float],
@@ -88,11 +90,20 @@ def _serializar_ecuacion(
 ) -> dict[str, Any]:
     vars_eq = formateo.variables_de_ecuacion(eq, valores_vista, fijas, penalizado=penalizado)
     tiene_penalizada = any(v["penalizada"] for v in vars_eq)
-    cat_idx = _CAT_INDICES.get(categoria, 0)
+    cats = modelo.categorias_de_ecuacion(nombre_eq)
+    categorias_list = [
+        {"id": cid, "codigo": cod, "nombre": cnom}
+        for cid, cod, cnom in cats
+    ]
+    cat_idx = _CAT_INDICES[categoria] if categoria in _CAT_INDICES else (cats[0][0] if cats else 0)
+    cat_nombre = categoria if categoria in _CAT_INDICES else (cats[0][2] if cats else "")
     return {
-        "categoria": categoria,
+        "categoria": cat_nombre,
         "categoria_id": cat_idx,
         "categoria_codigo": f"C{cat_idx + 1}",
+        "categorias": categorias_list,
+        "categorias_codigo_str": ", ".join(c["codigo"] for c in categorias_list),
+        "es_compartida": len(categorias_list) > 1,
         "nombre": nombre_eq,
         "latex_general": formateo.renderizar_general_latex(eq),
         "latex_sustitucion": formateo.renderizar_sustitucion_latex(
@@ -100,6 +111,7 @@ def _serializar_ecuacion(
         ),
         "variables": vars_eq,
         "tiene_penalizada": tiene_penalizada,
+        "nota_fisica": flujo.nota_ecuacion(nombre_eq),
     }
 
 
@@ -124,10 +136,12 @@ def construir_respuesta_estado() -> dict[str, Any]:
             "id": idx,
             "nombre": cat_nombre,
             "num_ecuaciones": len(eqs_out),
+            "num_compartidas": sum(1 for e in eqs_out if e["es_compartida"]),
             "num_fijas": fijas_cat,
             "num_calculadas": calc_cat,
             "tiene_penalizada": any(e["tiene_penalizada"] for e in eqs_out),
             "ecuaciones": eqs_out,
+            "flujo": flujo.construir_flujo_categoria(idx),
         })
 
     variables_out = [
@@ -136,12 +150,15 @@ def construir_respuesta_estado() -> dict[str, Any]:
     ]
 
     graficas_out = graficas.construir_datos_graficas(estado.valores, estado.fijas)
+    simulacion_out = simulacion.simular_mision_fases(estado.valores)
 
     return {
         "alertas": alertas,
         "penalizado": penalizado,
         "categorias": categorias_out,
+        "mapa_flujo": flujo.construir_mapa_global(),
         "graficas": graficas_out,
+        "simulacion": simulacion_out,
         "variables": variables_out,
         "fijas": [n for n in modelo.VARIABLES if n in estado.fijas],
         "resumen": {
@@ -164,8 +181,15 @@ def construir_detalle_variable(nombre: str) -> dict[str, Any]:
     var_info = _serializar_variable(nombre, estado.valores, valores_vista, estado.fijas, penalizado)
 
     eqs_var = [
-        _serializar_ecuacion(cat, nom_eq, eq, valores_vista, estado.fijas, penalizado)
-        for cat, nom_eq, eq in modelo.ecuaciones_de_variable(nombre)
+        _serializar_ecuacion(
+            cats[0][2] if cats else None,
+            nom_eq,
+            eq,
+            valores_vista,
+            estado.fijas,
+            penalizado,
+        )
+        for cats, nom_eq, eq in modelo.ecuaciones_detalladas_de_variable(nombre)
     ]
 
     if var_info["fija"]:
@@ -198,6 +222,11 @@ class PeticionEquilibrio(BaseModel):
 
 class PeticionModificar(BaseModel):
     entradas: dict[str, float]
+
+
+class PeticionOptimizar(BaseModel):
+    objetivo: str = "Etot"
+    variables: list[str] = ["lam", "v", "mflot", "e"]
 
 
 # =============================================================
@@ -284,6 +313,32 @@ def reiniciar_sistema() -> dict[str, Any]:
     """Restaura las variables fijas y valores de calibración iniciales (La Paz - Zona Sur)."""
     estado.reiniciar()
     return construir_respuesta_estado()
+
+
+@app.post("/api/optimizar")
+def optimizar_sistema(req: PeticionOptimizar) -> dict[str, Any]:
+    """
+    Ejecuta el optimizador multidimensional (Capa 3) sobre `(lam, v, mflot, e)` para
+    minimizar `objetivo` ('Etot', 'mtot', 'mbat', 'mgm') cumpliendo los límites físicos.
+    """
+    try:
+        res = simulacion.optimizar_diseno(
+            estado.valores,
+            objetivo=req.objetivo,
+            vars_libres=req.variables,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if res["encontrado"] and res["optimo"] is not None:
+        entradas_opt = {k: float(estado.valores[k]) for k in modelo.FIJAS_INI}
+        for v_nom in res["vars_optimizadas"]:
+            entradas_opt[v_nom] = float(res["optimo"][v_nom])
+        res["entradas_optimo"] = entradas_opt
+    else:
+        res["entradas_optimo"] = None
+    res["requiere_cambio_fijas"] = set(modelo.FIJAS_INI) != estado.fijas
+    return res
 
 
 # =============================================================

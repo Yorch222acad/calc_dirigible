@@ -8,7 +8,8 @@ export function renderizarSidebarCategorias(
   contenedorLista,
   contadorHeader,
   estadoApp,
-  alSeleccionarCategoria
+  alSeleccionarCategoria,
+  alSeleccionarMapaFlujo = null
 ) {
   if (!estadoApp.sistema) return;
 
@@ -19,6 +20,7 @@ export function renderizarSidebarCategorias(
 
   contenedorLista.innerHTML = "";
   const esVistaEcuaciones = estadoApp.vistaActiva === "ecuaciones";
+  const esVistaFlujo = estadoApp.vistaActiva === "flujo";
 
   // Botón para cada una de las categorías
   categorias.forEach((cat) => {
@@ -54,7 +56,9 @@ export function renderizarSidebarCategorias(
     const countPill = document.createElement("span");
     countPill.className = "category-count-pill";
     countPill.textContent = `${cat.num_ecuaciones}`;
-    countPill.title = `${cat.num_ecuaciones} ecuaciones`;
+    countPill.title = cat.num_compartidas
+      ? `${cat.num_ecuaciones} ecuaciones (${cat.num_compartidas} compartidas)`
+      : `${cat.num_ecuaciones} ecuaciones`;
     metaDiv.appendChild(countPill);
 
     btn.appendChild(labelDiv);
@@ -64,7 +68,7 @@ export function renderizarSidebarCategorias(
     contenedorLista.appendChild(btn);
   });
 
-  // Separador y opción para ver todas las categorías juntas
+  // Separador y opción para ver todas las categorías juntas + Mapa de flujo global
   const sep = document.createElement("hr");
   sep.style.border = "none";
   sep.style.borderTop = "1px solid var(--border-subtle)";
@@ -86,6 +90,24 @@ export function renderizarSidebarCategorias(
   `;
   btnAll.addEventListener("click", () => alSeleccionarCategoria("all"));
   contenedorLista.appendChild(btnAll);
+
+  const btnFlow = document.createElement("button");
+  btnFlow.type = "button";
+  btnFlow.className = `category-btn flow-nav-btn ${esVistaFlujo ? "active flow-active" : ""}`;
+  btnFlow.title = "Ver el diagrama global de relaciones entre las 13 categorías (C1 → C13)";
+  btnFlow.innerHTML = `
+    <div class="category-btn-label">
+      <span class="category-index">◈</span>
+      <span class="category-name">Mapa de flujo global</span>
+    </div>
+    <div class="category-meta">
+      <span class="category-count-pill">C1→C${resumen.total_categorias}</span>
+    </div>
+  `;
+  btnFlow.addEventListener("click", () => {
+    if (alSeleccionarMapaFlujo) alSeleccionarMapaFlujo();
+  });
+  contenedorLista.appendChild(btnFlow);
 }
 
 export function renderizarSidebarGraficas(

@@ -45,3 +45,12 @@ export async function postReiniciar() {
   });
   return parsearRespuesta(resp);
 }
+
+export async function postOptimizar(objetivo, variables) {
+  const resp = await fetch("/api/optimizar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ objetivo, variables }),
+  });
+  return parsearRespuesta(resp);
+}
