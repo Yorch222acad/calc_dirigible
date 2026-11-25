@@ -7,7 +7,7 @@ de corte ("tearing") para los tres lazos acoplados del modelo del dirigible:
   3. Lazo masa-batería (C9-C13): mbat  -> max(mbe, mbp)
 
 Actúa como fuente única de verdad numérica para la vía rápida de `modelo.py`,
-las curvas paramétricas de `graficas.py` y la simulación/optimización en `simulacion.py`.
+las curvas paramétricas de `graficas.py` y el estudio de diseño en `diseno.py`.
 """
 from __future__ import annotations
 

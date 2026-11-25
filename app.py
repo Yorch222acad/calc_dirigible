@@ -19,7 +19,6 @@ import flujo
 import formateo
 import graficas
 import modelo
-import simulacion
 
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -156,7 +155,6 @@ def construir_respuesta_estado() -> dict[str, Any]:
     ]
 
     graficas_out = graficas.construir_datos_graficas(estado.valores, estado.fijas)
-    simulacion_out = simulacion.simular_mision_fases(estado.valores)
 
     return {
         "alertas": alertas,
@@ -164,7 +162,6 @@ def construir_respuesta_estado() -> dict[str, Any]:
         "categorias": categorias_out,
         "mapa_flujo": flujo.construir_mapa_global(),
         "graficas": graficas_out,
-        "simulacion": simulacion_out,
         "variables": variables_out,
         "fijas": [n for n in modelo.VARIABLES if n in estado.fijas],
         "resumen": {
@@ -228,11 +225,6 @@ class PeticionEquilibrio(BaseModel):
 
 class PeticionModificar(BaseModel):
     entradas: dict[str, float]
-
-
-class PeticionOptimizar(BaseModel):
-    objetivo: str = "Etot"
-    variables: list[str] = ["lam", "v", "mflot", "e", "T2"]
 
 
 class PeticionAnalisisDiseno(BaseModel):
@@ -343,32 +335,6 @@ def reiniciar_sistema() -> dict[str, Any]:
     """Restaura las variables fijas y valores de calibración iniciales (La Paz - Zona Sur)."""
     estado.reiniciar()
     return construir_respuesta_estado()
-
-
-@app.post("/api/optimizar")
-def optimizar_sistema(req: PeticionOptimizar) -> dict[str, Any]:
-    """
-    Ejecuta el optimizador multidimensional (Capa 3) sobre `(lam, v, mflot, e)` para
-    minimizar `objetivo` ('Etot', 'mtot', 'mbat', 'mgm') cumpliendo los límites físicos.
-    """
-    try:
-        res = simulacion.optimizar_diseno(
-            estado.valores,
-            objetivo=req.objetivo,
-            vars_libres=req.variables,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    if res["encontrado"] and res["optimo"] is not None:
-        entradas_opt = {k: float(estado.valores[k]) for k in modelo.FIJAS_INI}
-        for v_nom in res["vars_optimizadas"]:
-            entradas_opt[v_nom] = float(res["optimo"][v_nom])
-        res["entradas_optimo"] = entradas_opt
-    else:
-        res["entradas_optimo"] = None
-    res["requiere_cambio_fijas"] = set(modelo.FIJAS_INI) != estado.fijas
-    return res
 
 
 @app.post("/api/diseno/analizar")

@@ -9,7 +9,6 @@ import {
   fetchDetalleVariable,
   postModificar,
   postReiniciar,
-  postOptimizar,
   postAnalizarDiseno,
   fetchHistorico,
   postGuardarHistorico,
@@ -27,7 +26,6 @@ import {
   resaltarYEncuadrarEcuacion,
 } from "./components/equations.js?v=14";
 import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=14";
-import { renderizarPanelSimulacion } from "./components/simulation.js?v=14";
 import { renderizarPanelDiseno } from "./components/designStudio.js?v=14";
 import { renderizarPanelGraficas } from "./components/charts.js?v=14";
 import {
@@ -43,7 +41,6 @@ const countFixedEl = document.getElementById("count-fixed");
 const countCalcEl = document.getElementById("count-calc");
 const legendPenalizedEl = document.getElementById("legend-penalized");
 const btnOpenDesign = document.getElementById("btn-open-design");
-const btnOpenSim = document.getElementById("btn-open-sim");
 const btnReset = document.getElementById("btn-reset");
 
 const sidebarCount = document.getElementById("sidebar-count");
@@ -62,10 +59,6 @@ const chartsList = document.getElementById("charts-list");
 const flowView = document.getElementById("flow-view");
 const flowHeader = document.getElementById("flow-header");
 const flowContent = document.getElementById("flow-content");
-
-const simView = document.getElementById("sim-view");
-const simHeader = document.getElementById("sim-header");
-const simContent = document.getElementById("sim-content");
 
 const designView = document.getElementById("design-view");
 const designHeader = document.getElementById("design-header");
@@ -222,7 +215,6 @@ async function aplicarModificacion(entradas) {
   try {
     const nuevoEstado = await postModificar(entradas);
     store.sistema = nuevoEstado;
-    store.resultadoOptimizacion = null;
     store.resultadoDiseno = null;
 
     // Si hay una variable abierta en detalle, refrescar su detalle con los nuevos cálculos
@@ -236,26 +228,6 @@ async function aplicarModificacion(entradas) {
       analizarDisenoYCargar(ultimoPayloadDiseno);
     }
     mostrarMensaje("Sistema resuelto y actualizado correctamente.", "success");
-  } catch (err) {
-    mostrarMensaje(err.message, "error");
-  }
-}
-
-async function ejecutarOptimizacion(objetivo, variables) {
-  try {
-    const res = await postOptimizar(objetivo, variables);
-    store.establecerResultadoOptimizacion(res);
-    if (res.encontrado) {
-      mostrarMensaje(
-        `Optimización (${objetivo}) completada en ${res.tiempo_ms} ms.`,
-        "success"
-      );
-    } else {
-      mostrarMensaje(
-        "No se encontró diseño válido dentro de los límites físicos actuales.",
-        "error"
-      );
-    }
   } catch (err) {
     mostrarMensaje(err.message, "error");
   }
@@ -350,17 +322,14 @@ function renderizarTodo(estadoApp) {
 
   const esVistaGraficas = estadoApp.vistaActiva === "graficas";
   const esVistaFlujo = estadoApp.vistaActiva === "flujo";
-  const esVistaSim = estadoApp.vistaActiva === "simulacion";
   const esVistaDiseno = estadoApp.vistaActiva === "diseno";
-  const esVistaEcuaciones = !esVistaGraficas && !esVistaFlujo && !esVistaSim && !esVistaDiseno;
+  const esVistaEcuaciones = !esVistaGraficas && !esVistaFlujo && !esVistaDiseno;
 
-  btnOpenSim?.classList.toggle("active", esVistaSim);
   btnOpenDesign?.classList.toggle("active", esVistaDiseno);
 
   equationsView.classList.toggle("hidden", !esVistaEcuaciones);
   chartsView.classList.toggle("hidden", !esVistaGraficas);
   flowView?.classList.toggle("hidden", !esVistaFlujo);
-  simView?.classList.toggle("hidden", !esVistaSim);
   designView?.classList.toggle("hidden", !esVistaDiseno);
 
   if (esVistaGraficas) {
@@ -377,12 +346,6 @@ function renderizarTodo(estadoApp) {
   } else if (esVistaFlujo) {
     renderizarMapaFlujoGlobal(flowHeader, flowContent, estadoApp, {
       alClickCategoria: abrirCategoria,
-      alClickVariable: (nomVar) => seleccionarVariable(nomVar),
-    });
-  } else if (esVistaSim) {
-    renderizarPanelSimulacion(simHeader, simContent, estadoApp, {
-      alEjecutarOptimizacion: ejecutarOptimizacion,
-      alAplicarOptimo: aplicarModificacion,
       alClickVariable: (nomVar) => seleccionarVariable(nomVar),
     });
   } else if (esVistaDiseno) {
@@ -474,16 +437,10 @@ async function iniciarApp() {
     cargarHistorico();
   });
 
-  btnOpenSim?.addEventListener("click", () => {
-    store.seleccionarSimulacion();
-    if (simContent) simContent.scrollTop = 0;
-  });
-
   btnReset.addEventListener("click", async () => {
     try {
       const estadoInicial = await postReiniciar();
       store.sistema = estadoInicial;
-      store.resultadoOptimizacion = null;
       store.resultadoDiseno = null;
       if (store.variableDetalle) {
         store.variableDetalle = await fetchDetalleVariable(

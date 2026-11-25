@@ -4,11 +4,10 @@
 
 export const store = {
   sistema: null,              // Respuesta completa de /api/estado
-  vistaActiva: "ecuaciones",  // "ecuaciones" | "graficas" | "flujo" | "simulacion" | "diseno"
+  vistaActiva: "ecuaciones",  // "ecuaciones" | "graficas" | "flujo" | "diseno"
   categoriaActivaId: 0,       // Índice de categoría seleccionada (o "all" para ver todas)
   graficaActivaId: "esbeltez",// ID de la gráfica seleccionada (o "all" para ver todas)
   variableDetalle: null,      // Respuesta de /api/variable/{nombre}
-  resultadoOptimizacion: null,// Último resultado de POST /api/optimizar
   resultadoDiseno: null,      // Último resultado de POST /api/diseno/analizar
   cargandoDiseno: false,      // Estado de carga del optimizador de diseño
   historicoDisenos: [],       // Registros guardados manualmente
@@ -30,7 +29,6 @@ export const store = {
 
   actualizarSistema(nuevoSistema) {
     this.sistema = nuevoSistema;
-    this.resultadoOptimizacion = null;
     this.notificar();
   },
 
@@ -51,19 +49,9 @@ export const store = {
     this.notificar();
   },
 
-  seleccionarSimulacion() {
-    this.vistaActiva = "simulacion";
-    this.notificar();
-  },
-
   seleccionarDiseno(pestana = null) {
     this.vistaActiva = "diseno";
     if (pestana) this.pestanaDiseno = pestana;
-    this.notificar();
-  },
-
-  establecerResultadoOptimizacion(res) {
-    this.resultadoOptimizacion = res;
     this.notificar();
   },
 

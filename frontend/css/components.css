@@ -1951,27 +1951,6 @@
   font-size: 12.2px;
 }
 
-/* Botón de Simulación y optimización en la barra superior */
-.btn-sim-header {
-  background: rgba(250, 204, 21, 0.14);
-  color: #fde047;
-  border: 1px solid rgba(250, 204, 21, 0.48);
-  font-weight: 700;
-}
-
-.btn-sim-header:hover {
-  background: rgba(250, 204, 21, 0.24);
-  border-color: #fde047;
-  color: #fef08a;
-}
-
-.btn-sim-header.active {
-  background: rgba(250, 204, 21, 0.3);
-  border-color: #facc15;
-  color: #fef9c3;
-  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.24);
-}
-
 /* =============================================================
    Vista Óptimo Ponderado, Histórico Manual y Casos Tipo
    ============================================================= */
@@ -2237,41 +2216,126 @@
   border-radius: 999px;
 }
 
+.design-cost-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.design-cost-card {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 15px 18px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid var(--border-normal);
+  border-radius: 9px;
+}
+
+.design-opcost-card {
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
 .design-hotswap-card {
+  border-color: rgba(250, 204, 21, 0.45);
+}
+
+.design-cost-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
   flex-wrap: wrap;
-  padding: 12px 14px;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(250, 204, 21, 0.38);
-  border-radius: 8px;
 }
 
-.design-cost-cards-grid {
+.design-cost-title {
+  font-size: 14.2px;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.design-cost-title.is-hotswap {
+  color: #fde047;
+}
+
+.design-cost-total-pill {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  color: #bae6fd;
+}
+
+.design-cost-total-pill.is-hotswap {
+  background: rgba(250, 204, 21, 0.14);
+  border-color: rgba(250, 204, 21, 0.42);
+  color: #fef08a;
+}
+
+.design-cost-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.design-cost-metrics-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.design-cost-metrics-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.design-opcost-card {
+.design-cost-metric {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  padding: 9px 12px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(56, 189, 248, 0.38);
-  border-radius: 8px;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.design-opcost-title {
-  font-size: 12.8px;
+.design-cost-metric-lbl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.design-cost-metric-lbl i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.design-cost-metric-val {
+  font-family: var(--font-mono);
+  font-size: 13.8px;
   font-weight: 700;
-  color: #38bdf8;
-  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.design-cost-metric-val small {
+  font-size: 11.8px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.design-cost-metric-extra {
+  font-size: 11.8px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
 }
 
 .design-hs-cpre {
@@ -2463,8 +2527,9 @@
   font-size: 12px;
 }
 
-@media (max-width: 1180px) {
-  .design-cost-cards-grid {
+@media (max-width: 900px) {
+  .design-cost-metrics-3,
+  .design-cost-metrics-2 {
     grid-template-columns: 1fr;
   }
 }
@@ -2496,7 +2561,7 @@
 
 .design-hs-bar {
   display: flex;
-  height: 14px;
+  height: 16px;
   border-radius: 999px;
   overflow: hidden;
   border: 1px solid var(--border-normal);

@@ -565,44 +565,66 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
         .join("")}
     </div>
 
-    <div class="design-cost-cards-grid">
-      <div class="design-opcost-card">
-        <div class="design-hotswap-left">
-          <div class="design-opcost-title">💵 Desglose de Costo Operativo (sin Hot-Swap)</div>
-          <p class="design-hotswap-desc">
-            Misión de <strong>${esp.dm} m</strong> (${esp.nv} viajes): costo operativo total <strong>${esp.Cop} Bs</strong> (<strong>${esp.cop_por_viaje} Bs/viaje</strong> · <strong>${esp.cop_por_km} Bs/km</strong>) — Precalentamiento tierra: <strong>${esp.Cpre} Bs</strong> (${esp.pct_cpre}%), Combustible vuelo: <strong>${esp.Ccomb} Bs</strong> (${esp.pct_ccomb}%) y Recarga eléctrica: <strong>${esp.Celec} Bs</strong> (${esp.pct_celec}%).
-          </p>
+    <div class="design-cost-cards-stack">
+      <div class="design-cost-card design-opcost-card">
+        <div class="design-cost-header">
+          <div class="design-cost-title">💵 Costo Operativo por Misión (sin Hot-Swap)</div>
+          <div class="design-cost-total-pill is-opcost">
+            Total: <strong>${esp.Cop} Bs</strong> · ${esp.cop_por_viaje} Bs/viaje · ${esp.cop_por_km} Bs/km
+          </div>
         </div>
-        <div class="design-hotswap-bars">
-          <div class="design-hs-bar">
-            <div class="design-hs-cpre" style="width:${Math.max(2, esp.pct_cpre)}%;" title="Precalentamiento: ${esp.Cpre} Bs"></div>
-            <div class="design-hs-ccomb" style="width:${Math.max(2, esp.pct_ccomb)}%;" title="Combustible vuelo: ${esp.Ccomb} Bs"></div>
-            <div class="design-hs-celec" style="width:${Math.max(2, esp.pct_celec)}%;" title="Electricidad: ${esp.Celec} Bs"></div>
+        <p class="design-cost-sub">
+          Lo que cuesta operar el dirigible en una misión de <strong>${esp.dm} m</strong> (${esp.nv} viajes), sumando el precalentamiento inicial en tierra, el combustible quemado en vuelo y la recarga eléctrica de la batería.
+        </p>
+        <div class="design-cost-metrics-3">
+          <div class="design-cost-metric">
+            <span class="design-cost-metric-lbl"><i style="background:#38bdf8;"></i> Precalentamiento en tierra</span>
+            <strong class="design-cost-metric-val">${esp.Cpre} Bs <small>(${esp.pct_cpre}%)</small></strong>
+            <span class="design-cost-metric-extra">Energía tierra: ${esp.Epre_kj} kJ</span>
           </div>
-          <div class="design-hs-legend">
-            <span><i style="background:#38bdf8;"></i> Tierra: ${esp.Cpre} Bs</span>
-            <span><i style="background:#fb923c;"></i> Comb.: ${esp.Ccomb} Bs</span>
-            <span><i style="background:#4ade80;"></i> Elec.: ${esp.Celec} Bs</span>
+          <div class="design-cost-metric">
+            <span class="design-cost-metric-lbl"><i style="background:#fb923c;"></i> Combustible térmico en vuelo</span>
+            <strong class="design-cost-metric-val">${esp.Ccomb} Bs <small>(${esp.pct_ccomb}%)</small></strong>
+            <span class="design-cost-metric-extra">Consumo: ${esp.mgm_g} g</span>
           </div>
+          <div class="design-cost-metric">
+            <span class="design-cost-metric-lbl"><i style="background:#4ade80;"></i> Electricidad de recarga</span>
+            <strong class="design-cost-metric-val">${esp.Celec} Bs <small>(${esp.pct_celec}%)</small></strong>
+            <span class="design-cost-metric-extra">Batería: ${esp.Ereq_wh} Wh</span>
+          </div>
+        </div>
+        <div class="design-hs-bar">
+          <div class="design-hs-cpre" style="width:${Math.max(2, esp.pct_cpre)}%;" title="Precalentamiento: ${esp.Cpre} Bs (${esp.pct_cpre}%)"></div>
+          <div class="design-hs-ccomb" style="width:${Math.max(2, esp.pct_ccomb)}%;" title="Combustible vuelo: ${esp.Ccomb} Bs (${esp.pct_ccomb}%)"></div>
+          <div class="design-hs-celec" style="width:${Math.max(2, esp.pct_celec)}%;" title="Electricidad: ${esp.Celec} Bs (${esp.pct_celec}%)"></div>
         </div>
       </div>
 
-      <div class="design-hotswap-card">
-        <div class="design-hotswap-left">
-          <div class="design-hotswap-title">⚡ Comparativa de Recambio Rápido ("Hot-Swap")</div>
-          <p class="design-hotswap-desc">
-            El combustible líquido se repone en segundos por <strong>${esp.c_rec_comb} Bs</strong> (depósito de ${esp.mp_g} g), mientras disponer de otra batería cargada de repuesto (${esp.mbat_g} g) cuesta <strong>${esp.c_bat_rep} Bs</strong> — <strong>${esp.pct_bateria_recambio}%</strong> del total de recambio rápido (<strong>${esp.c_recambio} Bs</strong>, relación ${esp.ratio_bat_comb}×).
-          </p>
+      <div class="design-cost-card design-hotswap-card">
+        <div class="design-cost-header">
+          <div class="design-cost-title is-hotswap">⚡ Costo de Recambio Rápido ("Hot-Swap")</div>
+          <div class="design-cost-total-pill is-hotswap">
+            Total: <strong>${esp.c_recambio} Bs</strong> · Batería = ${esp.pct_bateria_recambio}% (${esp.ratio_bat_comb}×)
+          </div>
         </div>
-        <div class="design-hotswap-bars">
-          <div class="design-hs-bar">
-            <div class="design-hs-comb" style="width:${Math.max(3, 100 - esp.pct_bateria_recambio)}%;" title="Combustible: ${esp.c_rec_comb} Bs"></div>
-            <div class="design-hs-bat" style="width:${Math.max(3, esp.pct_bateria_recambio)}%;" title="Batería repuesto: ${esp.c_bat_rep} Bs"></div>
+        <p class="design-cost-sub">
+          Costo inmediato para volver a despegar al instante sin esperar a recargar la batería: rellenar el depósito de combustible líquido frente al costo de mantener otra batería LiPo de repuesto ya cargada.
+        </p>
+        <div class="design-cost-metrics-2">
+          <div class="design-cost-metric">
+            <span class="design-cost-metric-lbl"><i style="background:#fb923c;"></i> Reposición de combustible líquido</span>
+            <strong class="design-cost-metric-val">${esp.c_rec_comb} Bs <small>(${(100 - esp.pct_bateria_recambio).toFixed(1)}%)</small></strong>
+            <span class="design-cost-metric-extra">Depósito completo: ${esp.mp_g} g</span>
           </div>
-          <div class="design-hs-legend">
-            <span><i style="background:#fb923c;"></i> Combustible: ${esp.c_rec_comb} Bs</span>
-            <span><i style="background:#facc15;"></i> Batería repuesto: ${esp.c_bat_rep} Bs</span>
+          <div class="design-cost-metric">
+            <span class="design-cost-metric-lbl"><i style="background:#facc15;"></i> Batería LiPo cargada de repuesto</span>
+            <strong class="design-cost-metric-val">${esp.c_bat_rep} Bs <small>(${esp.pct_bateria_recambio}%)</small></strong>
+            <span class="design-cost-metric-extra">Batería: ${esp.mbat_g} g</span>
           </div>
+        </div>
+        <div class="design-hs-bar">
+          <div class="design-hs-comb" style="width:${Math.max(3, 100 - esp.pct_bateria_recambio)}%;" title="Combustible: ${esp.c_rec_comb} Bs"></div>
+          <div class="design-hs-bat" style="width:${Math.max(3, esp.pct_bateria_recambio)}%;" title="Batería repuesto: ${esp.c_bat_rep} Bs"></div>
         </div>
       </div>
     </div>
