@@ -454,6 +454,10 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
   const extEdgesPlan = [];
   let leftExtCount = 0;
   let rightExtCount = 0;
+  let topGapCount = 0;
+  let botGapCount = 0;
+  let inInterRowCross = 0;
+  let outInterRowCross = 0;
 
   entradas.forEach((ext, extIdx) => {
     const inRow = extInRowMap.get(extIdx) ?? 0;
@@ -464,7 +468,10 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
     (ext.nodos_conectados || []).forEach((vDst) => {
       const d = nodoTmp.get(vDst);
       if (!d) return;
-      const necesitaBus = d.capa > 0 || (inRowsCount > 1 && inRow === 0);
+      topGapCount += 1;
+      const desdeFilaSuperior = inRowsCount > 1 && inRow === 0;
+      if (desdeFilaSuperior) inInterRowCross += 1;
+      const necesitaBus = d.capa > 0 || desdeFilaSuperior;
       if (!necesitaBus) {
         extEdgesPlan.push({ dir: "in", ext, extIdx, extRow: inRow, vNode: vDst, direct: true, side: null });
       } else {
@@ -486,51 +493,131 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
     (ext.nodos_conectados || []).forEach((vSrc) => {
       const s = nodoTmp.get(vSrc);
       if (!s) return;
-      const necesitaBus = s.capa < maxCapa;
-      if (!necesitaBus) {
-        extEdgesPlan.push({ dir: "out", ext, extIdx, extRow: outRow, vNode: vSrc, direct: true, side: extRel < 0.5 ? "left" : "right" });
+      botGapCount += 1;
+      if (outRow > 0) outInterRowCross += 1;
+      const necesitaBusInterno = s.capa < maxCapa;
+      const necesitaCarrilExterior = necesitaBusInterno || outRow > 0;
+      const sRel = (s.col + 0.5) / Math.max(1, s.totalCapa);
+      const side = (sRel + extRel) / 2 < 0.5 ? "left" : "right";
+      if (!necesitaCarrilExterior) {
+        extEdgesPlan.push({ dir: "out", ext, extIdx, extRow: outRow, vNode: vSrc, direct: true, side });
       } else {
-        const sRel = (s.col + 0.5) / Math.max(1, s.totalCapa);
-        const side = (sRel + extRel) / 2 < 0.5 ? "left" : "right";
         if (side === "left") leftExtCount += 1;
         else rightExtCount += 1;
-        extEdgesPlan.push({ dir: "out", ext, extIdx, extRow: outRow, vNode: vSrc, direct: false, side });
+        extEdgesPlan.push({
+          dir: "out",
+          ext,
+          extIdx,
+          extRow: outRow,
+          vNode: vSrc,
+          direct: !necesitaBusInterno,
+          side,
+        });
       }
     });
   });
 
-  // Cálculo de anchos de carriles laterales y ancho total compacto
-  const intTrackStep = 26;
-  const extTrackStep = 9;
-  const leftBusW = Math.max(54, aristasLeftBus.length * intTrackStep + leftExtCount * extTrackStep + 22);
-  const rightBusW = Math.max(54, aristasRightBus.length * intTrackStep + rightExtCount * extTrackStep + 22);
+  // Cálculo holgado de carriles laterales (externos + lazos internos sin superposición)
+  const intTrackStep = 28;
+  const extTrackStep = 16;
+  const leftIntW = aristasLeftBus.length > 0 ? 28 + aristasLeftBus.length * intTrackStep : 0;
+  const rightIntW = aristasRightBus.length > 0 ? 28 + aristasRightBus.length * intTrackStep : 0;
+  const leftExtW = leftExtCount > 0 ? 26 + leftExtCount * extTrackStep : 0;
+  const rightExtW = rightExtCount > 0 ? 26 + rightExtCount * extTrackStep : 0;
+  const leftBusW = Math.max(64, leftIntW + leftExtW + 24);
+  const rightBusW = Math.max(64, rightIntW + rightExtW + 24);
+  const extLeftPad = Math.max(52, leftExtW + 26);
+  const extRightPad = Math.max(52, rightExtW + 26);
 
   const gridW = maxNodosPorCapa * nodeW + Math.max(0, maxNodosPorCapa - 1) * colGap;
   const extMaxCols = Math.min(extMaxPerRow, Math.max(entradas.length, salidas.length));
   const extMaxRowW = extMaxCols > 0 ? extMaxCols * extW + (extMaxCols - 1) * extGapX : 0;
 
-  const innerW = Math.max(gridW + leftBusW + rightBusW, extMaxRowW + 116, 860);
+  const innerW = Math.max(gridW + leftBusW + rightBusW, extMaxRowW + extLeftPad + extRightPad, 920);
   const innerX = padX;
   const totalW = innerW + padX * 2;
 
-  // Cálculo de alturas verticales (ENTRADAS arriba → FLUJO INTERNO centro → SALIDAS abajo)
+  // Cálculo de alturas verticales con pasillos holgados para que los tramos horizontales no se monten
+  const topGapH = inRowsCount > 0 ? Math.max(bandGapY, 24 + topGapCount * 9) : 0;
+  const botGapH = outRowsCount > 0 ? Math.max(bandGapY, 24 + botGapCount * 9) : 0;
+  const inRowGapY = inRowsCount > 1 ? Math.max(extGapY, 22 + inInterRowCross * 9) : extGapY;
+  const outRowGapY = outRowsCount > 1 ? Math.max(extGapY, 22 + outInterRowCross * 9) : extGapY;
+
   const extBandTopPad = 34;
   const extBandBotPad = 14;
 
   const inBandH =
-    inRowsCount > 0 ? extBandTopPad + inRowsCount * extH + Math.max(0, inRowsCount - 1) * extGapY + extBandBotPad : 0;
+    inRowsCount > 0 ? extBandTopPad + inRowsCount * extH + Math.max(0, inRowsCount - 1) * inRowGapY + extBandBotPad : 0;
   const outBandH =
-    outRowsCount > 0 ? extBandTopPad + outRowsCount * extH + Math.max(0, outRowsCount - 1) * extGapY + extBandBotPad : 0;
+    outRowsCount > 0 ? extBandTopPad + outRowsCount * extH + Math.max(0, outRowsCount - 1) * outRowGapY + extBandBotPad : 0;
 
-  const nodesGridH = numCapas * nodeH + Math.max(0, numCapas - 1) * rowGap;
-  const innerBoxH = titleBandH + topInnerPad + nodesGridH + bottomInnerPad;
+  // Contar aristas horizontales por brecha/capa para dimensionar alturas dinámicas sin solapamiento
+  const depStepY = 12;
+  const arrStepY = 12;
+  const dirStepY = 14;
+  const depCount = new Array(numCapas).fill(0);
+  const arrCount = new Array(numCapas).fill(0);
+  const dirCount = new Array(Math.max(0, numCapas - 1)).fill(0);
+
+  for (const { arista } of aristasDirectas) {
+    const s = nodoTmp.get(arista.origen);
+    const d = nodoTmp.get(arista.destino);
+    if (!s || !d) continue;
+    if (s.capa === d.capa && Math.abs(s.col - d.col) > 1) {
+      depCount[s.capa] += 1;
+    } else if (d.capa === s.capa + 1) {
+      dirCount[s.capa] += 1;
+    }
+  }
+  for (const { arista } of [...aristasLeftBus, ...aristasRightBus]) {
+    const s = nodoTmp.get(arista.origen);
+    const d = nodoTmp.get(arista.destino);
+    if (!s || !d) continue;
+    depCount[s.capa] += 1;
+    arrCount[d.capa] += 1;
+  }
+  for (const item of extEdgesPlan) {
+    const n = nodoTmp.get(item.vNode);
+    if (!n) continue;
+    if (item.dir === "in" && !item.direct && n.capa > 0) {
+      arrCount[n.capa] += 1;
+    } else if (item.dir === "out" && !item.direct) {
+      depCount[n.capa] += 1;
+    }
+  }
+
+  const depZoneH = Array.from({ length: numCapas }, (_, c) =>
+    depCount[c] > 0 ? 14 + (depCount[c] - 1) * depStepY + 12 : 0
+  );
+  const arrZoneH = Array.from({ length: numCapas }, (_, c) =>
+    arrCount[c] > 0 ? 12 + (arrCount[c] - 1) * arrStepY + 14 : 0
+  );
+  const dirZoneH = Array.from({ length: Math.max(0, numCapas - 1) }, (_, c) =>
+    dirCount[c] > 0 ? 12 + (dirCount[c] - 1) * dirStepY + 12 : 0
+  );
+  const rowGaps = Array.from({ length: Math.max(0, numCapas - 1) }, (_, c) =>
+    Math.max(rowGap, depZoneH[c] + dirZoneH[c] + arrZoneH[c + 1] + 20)
+  );
+
+  const topInnerPadAdj = Math.max(
+    topInnerPad,
+    arrCount[0] > 0 ? 16 + arrCount[0] * arrStepY + 14 : topInnerPad
+  );
+  const bottomInnerPadAdj = Math.max(
+    bottomInnerPad,
+    depCount[maxCapa] > 0 ? 16 + depCount[maxCapa] * depStepY + 14 : bottomInnerPad
+  );
+
+  const nodesGridH =
+    numCapas * nodeH + rowGaps.reduce((acc, gVal) => acc + gVal, 0);
+  const innerBoxH = titleBandH + topInnerPadAdj + nodesGridH + bottomInnerPadAdj;
 
   const inBandY = padY;
-  const innerBoxY = padY + (inRowsCount > 0 ? inBandH + bandGapY : 0);
-  const outBandY = innerBoxY + innerBoxH + (outRowsCount > 0 ? bandGapY : 0);
+  const innerBoxY = padY + (inRowsCount > 0 ? inBandH + topGapH : 0);
+  const outBandY = innerBoxY + innerBoxH + (outRowsCount > 0 ? botGapH : 0);
   const totalH = (outRowsCount > 0 ? outBandY + outBandH : innerBoxY + innerBoxH) + padY;
 
-  const gridStartY = innerBoxY + titleBandH + topInnerPad;
+  const gridStartY = innerBoxY + titleBandH + topInnerPadAdj;
   const gridAreaLeft = innerX + leftBusW;
   const gridAreaW = innerW - leftBusW - rightBusW;
 
@@ -636,11 +723,12 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
   }
   svg.appendChild(bgLayer);
 
-  // Calcular posiciones de los nodos internos centrados por fila en gridArea
+  // Calcular posiciones de los nodos internos centrados por fila en gridArea con rowGaps dinámicos
   const nodePos = new Map();
   const layerYs = [];
+  let accumY = gridStartY;
   for (let c = 0; c < numCapas; c++) {
-    const ny = gridStartY + c * (nodeH + rowGap);
+    const ny = accumY;
     layerYs.push(ny);
     const lista = capas.get(c) || [];
     const rowW = lista.length * nodeW + Math.max(0, lista.length - 1) * colGap;
@@ -649,23 +737,23 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
       const nx = startX + idx * (nodeW + colGap);
       nodePos.set(n.var, { ...n, capa: c, col: idx, totalCapa: lista.length, x: nx, y: ny, w: nodeW, h: nodeH });
     });
+    if (c < numCapas - 1) {
+      accumY += nodeH + rowGaps[c];
+    }
   }
 
-  // Centros de pasillos horizontales entre filas (aisleAbove(c), aisleBelow(c))
-  const aisleMidY = (c) => gridStartY + c * (nodeH + rowGap) + nodeH + rowGap / 2;
+  // Posiciones de cajas externas centradas dejando libres los corredores punteados exteriores
+  const extAreaLeft = innerX + extLeftPad;
+  const extAreaW = innerW - extLeftPad - extRightPad;
 
-  // Posiciones de cajas externas centradas horizontalmente dentro de [innerX + 56, innerX + innerW - 56]
-  const extAreaLeft = innerX + 56;
-  const extAreaW = innerW - 112;
-
-  function layoutExtBoxes(lista, bandY) {
+  function layoutExtBoxes(lista, bandY, rowGapCur) {
     const res = [];
     const rows = lista.length > 0 ? Math.ceil(lista.length / extMaxPerRow) : 0;
     for (let r = 0; r < rows; r++) {
       const slice = lista.slice(r * extMaxPerRow, (r + 1) * extMaxPerRow);
       const rowW = slice.length * extW + Math.max(0, slice.length - 1) * extGapX;
       const startX = extAreaLeft + (extAreaW - rowW) / 2;
-      const by = bandY + extBandTopPad + r * (extH + extGapY);
+      const by = bandY + extBandTopPad + r * (extH + rowGapCur);
       slice.forEach((ext, k) => {
         res.push({
           ...ext,
@@ -681,30 +769,28 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
     return res;
   }
 
-  const extInBoxes = layoutExtBoxes(entradas, inBandY);
-  const extOutBoxes = layoutExtBoxes(salidas, outBandY);
+  const extInBoxes = layoutExtBoxes(entradas, inBandY, inRowGapY);
+  const extOutBoxes = layoutExtBoxes(salidas, outBandY, outRowGapY);
 
-  // Coordenadas X reales de los carriles verticales laterales (fuera de toda caja de nodo)
+  // Coordenadas X únicas de los carriles verticales laterales (lazos internos + líneas punteadas externas sin choque)
   const leftIntXs = [];
   for (let i = 0; i < aristasLeftBus.length; i++) {
     leftIntXs.push(gridAreaLeft - 24 - i * intTrackStep);
   }
-  const leftExtBaseX = gridAreaLeft - 24 - aristasLeftBus.length * intTrackStep;
   const rightIntXs = [];
   for (let i = 0; i < aristasRightBus.length; i++) {
     rightIntXs.push(gridAreaLeft + gridAreaW + 24 + i * intTrackStep);
   }
-  const rightExtBaseX = gridAreaLeft + gridAreaW + 24 + aristasRightBus.length * intTrackStep;
 
   let leftExtCursor = 0;
   let rightExtCursor = 0;
   function nextExtBusX(side) {
     if (side === "left") {
-      const x = Math.max(innerX + 14, leftExtBaseX - leftExtCursor * extTrackStep);
+      const x = innerX + 18 + leftExtCursor * extTrackStep;
       leftExtCursor += 1;
       return x;
     }
-    const x = Math.min(innerX + innerW - 14, rightExtBaseX + rightExtCursor * extTrackStep);
+    const x = innerX + innerW - 18 - rightExtCursor * extTrackStep;
     rightExtCursor += 1;
     return x;
   }
@@ -763,13 +849,23 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
     for (const [k, v] of outMap.entries()) nodePortX.set(k, v);
   }
 
-  // Puertos X en cajas externas (borde inferior de ENTRADAS y superior de SALIDAS)
+  // Puertos X en cajas externas (borde inferior de ENTRADAS y superior de SALIDAS):
+  // Los buses laterales salen primero por los extremos izquierdo/derecho sin cruzarse con líneas directas
+  function claveOrdenPuertoExt(it) {
+    const nPos = nodePos.get(it.vNode);
+    const nx = nPos ? nPos.x + nPos.w / 2 : 0;
+    const nCapa = nPos ? nPos.capa : 0;
+    if (!it.direct && it.side === "left") return -100000 + nCapa * 100 + nx * 0.01;
+    if (!it.direct && it.side === "right") return 100000 - nCapa * 100 + nx * 0.01;
+    return nx;
+  }
+
   const extInOutPortsX = new Map();
   extInBoxes.forEach((box, extIdx) => {
     const items = extEdgesPlan
       .map((it, idx) => ({ it, idx }))
       .filter(({ it }) => it.dir === "in" && it.extIdx === extIdx)
-      .sort((a, b) => (nodePos.get(a.it.vNode)?.x || 0) - (nodePos.get(b.it.vNode)?.x || 0));
+      .sort((a, b) => claveOrdenPuertoExt(a.it) - claveOrdenPuertoExt(b.it));
     const mapX = asignarPuertos(items.map((x) => x.idx), box.x + 28, box.x + box.w - 28);
     for (const [k, v] of mapX.entries()) extInOutPortsX.set(k, v);
   });
@@ -779,7 +875,7 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
     const items = extEdgesPlan
       .map((it, idx) => ({ it, idx }))
       .filter(({ it }) => it.dir === "out" && it.extIdx === extIdx)
-      .sort((a, b) => (nodePos.get(a.it.vNode)?.x || 0) - (nodePos.get(b.it.vNode)?.x || 0));
+      .sort((a, b) => claveOrdenPuertoExt(a.it) - claveOrdenPuertoExt(b.it));
     const mapX = asignarPuertos(items.map((x) => x.idx), box.x + 28, box.x + box.w - 28);
     for (const [k, v] of mapX.entries()) extOutInPortsX.set(k, v);
   });
@@ -800,53 +896,70 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
 
   const edgeRefs = [];
 
-  // Contadores de sub-carriles horizontales por brecha entre filas (para evitar superposición de trazos horizontales)
+  // Contadores de sub-carriles horizontales únicos por brecha/capa (cero reciclaje ni solapamientos)
   const directAisleCounter = new Map();
   function nextDirectAisleY(capa) {
     const k = directAisleCounter.get(capa) || 0;
     directAisleCounter.set(capa, k + 1);
-    const seq = [0, -10, 10, -20, 20];
-    return aisleMidY(capa) + (seq[k % seq.length] ?? 0);
+    const bandTop = layerYs[capa] + nodeH + depZoneH[capa] + 10;
+    const bandBot = layerYs[capa + 1] - arrZoneH[capa + 1] - 10;
+    const mid = (bandTop + bandBot) / 2;
+    const total = dirCount[capa] || 1;
+    if (total <= 1) return mid;
+    const span = Math.max(dirStepY, (total - 1) * dirStepY);
+    const start = mid - span / 2;
+    return start + k * dirStepY;
   }
 
   const depBandCounter = new Map();
   function depBandY(capa) {
     const k = depBandCounter.get(capa) || 0;
     depBandCounter.set(capa, k + 1);
-    const base = layerYs[capa] + nodeH + 14;
-    return base + (k % 3) * 7;
+    return layerYs[capa] + nodeH + 14 + k * depStepY;
   }
 
   const arrBandCounter = new Map();
   function arrBandY(capa) {
     const k = arrBandCounter.get(capa) || 0;
     arrBandCounter.set(capa, k + 1);
-    const base = layerYs[capa] - 14;
-    return base - (k % 3) * 7;
+    return layerYs[capa] - 14 - k * arrStepY;
   }
 
-  let topBandGapIdx = 0;
-  function nextTopBandGapY() {
-    const mid = inBandY + inBandH + bandGapY / 2;
-    const seq = [0, -10, 10, -19, 19];
-    const y = mid + (seq[topBandGapIdx % seq.length] ?? 0);
-    topBandGapIdx += 1;
-    return y;
+  // Pre-asignar carriles yGap de entrada ordenando primero salidas laterales (!direct) arriba y directas abajo
+  const topGapYMap = new Map();
+  const inGapOrder = extEdgesPlan
+    .map((it, idx) => ({ it, idx }))
+    .filter(({ it }) => it.dir === "in")
+    .sort((a, b) => {
+      const aBus = a.it.direct ? 1 : 0;
+      const bBus = b.it.direct ? 1 : 0;
+      if (aBus !== bBus) return aBus - bBus;
+      const ax = (extInBoxes[a.it.extIdx]?.x || 0) + (extInOutPortsX.get(a.idx) || 0);
+      const bx = (extInBoxes[b.it.extIdx]?.x || 0) + (extInOutPortsX.get(b.idx) || 0);
+      return ax - bx;
+    });
+  {
+    const start = inBandY + inBandH + 12;
+    const span = Math.max(12, topGapH - 24);
+    const nIn = inGapOrder.length;
+    const step = nIn > 1 ? span / (nIn - 1) : 0;
+    inGapOrder.forEach(({ idx }, pos) => {
+      topGapYMap.set(idx, nIn > 1 ? start + pos * step : inBandY + inBandH + topGapH / 2);
+    });
   }
 
   let botBandGapIdx = 0;
   function nextBotBandGapY() {
-    const mid = innerBoxY + innerBoxH + bandGapY / 2;
-    const seq = [0, -10, 10, -19, 19, -24, 24];
-    const y = mid + (seq[botBandGapIdx % seq.length] ?? 0);
+    const start = innerBoxY + innerBoxH + 12;
+    const span = Math.max(12, botGapH - 24);
+    const step = botGapCount > 1 ? span / (botGapCount - 1) : 0;
+    const y = botGapCount > 1 ? start + botBandGapIdx * step : innerBoxY + innerBoxH + botGapH / 2;
     botBandGapIdx += 1;
     return y;
   }
 
   let rowGapInIdx = 0;
   let rowGapOutIdx = 0;
-  let leftOuterRow1Cursor = 0;
-  let rightOuterRow1Cursor = 0;
 
   // 1) CONEXIONES EXTERNAS (ENTRADAS -> FLUJO INTERNO, FLUJO INTERNO -> SALIDAS)
   extEdgesPlan.forEach((item, idx) => {
@@ -863,7 +976,7 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
       const y1 = box.y + box.h;
       const x2 = nodePortX.get(`ext-in-${idx}`) ?? n.x + n.w / 2;
       const y2 = n.y;
-      const yGap = nextTopBandGapY();
+      const yGap = topGapYMap.get(idx) ?? (inBandY + inBandH + topGapH / 2);
 
       if (item.direct) {
         puntos = [
@@ -873,23 +986,28 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
           { x: x2, y: y2 - 4 },
         ];
       } else if (inRowsCount > 1 && box.row === 0) {
-        const gX =
-          item.side === "left"
-            ? innerX + 18 + (leftOuterRow1Cursor++ % 3) * 9
-            : innerX + innerW - 18 - (rightOuterRow1Cursor++ % 3) * 9;
-        const yBetween = box.y + box.h + 18 + (rowGapInIdx++ % 3) * 7;
-        const busX = n.capa > 0 ? nextExtBusX(item.side) : gX;
-        const yArr = arrBandY(n.capa);
-        puntos = [
-          { x: x1, y: y1 },
-          { x: x1, y: yBetween },
-          { x: gX, y: yBetween },
-          { x: gX, y: yGap },
-          { x: busX, y: yGap },
-          { x: busX, y: yArr },
-          { x: x2, y: yArr },
-          { x: x2, y: y2 - 4 },
-        ];
+        const busX = nextExtBusX(item.side);
+        const yBetween = box.y + box.h + 12 + (inInterRowCross > 1 ? (rowGapInIdx++ * Math.max(8, (inRowGapY - 24) / Math.max(1, inInterRowCross - 1))) : inRowGapY / 2 - 12);
+        if (n.capa > 0) {
+          const yArr = arrBandY(n.capa);
+          puntos = [
+            { x: x1, y: y1 },
+            { x: x1, y: yBetween },
+            { x: busX, y: yBetween },
+            { x: busX, y: yArr },
+            { x: x2, y: yArr },
+            { x: x2, y: y2 - 4 },
+          ];
+        } else {
+          puntos = [
+            { x: x1, y: y1 },
+            { x: x1, y: yBetween },
+            { x: busX, y: yBetween },
+            { x: busX, y: yGap },
+            { x: x2, y: yGap },
+            { x: x2, y: y2 - 4 },
+          ];
+        }
       } else {
         const busX = nextExtBusX(item.side);
         const yArr = arrBandY(n.capa);
@@ -910,26 +1028,49 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
       const y2 = box.y;
       const yGap = nextBotBandGapY();
 
-      // Parte A: desde el nodo hasta el borde de salida hacia bandGapY
-      const ptsA = [{ x: x1, y: y1 }];
-      if (!item.direct) {
-        const busX = nextExtBusX(item.side);
-        const yDep = depBandY(n.capa);
-        ptsA.push({ x: x1, y: yDep }, { x: busX, y: yDep }, { x: busX, y: yGap });
-      } else {
-        ptsA.push({ x: x1, y: yGap });
-      }
-
-      // Parte B: desde yGap hasta la caja de SALIDAS (directo si fila 0, o borde exterior si fila 1)
       if (box.row === 0) {
-        puntos = [...ptsA, { x: x2, y: yGap }, { x: x2, y: y2 - 4 }];
+        if (item.direct) {
+          puntos = [
+            { x: x1, y: y1 },
+            { x: x1, y: yGap },
+            { x: x2, y: yGap },
+            { x: x2, y: y2 - 4 },
+          ];
+        } else {
+          const busX = nextExtBusX(item.side);
+          const yDep = depBandY(n.capa);
+          puntos = [
+            { x: x1, y: y1 },
+            { x: x1, y: yDep },
+            { x: busX, y: yDep },
+            { x: busX, y: yGap },
+            { x: x2, y: yGap },
+            { x: x2, y: y2 - 4 },
+          ];
+        }
       } else {
-        const gX =
-          item.side === "left"
-            ? innerX + 18 + (leftOuterRow1Cursor++ % 3) * 9
-            : innerX + innerW - 18 - (rightOuterRow1Cursor++ % 3) * 9;
-        const yBetween = outBandY + extBandTopPad + extH + 14 + (rowGapOutIdx++ % 4) * 6;
-        puntos = [...ptsA, { x: gX, y: yGap }, { x: gX, y: yBetween }, { x: x2, y: yBetween }, { x: x2, y: y2 - 4 }];
+        const busX = nextExtBusX(item.side);
+        const yBetween = outBandY + extBandTopPad + extH + 12 + (outInterRowCross > 1 ? (rowGapOutIdx++ * Math.max(8, (outRowGapY - 24) / Math.max(1, outInterRowCross - 1))) : outRowGapY / 2 - 12);
+        if (item.direct) {
+          puntos = [
+            { x: x1, y: y1 },
+            { x: x1, y: yGap },
+            { x: busX, y: yGap },
+            { x: busX, y: yBetween },
+            { x: x2, y: yBetween },
+            { x: x2, y: y2 - 4 },
+          ];
+        } else {
+          const yDep = depBandY(n.capa);
+          puntos = [
+            { x: x1, y: y1 },
+            { x: x1, y: yDep },
+            { x: busX, y: yDep },
+            { x: busX, y: yBetween },
+            { x: x2, y: yBetween },
+            { x: x2, y: y2 - 4 },
+          ];
+        }
       }
     }
 
@@ -1302,7 +1443,8 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
     }
 
     const tip = document.createElementNS(SVG_NS, "title");
-    tip.textContent = `${n.eq}\nVariable salida típica: ${n.var} = ${valStr}\nClic: localizar ecuación e inspeccionar '${n.var}'`;
+    const codEq = n.ecuacion_codigo ? `${n.ecuacion_codigo} - ` : "";
+    tip.textContent = `${codEq}${n.eq}\nVariable salida típica: ${n.var} = ${valStr}\nClic: ubicar y resaltar esta ecuación arriba`;
     g.appendChild(tip);
 
     g.addEventListener("mouseenter", () => {
@@ -1341,7 +1483,6 @@ export function renderizarFlujoCategoria(contenedor, catActiva, estadoApp, callb
 
     g.addEventListener("click", () => {
       if (alClickEcuacion) alClickEcuacion(n.eq);
-      if (alClickVariable) alClickVariable(n.var);
     });
 
     nodeEls.set(n.var, rect);

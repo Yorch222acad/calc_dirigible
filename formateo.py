@@ -21,6 +21,7 @@ PREFIJOS = {
 }
 K_SIMBOLO = sp.Symbol("273.15 (K)")  # constante de conversión °C -> K
 SIGMA_SB_SIMBOLO = sp.Symbol("5.67e-8 (W/(m²·K⁴))")  # constante de Stefan-Boltzmann
+FOUR_SIGMA_SB = sp.Integer(4) * modelo.SIGMA_SB  # SymPy pliega 4*SIGMA_SB antes de xreplace
 LOG10_FUNC = sp.Function("log₁₀")
 VARS_SUSTENTACION = ("F", "mflot", "FL", "FLmax", "Fexc")
 
@@ -112,7 +113,11 @@ def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float]
 
 def preparar_eq_vista(eq: sp.Eq) -> sp.Eq:
     """Reemplaza constantes y logaritmos en base 10 para una presentación 2D limpia."""
-    eq = eq.xreplace({modelo.K: K_SIMBOLO, modelo.SIGMA_SB: SIGMA_SB_SIMBOLO})
+    eq = eq.xreplace({
+        modelo.K: K_SIMBOLO,
+        modelo.SIGMA_SB: SIGMA_SB_SIMBOLO,
+        FOUR_SIGMA_SB: sp.Integer(4) * SIGMA_SB_SIMBOLO,
+    })
     if "Cf" in modelo.S and eq.lhs == modelo.S["Cf"]:
         eq = sp.Eq(eq.lhs, sp.Float("0.455") * LOG10_FUNC(modelo.S["ReL"]) ** sp.Float("-2.58"))
     return eq
@@ -265,7 +270,11 @@ def formatear_ingenieria_latex(nombre: str, valor: float) -> str:
 
 def _preparar_eq_latex(eq: sp.Eq) -> sp.Eq:
     """Ajusta constantes para exportación limpia a LaTeX."""
-    return eq.xreplace({modelo.K: K_SIMBOLO, modelo.SIGMA_SB: SIGMA_SB_SIMBOLO})
+    return eq.xreplace({
+        modelo.K: K_SIMBOLO,
+        modelo.SIGMA_SB: SIGMA_SB_SIMBOLO,
+        FOUR_SIGMA_SB: sp.Integer(4) * SIGMA_SB_SIMBOLO,
+    })
 
 
 def _postprocesar_latex(codigo: str) -> str:
@@ -328,7 +337,7 @@ def renderizar_general_latex(eq: sp.Eq) -> str:
             marcadores[clave] = r"{\textbf{273.15}\,\left(\text{K}\right)}"
             nombres_simbolos[simbolo] = clave
         elif simbolo == SIGMA_SB_SIMBOLO:
-            marcadores[clave] = r"{\textbf{5.67\times 10^{-8}}\,\left(\frac{\text{W}}{\text{m}^{2} \cdot \text{K}^{4}}\right)}"
+            marcadores[clave] = r"{\boldsymbol{\sigma}_{\text{SB}}\,\left(\frac{\text{W}}{\text{m}^{2} \cdot \text{K}^{4}}\right)}"
             nombres_simbolos[simbolo] = clave
         elif nombre in modelo.VARIABLES:
             marcadores[clave] = _token_general_latex(nombre)
@@ -379,7 +388,7 @@ def renderizar_sustitucion_latex(
             marcadores[clave] = r"{\textbf{273.15}\,\left(\text{K}\right)}"
             nombres_simbolos[simbolo] = clave
         elif simbolo == SIGMA_SB_SIMBOLO:
-            marcadores[clave] = r"{\textbf{5.67\times 10^{-8}}\,\left(\frac{\text{W}}{\text{m}^{2} \cdot \text{K}^{4}}\right)}"
+            marcadores[clave] = r"{\mathbf{5.67 \times 10^{-8}}\,\left(\frac{\text{W}}{\text{m}^{2} \cdot \text{K}^{4}}\right)}"
             nombres_simbolos[simbolo] = clave
         elif nombre in valores:
             marcadores[clave] = _token_valor(nombre)

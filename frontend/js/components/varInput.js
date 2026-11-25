@@ -8,8 +8,8 @@
  *    - Todas las ecuaciones donde interviene la variable en formato de 3 columnas (`equations.js`).
  */
 
-import { crearFilaEcuacion } from "./equations.js?v=10";
-import { renderizarAsistenteModificacion } from "./balancer.js?v=10";
+import { crearFilaEcuacion } from "./equations.js?v=13";
+import { renderizarAsistenteModificacion } from "./balancer.js?v=13";
 
 export function inicializarEntradaTeclado(
   formEl,
@@ -107,7 +107,13 @@ export function inicializarEntradaTeclado(
     items.forEach((el, i) => {
       el.classList.toggle("selected", i === indiceSugerencia);
       if (i === indiceSugerencia) {
-        el.scrollIntoView({ block: "nearest" });
+        const elTop = el.offsetTop;
+        const elBottom = elTop + el.offsetHeight;
+        if (elTop < autocompleteEl.scrollTop) {
+          autocompleteEl.scrollTop = elTop;
+        } else if (elBottom > autocompleteEl.scrollTop + autocompleteEl.clientHeight) {
+          autocompleteEl.scrollTop = elBottom - autocompleteEl.clientHeight;
+        }
       }
     });
   }

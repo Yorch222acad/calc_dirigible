@@ -176,10 +176,10 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
     {
         "origen": 2,
         "destino": 8,
-        "variables": ["mc", "mmamp"],
-        "origenes_internos": ["mc", "mmamp"],
-        "destinos_internos": ["mc", "mmamp", "mart"],
-        "explicacion": "La masa de las capas celulares Mylar (mc) y de los mamparos internos (mmamp) se suman directamente en la masa estructural mart.",
+        "variables": ["mc"],
+        "origenes_internos": ["mc"],
+        "destinos_internos": ["mc", "mart"],
+        "explicacion": "La masa de las capas celulares de Mylar (mc) se suma directamente en la masa estructural mart.",
         "es_lazo": False,
     },
     # Convección, Aislamiento y Balance Térmico (C4, C5 -> C6 -> C7 -> C12)
@@ -391,16 +391,16 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         ],
     },
     {
-        "titulo_corto": "Superficies, Mylar y Mamparos",
+        "titulo_corto": "Superficies y Mylar",
         "grupo": "aerostatica",
         "pos_global": {"fila": 0, "col": 2},
         "resumen": (
             "Calcula el área superficial exacta de los dos semielipsoides prolados, el promedio asimétrico "
-            "de capas Mylar (ncapS/ncapI), la masa celular mc y la de los mamparos internos mmamp."
+            "de capas Mylar (ncapS/ncapI) y la masa de la cuadrícula celular mc."
         ),
         "flujo_interno": (
             "Con R, cf y cr se obtienen ef, er, Sf, Sr y S. El promedio ncap = (ncapS + ncapI)/2 escala la "
-            "superficie multicapa Sc y su masa mc, mientras nmamp y R fijan el área Smamp y masa mmamp."
+            "superficie multicapa Sc = ncap·S·(1+2e/W) y determina su masa total mc = Sc·σ."
         ),
         "nodos": [
             {"eq": "Excentricidad frontal (cf > R)", "var": "ef", "etiqueta": "Excentricidad nariz", "capa": 0},
@@ -408,9 +408,7 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Número promedio de capas celulares (ncap)", "var": "ncap", "etiqueta": "Promedio (ncapS+ncapI)/2", "capa": 0},
             {"eq": "Área superficial frontal", "var": "Sf", "etiqueta": "Área nariz Sf", "capa": 1},
             {"eq": "Área superficial trasera", "var": "Sr", "etiqueta": "Área cola Sr", "capa": 1},
-            {"eq": "Área de película de mamparos internos (Smamp)", "var": "Smamp", "etiqueta": "Área mamparos Smamp", "capa": 1},
             {"eq": "Área superficial total", "var": "S", "etiqueta": "Área casco S = Sf + Sr", "capa": 2},
-            {"eq": "Masa de mamparos/deflectores internos (mmamp)", "var": "mmamp", "etiqueta": "Masa mmamp = Smamp·σ", "capa": 2},
             {"eq": "Área total de película celular", "var": "Sc", "etiqueta": "Multicapa ncap·S·(1+2e/W)", "capa": 3},
             {"eq": "Masa de la cuadrícula celular", "var": "mc", "etiqueta": "Masa Mylar mc = Sc·σ", "capa": 4},
         ],
@@ -422,7 +420,6 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"origen": "S", "destino": "Sc", "etiqueta": "ncap·(1+2e/W)", "lazo": False},
             {"origen": "ncap", "destino": "Sc", "etiqueta": "ncap", "lazo": False},
             {"origen": "Sc", "destino": "mc", "etiqueta": "Sc · σ", "lazo": False},
-            {"origen": "Smamp", "destino": "mmamp", "etiqueta": "Smamp · σ", "lazo": False},
         ],
     },
     {
@@ -430,7 +427,7 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "grupo": "termica",
         "pos_global": {"fila": 1, "col": 0},
         "resumen": (
-            "Determina el coeficiente global base U0 del casco simple sin capa aislante ni mamparos, "
+            "Determina el coeficiente global base U0 del casco simple sin capa aislante, "
             "combinando convección forzada externa, radiación exterior (hrade) y convección natural interna."
         ),
         "flujo_interno": (
@@ -468,10 +465,10 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "pos_global": {"fila": 1, "col": 1},
         "resumen": (
             "Resuelve la transferencia de calor por capas Mylar asimétricas (ncapS arriba con Hollands y ncapI abajo "
-            "estratificada Nu=1), radiación interna (hrad) y amortiguamiento interno por mamparos (fmamp)."
+            "estratificada Nu=1), radiación interna entre láminas (hrad) y convección natural interna (hi)."
         ),
         "flujo_interno": (
-            "Tm y epsef fijan la conductancia radiativa hrad entre láminas Mylar. El lazo interno (dTi → RaD → Nui → hi con fmamp) "
+            "Tm y epsef fijan la conductancia radiativa hrad entre láminas Mylar. El lazo interno (dTi → RaD → Nui → hi con fcal) "
             "y el lazo superior celular (dTcel → Rae → Nuc de Hollands) determinan Usup y Uinf, promediados en U."
         ),
         "nodos": [
@@ -485,7 +482,7 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Número de Rayleigh en cavidad celular (Rae)", "var": "Rae", "etiqueta": "Rayleigh celda Rae", "capa": 1},
             {"eq": "Número de Nusselt interno con capa celular (Nui)", "var": "Nui", "etiqueta": "Nusselt casco Nui", "capa": 2},
             {"eq": "Número de Nusselt efectivo en celda (Nuc)", "var": "Nuc", "etiqueta": "Hollands Nuc ≥ 1", "capa": 2},
-            {"eq": "Coeficiente convectivo interno con capa celular (hi)", "var": "hi", "etiqueta": "hi · fmamp", "capa": 3},
+            {"eq": "Coeficiente convectivo interno con capa celular (hi)", "var": "hi", "etiqueta": "Convección int. hi", "capa": 3},
             {"eq": "Coeficiente global mitad superior (Usup)", "var": "Usup", "etiqueta": "Superior ncapS", "capa": 4},
             {"eq": "Coeficiente global mitad inferior (Uinf)", "var": "Uinf", "etiqueta": "Inferior ncapI", "capa": 4},
             {"eq": "Coeficiente global con capa celular (U)", "var": "U", "etiqueta": "(Usup + Uinf)/2", "capa": 5},
@@ -499,7 +496,7 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"origen": "hetot", "destino": "Uinf", "etiqueta": "1/hetot", "lazo": False},
             {"origen": "dTi", "destino": "RaD", "etiqueta": "dTi", "lazo": False},
             {"origen": "RaD", "destino": "Nui", "etiqueta": "RaD^(1/3)", "lazo": False},
-            {"origen": "Nui", "destino": "hi", "etiqueta": "fcal·fmamp", "lazo": False},
+            {"origen": "Nui", "destino": "hi", "etiqueta": "fcal·ka/D", "lazo": False},
             {"origen": "hi", "destino": "Usup", "etiqueta": "1/hi", "lazo": False},
             {"origen": "hi", "destino": "Uinf", "etiqueta": "1/hi", "lazo": False},
             {"origen": "dTcel", "destino": "Rae", "etiqueta": "e³", "lazo": False},
@@ -614,16 +611,15 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "grupo": "propulsion",
         "pos_global": {"fila": 3, "col": 0},
         "resumen": (
-            "Consolida la masa del artefacto (capas Mylar mc, mamparos mmamp, motores, combustible, batería), añade "
+            "Consolida la masa del artefacto (capas Mylar mc, motores, combustible, batería), añade "
             "la carga útil en mtot y determina la masa residual mres que deben sostener los rotores."
         ),
         "flujo_interno": (
-            "Suma mc, mmamp (C3) y mbat (lazo C13) con motores, combustible y componentes para hallar mart y mtot. "
+            "Suma mc (C3) y mbat (lazo C13) con motores, combustible y componentes para hallar mart y mtot. "
             "Luego calcula map = fap·mtot y la carga residual mres = mtot - mflot."
         ),
         "nodos": [
             {"eq": "Masa de la cuadrícula celular", "var": "mc", "etiqueta": "Masa Mylar mc", "capa": 0},
-            {"eq": "Masa de mamparos/deflectores internos (mmamp)", "var": "mmamp", "etiqueta": "Masa mamparos mmamp", "capa": 0},
             {"eq": "Masa de batería requerida (mbat)", "var": "mbat", "etiqueta": "Masa batería mbat", "capa": 0},
             {"eq": "Masa del artefacto con sus componentes (mart)", "var": "mart", "etiqueta": "Artefacto mart", "capa": 1},
             {"eq": "Fuerza de sustentación aerostática", "var": "F", "etiqueta": "Fuerza globo F", "capa": 1},
@@ -634,7 +630,6 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         ],
         "aristas_internas": [
             {"origen": "mc", "destino": "mart", "etiqueta": "+mc", "lazo": False},
-            {"origen": "mmamp", "destino": "mart", "etiqueta": "+mmamp", "lazo": False},
             {"origen": "mbat", "destino": "mart", "etiqueta": "+mbat", "lazo": False},
             {"origen": "mart", "destino": "mtot", "etiqueta": "+mcarga", "lazo": False},
             {"origen": "mtot", "destino": "map", "etiqueta": "fap·mtot", "lazo": False},
@@ -789,208 +784,662 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
 ]
 
 
-NOTAS_ECUACIONES: dict[str, str] = {
-    "Gas ideal (caso 1 - ambiente)": (
-        "Relaciona presión atmosférica P y temperatura exterior T1 mediante Rair (287.058 J/(kg·K)) para fijar la densidad del aire ambiente ρ₁."
-    ),
-    "Fuerza de sustentación aerostática": (
-        "Empuje de Arquímedes F = (ρ₁ − ρ₂)·g·V. Solo cuenta el volumen caliente interior V; la fina cámara de la capa celular no entra aquí como volumen sustentador."
-    ),
-    "Masa compensada por aire caliente (mflot)": (
-        "Fracción de la masa total sostenida exclusivamente por el aire caliente (mflot = F/g). El resto (mres = mtot − mflot) lo cargan los rotores."
-    ),
-    "Relación de esbeltez (L/D)": (
-        "Esbeltez geométrica λ = L/D. Valores bajos (λ ~ 2–3) minimizan el área superficial para un volumen dado; valores más altos reducen el arrastre de forma a alta velocidad."
-    ),
-    "Fracción de nariz (cf/L)": (
-        "Reparte la longitud total L entre el semielipsoide frontal (cf = xf·L) y el trasero (cr = (1 − xf)·L) sin cambiar el volumen total V."
-    ),
-    "Volumen total del casco": (
-        "Casco formado por dos semielipsoides prolados de revolución unidos en su diámetro máximo D = 2R, cuyo volumen total es V = (2/3)·π·R²·L."
-    ),
-    "Excentricidad frontal (cf > R)": (
-        "Mide el alargamiento del semielipsoide de proa respecto a una semiesfera (ef = 0). Requiere estrictamente cf > R para que √(1 − R²/cf²) sea real."
-    ),
-    "Excentricidad trasera (cr > R)": (
-        "Mide el alargamiento del semielipsoide de popa respecto a una semiesfera (er = 0). Exige cr > R para evitar raíces imaginarias."
-    ),
-    "Área superficial frontal": (
-        "Área curva exacta del semielipsoide de proa. El factor arcsin(ef)/ef corrige la curvatura axial entre la sección media y el extremo alargado."
-    ),
-    "Área superficial trasera": (
-        "Área curva exacta del semielipsoide de popa mediante arcsin(er)/er; sumada a Sf da la envolvente exterior S."
-    ),
-    "Área total de película celular": (
-        "El factor (1 + 2·e/W) añade al área exterior S la superficie extra de los tabiques internos de la cuadrícula celular de altura e y paso W."
-    ),
-    "Número promedio de capas celulares (ncap)": (
-        "Promedio entre ncapS (mitad superior) y ncapI (mitad inferior) para calcular el área total Sc y la masa estructural mc del aislamiento asimétrico."
-    ),
-    "Área total de película celular": (
-        "Multiplica el promedio de capas ncap por S·(1 + 2·e/W) para sumar tanto las láminas paralelas de Mylar como los tabiques internos de altura e y paso W."
-    ),
-    "Área de película de mamparos internos (Smamp)": (
-        "Estima el área transversal media de nmamp deflectores/mamparos suaves internos (2/3·π·R² por mamparo en casco elipsoidal)."
-    ),
-    "Número de Prandtl del aire (Pr)": (
-        "Número adimensional Pr = ν/α (razón entre difusividad viscosa ν y térmica α). Para el aire vale ~0.70–0.72 y acopla hidrodinámica y transporte de calor."
-    ),
-    "Número de Nusselt externo por viento (Nue)": (
-        "Nue = he·L/ka es un número adimensional referido a la longitud total L (~5.8 m) del dirigible. Que valga ~2000–3000 NO significa que el aire conduzca miles de veces más rápido que una pared, sino que la capa límite turbulenta (0.037·ReL^(4/5)·Pr^(1/3)) equivale a una película estancada L/Nue ≈ 2–3 mm de espesor."
-    ),
-    "Coeficiente convectivo externo del casco (he)": (
-        "Traduce el Nusselt adimensional a flujo térmico exterior por metro cuadrado y kelvin: he = Nue·ka/L."
-    ),
-    "Coeficiente radiativo externo del casco (hrade)": (
-        "Pérdida por radiación infrarroja linealizada desde la piel exterior hacia el ambiente/cielo: 4·ε·σ_SB·(T1+273.15)³. Con Mylar aluminizado (ε ≈ 0.04) es casi despreciable (~0.2 W/(m²·K))."
-    ),
-    "Coeficiente externo total del casco (hetot)": (
-        "Combina convección forzada externa he y radiación exterior hrade en paralelo: hetot = he + hrade."
-    ),
-    "Caída térmica interna sin capa celular (dTi0)": (
-        "Por continuidad térmica en serie, la caída de temperatura en la capa límite interior es proporcional a la fracción de resistencia térmica interna: dTi0 = (U0/hi0)·ΔT."
-    ),
-    "Número de Rayleigh interno sin capa celular (RaD0)": (
-        "RaD0 = g·β·dTi0·D³/(ν·α) compara la flotabilidad térmica interna frente al frenado viscoso y térmico. Su magnitud (> 10⁹ en cascos de metro) determina que la convección natural interna es turbulenta."
-    ),
-    "Número de Nusselt interno sin capa celular (Nui0)": (
-        "La ley 0.13·RaD0^(1/3) describe convección natural turbulenta en cavidades grandes (Ra > 10⁹). Al escalar con el cubo del diámetro (Ra^(1/3) ∝ D), el tamaño D se cancela al pasar a hi0."
-    ),
-    "Coeficiente convectivo interno sin capa celular (hi0)": (
-        "Convierte Nui0 en coeficiente convectivo interno hi0 = fcal·Nui0·ka/D. El factor empírico fcal (~1.15) recoge la geometría curva y el mezclado interno por el quemador (sin mamparos)."
-    ),
-    "Coeficiente global sin capa celular (U0)": (
-        "Transmitancia térmica total en serie sin aislante ni mamparos: 1/U0 = 1/hi0 + ep/ke + 1/hetot. Es estrictamente independiente de e, W, ncapS, ncapI, fmamp y hrad."
-    ),
-    "Caída térmica interna con capa celular (dTi)": (
-        "Reparto interno del salto térmico total ΔT cuando ya existe capa aislante (dTi = U·ΔT/hi). Al reducirse U por las multicapas Mylar, disminuye drásticamente dTi."
-    ),
-    "Número de Rayleigh interno con capa celular (RaD)": (
-        "Balance flotabilidad–viscosidad del aire interior evaluado con la caída interna amortiguada dTi."
-    ),
-    "Número de Nusselt interno con capa celular (Nui)": (
-        "Usa la correlación turbulenta natural 0.13·RaD^(1/3) para Ra > 10⁹; en régimen laminar (Ra bajo) cambiaría a coeficiente ~0.59 y exponente 1/4."
-    ),
-    "Coeficiente convectivo interno con capa celular (hi)": (
-        "Incluye el factor de agitación del quemador fcal y el factor fmamp (< 1) por deflectores/mamparos internos porosos y emisión térmica superior que favorecen estratificación estable y frenan la recirculación longitudinal."
-    ),
-    "Temperatura media absoluta de pared (Tm)": (
-        "Temperatura media en Kelvin de la envolvente multicapa para linealizar el intercambio radiativo entre láminas vecinas."
-    ),
-    "Emisividad efectiva entre láminas (epsef)": (
-        "Emisividad efectiva entre dos superficies paralelas con emisividad ε: epsef = ε / (2 − ε). Para Mylar aluminizado (ε = 0.04) resulta ≈ 0.0204."
-    ),
-    "Coeficiente radiativo interno de cavidad (hrad)": (
-        "Conductancia radiativa infrarroja entre dos láminas vecinas de la celda: hrad = 4·epsef·σ_SB·Tm³. El Mylar reduce hrad ~40× frente a plástico opaco."
-    ),
-    "Caída térmica en la celda aislante (dTcel)": (
-        "Salto térmico por cada celda de la mitad superior: dTcel = Usup·ΔT / (ka·Nuc/e + hrad). Dividir la caída entre ncapS capas mantiene Rae por debajo del umbral crítico."
-    ),
-    "Número de Rayleigh en cavidad celular (Rae)": (
-        "Gobierna la convección dentro de la micro-celda aislante superior. Al depender de e³ y de dTcel, usar capas finas de ~14 mm mantiene Rae ≤ Rac."
-    ),
-    "Número de Nusselt efectivo en celda (Nuc)": (
-        "Correlación física de Hollands (1976) con piso exacto mediante max(0, ...): si Rae ≤ Rac (1708), el aire queda quieto y Nuc = 1.000 exacto (jamás baja de 1)."
-    ),
-    "Coeficiente global mitad superior (Usup)": (
-        "Transmitancia de la cúpula superior con ncapS capas de Mylar, convección celular Nuc (Hollands) y radiación hrad en paralelo."
-    ),
-    "Coeficiente global mitad inferior (Uinf)": (
-        "Transmitancia de la mitad inferior con ncapI capas de Mylar; al estar calentada desde arriba hay estratificación térmica estable (Nuc = 1 puro)."
-    ),
-    "Coeficiente global con capa celular (U)": (
-        "Promedio de la cúpula superior e inferior: U = (Usup + Uinf)/2, integrando el aislamiento asimétrico Mylar, la radiación y los mamparos."
-    ),
-    "Energía de precalentamiento en tierra (Epre)": (
-        "Energía total requerida en la estación de tierra para llevar el casco a T2 considerando la eficiencia de llenado/recirculación npre."
-    ),
-    "Costo de precalentamiento en tierra (Cpre)": (
-        "Costo económico de calentar el volumen inicial de aire en tierra antes del despegue (Epre en MJ × tarifa cpre)."
-    ),
-    "Distancia total por viajes (nv·d1)": (
-        "Distancia total de misión formada por nv viajes consecutivos de longitud d1 (por defecto 3 × 280 m = 840 m) para evaluar escalabilidad."
-    ),
-    "Costo operativo total de misión (Cop)": (
-        "Suma el costo fijo de precalentamiento en tierra (Cpre) más el combustible térmico consumido en vuelo (Ccomb) y la recarga eléctrica de batería (Celec)."
-    ),
-    "Fracción de ahorro térmico celular (fais)": (
-        "Fracción de calor salvada por la celda aislante frente al casco simple (1 − U/U0)."
-    ),
-    "Velocidad de enfriamiento (dT/dt)": (
-        "Ritmo de enfriamiento pasivo vT = Qp/(m·cp) sin quemador encendido; relaciona pérdidas instantáneas con la capacidad térmica del gas caliente."
-    ),
-    "Tiempo de enfriamiento sin aporte": (
-        "Tiempo estimado tc = Qc/Qp hasta agotar la caída de temperatura admisible dTc antes de requerir un nuevo pulso térmico."
-    ),
-    "Energía suministrada por combustible térmico en misión (Eprop)": (
-        "Divide el calor neto perdido Em entre el rendimiento del quemador ncal para incluir pérdidas de escape y radiación de la llama."
-    ),
-    "Número de Reynolds longitudinal (ReL)": (
-        "ReL = v·L/ν mide la razón entre fuerzas inerciales y viscosas a velocidad aerodinámica v. Para cascos aeronáuticos (ReL ~ 10⁵–10⁶) marca la transición a capa límite turbulenta y fija tanto Cf como Nue."
-    ),
-    "Coeficiente de fricción superficial (Cf)": (
-        "Fórmula de Prandtl–Schlichting para capa límite turbulenta sobre pared lisa: 0.455/(log10(ReL))^2.58. Las constantes 0.455 y 2.58 corresponden exclusivamente al régimen turbulento."
-    ),
-    "Coeficiente volumétrico del casco (CDVc - Hoerner)": (
-        "Correlación de Hoerner referida a V^(2/3): combina fricción viscosa Cf con el factor de forma por esbeltez (λ = L/D), capturando el compromiso entre área mojada y arrastre de presión."
-    ),
-    "Coeficiente de resistencia volumétrico total (CDV)": (
-        "Aplica el factor parásito kp al casco limpio CDVc para añadir el arrastre de soportes, góndola, hélices paradas y cableado."
-    ),
-    "Fuerza de resistencia aerodinámica (FD)": (
-        "Calculada siempre con la velocidad aerodinámica v = vg + vv, pues el viento incidente es el que genera presión dinámica ½·ρ₁·v² sobre el casco."
-    ),
-    "Masa aparente traslacional (map)": (
-        "map = fap·mtot. Un cuerpo ligero y voluminoso debe acelerar parte del aire circundante (masa añadida), representada mediante el factor fap (> 1)."
-    ),
-    "Masa residual a compensar por motores (mres)": (
-        "Fracción de mtot que no equilibra el aire caliente (mtot − mflot) y obliga a los rotores a aportar sustentación vertical continua."
-    ),
-    "Aceleración vertical de ascenso (az)": (
-        "Margen de aceleración vertical de maniobra que sobrecarga FL frente al vuelo estacionario (en crucero puro az = 0)."
-    ),
-    "Aceleración horizontal de traslación (ax)": (
-        "Aceleración longitudinal de maniobra que multiplica a la masa aparente map; en crucero constante vale 0."
-    ),
-    "Componente vertical de sustentación de motores (FL)": (
-        "Empuje vertical continuo FL = mres·g + mtot·az necesario para sostener el peso residual y acelerar verticalmente."
-    ),
-    "Componente horizontal de avance de motores (FX)": (
-        "Empuje hacia adelante FX = FD + map·ax requerido para vencer la resistencia del viento y acelerar horizontalmente."
-    ),
-    "Ángulo de rotación respecto a la vertical (theta)": (
-        "Inclinación del eje de los rotores atan(FX/FL). Si mres baja mucho respecto a FD, el ángulo theta crece y exige verificar el límite mecánico thmax."
-    ),
-    "Sustentación vertical máxima de los 4 motores (FLmax)": (
-        "Empuje vertical disponible √((N·Tmax1)² − FX²) tras descontar la componente horizontal FX consumida en avance."
-    ),
-    "Eficiencia aerodinámica de hélice según velocidad (nprop)": (
-        "Degradación cuadrática nprop = nprop0·(1 − (v/vpitch)²) al aproximarse la velocidad de vuelo v a la velocidad de paso teórico vpitch de la hélice."
-    ),
-    "Eficiencia propulsiva global (ntot)": (
-        "Rendimiento eléctrico-a-aerodinámico conjunto de los 4 brazos: nprop·nm·nESC."
-    ),
-    "Potencia eléctrica demandada por los 4 motores (Pelec)": (
-        "Combina teoría de disco actuador inducido km·Ttot^(3/2)/(ntot·√(2·ρ₁·N·Ap)) con la potencia útil de traslación FX·v/ntot. km (> 1) compensa pérdidas de punta de pala, estela e interferencia."
-    ),
-    "Potencia eléctrica total a bordo (Ptot)": (
-        "Suma la potencia eléctrica motriz Pelec más la carga base Pad de electrónica (controladora, cámara de video, enlace/antena y pérdidas de perfil en vacío)."
-    ),
-    "Masa de batería por energía de misión (mbe)": (
-        "Masa mínima requerida por autonomía de misión Ereq/(ebat·DoD·ntemp), protegiendo la vida de la celda mediante DoD (~0.80) y derrateo térmico ntemp."
-    ),
-    "Masa de batería por potencia pico (mbp)": (
-        "Masa mínima exigida por descarga continua Ptot/(ebat·Cmax·ntemp) para no superar la tasa segura de corriente Cmax de las celdas."
-    ),
-    "Masa de batería requerida (mbat)": (
-        "Elige el criterio más restrictivo entre energía y potencia (max(mbe, mbp) mediante sp.Max), cerrando el bucle hacia la masa del artefacto mart."
-    ),
+TIPOS_BLOQUES_NOTA: list[tuple[str, str]] = [
+    ("ecuacion", "Ecuación"),
+    ("variables", "Variables"),
+    ("coeficientes", "Coeficientes"),
+    ("criterio", "Criterio / Alcance"),
+]
+_TIPOS_VALIDOS_NOTA = {k for k, _ in TIPOS_BLOQUES_NOTA}
+
+
+NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
+    # --- C1: Gases ideales, aire caliente y flotabilidad ---
+    "Gas ideal (caso 1 - ambiente)": {
+        "ecuacion": (
+            "Aplica la ley de los gases ideales para determinar la densidad del aire frío exterior ρ₁ a la presión atmosférica P₁ "
+            "y temperatura ambiente T₁."
+        ),
+        "variables": (
+            "R₁ representa la constante específica del aire seco (Rair = 287.058 J/(kg·K)), obtenida al dividir la constante universal "
+            "de los gases (8.3145 J/(mol·K)) entre la masa molar media del aire (0.028965 kg/mol)."
+        ),
+        "coeficientes": (
+            "273.15 K convierte la temperatura de °C a escala absoluta Kelvin, requisito obligatorio de la ecuación de estado."
+        ),
+    },
+    "Gas ideal (caso 2 - caliente)": {
+        "ecuacion": (
+            "Calcula la densidad del aire caliente interior ρ₂ cuando el gas se calienta a T₂. Al ser un casco no rígido, "
+            "la presión interior P₂ iguala prácticamente a la atmosférica P₁ y la densidad cae."
+        ),
+    },
+    "Diferencia de densidades": {
+        "ecuacion": (
+            "Cuantifica el contraste de densidad Δρ = ρ₁ − ρ₂ entre el aire exterior frío y el aire interior caliente, "
+            "que es la fuente física de flotabilidad aerostática por cada metro cúbico de casco."
+        ),
+    },
+    "Calor sensible": {
+        "ecuacion": (
+            "Calcula la energía térmica almacenada en la masa m de aire caliente dentro del casco respecto al aire exterior."
+        ),
+        "variables": (
+            "cp (1005 J/(kg·K)) es el calor específico a presión constante del aire; ΔT es el salto térmico T₂ − T₁."
+        ),
+    },
+    "Fuerza de sustentación aerostática": {
+        "ecuacion": (
+            "Empuje hidrostático de Arquímedes F = (ρ₁ − ρ₂)·g·V generado por el volumen de aire caliente desplazado."
+        ),
+        "criterio": (
+            "Solo se contabiliza el volumen interior principal V; las finas celdas aislantes quedan fuera de V (conservador si están "
+            "selladas en frío y con un margen extra de ~2.8 % si se ventilan al calentar)."
+        ),
+    },
+    "Masa compensada por aire caliente (mflot)": {
+        "ecuacion": (
+            "Convierte el empuje aerostático F en kilogramos de masa sostenidos gratuitamente por el aire caliente (mflot = F/g). "
+            "El peso restante (mres = mtot − mflot) lo sostienen los rotores."
+        ),
+    },
+    # --- C2: Dimensiones principales y volumen ---
+    "Relación de esbeltez (L/D)": {
+        "ecuacion": (
+            "Define la esbeltez geométrica λ = L/D del dirigible."
+        ),
+        "criterio": (
+            "Valores bajos (λ ≈ 2–3) minimizan el área superficial S para un mismo volumen V (reduciendo pérdidas de calor); "
+            "valores más altos reducen el arrastre de forma aerodinámico a mayor velocidad."
+        ),
+    },
+    "Fracción de nariz (cf/L)": {
+        "ecuacion": (
+            "Reparte la longitud total L entre el semielipsoide frontal de nariz (cf = xf·L) y el trasero de popa (cr = (1 − xf)·L) "
+            "sin alterar el volumen total V."
+        ),
+    },
+    "Volumen total del casco": {
+        "ecuacion": (
+            "Calcula el volumen encerrado por dos semielipsoides prolados de revolución unidos por su círculo máximo de radio R."
+        ),
+        "coeficientes": (
+            "El factor 2/3·π proviene de sumar los volúmenes de ambos semielipsoides: (2/3)·π·R²·cf + (2/3)·π·R²·cr = (2/3)·π·R²·(cf + cr) = (2/3)·π·R²·L."
+        ),
+    },
+    # --- C3: Superficies del casco y capas Mylar ---
+    "Excentricidad frontal (cf > R)": {
+        "ecuacion": (
+            "Mide el alargamiento geométrico del semielipsoide de proa respecto a una semiesfera (ef = 0)."
+        ),
+        "criterio": (
+            "Exige estrictamente cf > R (esbeltez prolada) para que √(1 − R²/cf²) tome un valor real positivo."
+        ),
+    },
+    "Excentricidad trasera (cr > R)": {
+        "ecuacion": (
+            "Mide el alargamiento del semielipsoide de popa respecto a una semiesfera (er = 0); requiere cr > R."
+        ),
+    },
+    "Área superficial frontal": {
+        "ecuacion": (
+            "Calcula el área curva exacta del semielipsoide prolado de nariz."
+        ),
+        "coeficientes": (
+            "El factor arcsin(ef)/ef corrige la curvatura axial entre una sección circular plana y una superficie elipsoidal alargada."
+        ),
+    },
+    "Área superficial trasera": {
+        "ecuacion": (
+            "Calcula el área curva exacta del semielipsoide prolado de popa mediante arcsin(er)/er; sumada a Sf da la envolvente S."
+        ),
+    },
+    "Número promedio de capas celulares (ncap)": {
+        "ecuacion": (
+            "Promedia el número de capas superiores ncapS y el de capas inferiores ncapI para obtener el espesor medio equivalente del "
+            "aislamiento asimétrico y dimensionar la superficie total de película."
+        ),
+    },
+    "Área total de película celular": {
+        "ecuacion": (
+            "Calcula la superficie real de película Mylar necesaria para formar todas las láminas paralelas y los tabiques internos de las celdas."
+        ),
+        "coeficientes": (
+            "Cada celda cuadrada de paso W y altura e lleva 2 paredes ortogonales compartidas de área e·W sobre una base W², "
+            "lo que añade la fracción geométrica (1 + 2·e/W) por capa sobre el área exterior S."
+        ),
+    },
+    "Masa de la cuadrícula celular": {
+        "ecuacion": (
+            "Calcula el peso total de la envolvente multicapa multiplicando el área real desarrollada Sc por el gramaje superficial σ del Mylar."
+        ),
+    },
+    # --- C4: Convección externa, radiación y modelo térmico base (U0) ---
+    "Número de Prandtl del aire (Pr)": {
+        "ecuacion": (
+            "Calcula el número adimensional de Prandtl del aire: Pr = ν/α."
+        ),
+        "variables": (
+            "ν es la viscosidad cinemática (difusión de movimiento) y α es la difusividad térmica (difusión de calor). "
+            "Para el aire vale ~0.70–0.72 y acopla la capa límite hidrodinámica con la térmica."
+        ),
+    },
+    "Número de Nusselt externo por viento (Nue)": {
+        "ecuacion": (
+            "Evalúa la transferencia convectiva forzada causada por el viento relativo v a lo largo de la envolvente exterior en régimen turbulento."
+        ),
+        "variables": (
+            "Nue = he·L/ka es el número de Nusselt externo: mide cuántas veces más calor transfiere el viento respecto a conducción pura "
+            "a través de una capa de aire quieto de espesor L (~5.9 m). Un valor de ~2000–3000 significa que la capa límite turbulenta "
+            "equivale térmicamente a una película inmóvil de solo L/Nue ≈ 2–3 mm. ReL mide inercia frente a viscosidad y Pr el acoplamiento del aire."
+        ),
+        "coeficientes": (
+            "0.037 proviene de integrar sobre toda la longitud L la correlación turbulenta local sobre placa plana (Nu_x = 0.0296·Re_x^(4/5)·Pr^(1/3)): "
+            "al integrar x^(−1/5) entre 0 y L aparece el factor 5/4, y (5/4) × 0.0296 = 0.037. Los exponentes 4/5 y 1/3 reflejan capa límite turbulenta "
+            "y analogía de Chilton–Colburn."
+        ),
+    },
+    "Coeficiente convectivo externo del casco (he)": {
+        "ecuacion": (
+            "Convierte el número adimensional externo Nue en coeficiente convectivo físico he = Nue·ka/L."
+        ),
+        "variables": (
+            "he representa la potencia térmica disipada al aire exterior por cada m² de superficie y por cada Kelvin de salto térmico; "
+            "ka es la conductividad térmica del aire."
+        ),
+    },
+    "Coeficiente radiativo externo del casco (hrade)": {
+        "ecuacion": (
+            "Calcula la conductancia linealizada de pérdida por radiación infrarroja desde la piel exterior del casco hacia el entorno a T₁."
+        ),
+        "variables": (
+            "eps (ε) es la emisividad infrarroja de la piel exterior y (T₁ + 273.15) es la temperatura ambiente absoluta en Kelvin."
+        ),
+        "coeficientes": (
+            "El factor 4 proviene de linealizar la ley de Stefan–Boltzmann q_rad = ε·σ_SB·(Ts⁴ − T₁⁴) usando d(T⁴)/dT = 4·T³; "
+            "σ_SB = 5.6704×10⁻⁸ W/(m²·K⁴) es la constante física universal de radiación térmica."
+        ),
+        "criterio": (
+            "Con Mylar aluminizado (ε = 0.04) resulta muy bajo (~0.22 W/(m²·K)) frente a un plástico opaco (ε ≈ 0.90 → ~5 W/(m²·K))."
+        ),
+    },
+    "Coeficiente externo total del casco (hetot)": {
+        "ecuacion": (
+            "Suma la convección forzada externa he y la radiación externa hrade porque ambos mecanismos actúan en paralelo desde la superficie exterior."
+        ),
+    },
+    "Caída térmica interna sin capa celular (dTi0)": {
+        "ecuacion": (
+            "Por continuidad de flujo térmico en serie, el salto de temperatura dTi0 en la capa límite interior es proporcional "
+            "a la fracción que representa la resistencia interna 1/hi0 dentro de la resistencia total 1/U0."
+        ),
+    },
+    "Número de Rayleigh interno sin capa celular (RaD0)": {
+        "ecuacion": (
+            "RaD0 = g·β·dTi0·D³/(ν·α) mide la intensidad de la convección natural interna en el casco sin aislar."
+        ),
+        "variables": (
+            "Compara el empuje térmico de flotabilidad (g·β·dTi0·D³) frente al frenado viscoso (ν) y térmico (α) del aire caliente."
+        ),
+        "criterio": (
+            "Al depender de D³ y superar 10⁹ en cascos de escala métrica, confirma que el flujo convectivo interno es completamente turbulento."
+        ),
+    },
+    "Número de Nusselt interno sin capa celular (Nui0)": {
+        "ecuacion": (
+            "Calcula el número de Nusselt interno sin aislante mediante la correlación turbulenta natural Nui0 = 0.13·RaD0^(1/3)."
+        ),
+        "variables": (
+            "Nui0 indica cuántas veces mayor es el intercambio térmico convectivo interno frente a la conducción pura en un espesor D."
+        ),
+        "coeficientes": (
+            "La constante empírica 0.13 y el exponente 1/3 corresponden a convección natural turbulenta en recintos grandes (Ra > 10⁹); "
+            "con ese exponente D³^(1/3) = D, cancelando el diámetro en hi0 porque la transferencia pasa a depender de la flotabilidad local."
+        ),
+    },
+    "Coeficiente convectivo interno sin capa celular (hi0)": {
+        "ecuacion": (
+            "Convierte Nui0 en el coeficiente convectivo interno físico hi0 = fcal·Nui0·ka/D para el casco sin aislar."
+        ),
+        "coeficientes": (
+            "El factor fcal (~1.275) recoge la agitación adicional generada por la cámara mezcladora y difusor suave del quemador de etanol."
+        ),
+    },
+    "Coeficiente global sin capa celular (U0)": {
+        "ecuacion": (
+            "Transmitancia térmica total en serie del casco simple de referencia: 1/U0 = 1/hi0 + ep/ke + 1/hetot."
+        ),
+        "criterio": (
+            "Se mantiene estrictamente independiente de las variables de aislamiento (e, W, ncapS, ncapI, Nuc, hrad) "
+            "para que la comparación del ahorro térmico frente a U sea siempre exacta."
+        ),
+    },
+    # --- C5: Aislamiento Mylar multicapa asimétrico y radiación interna (U) ---
+    "Caída térmica interna con capa celular (dTi)": {
+        "ecuacion": (
+            "Calcula qué porción del salto térmico total ΔT cae en la capa límite interna del casco aislado: dTi = (U/hi)·ΔT."
+        ),
+        "criterio": (
+            "Al caer drásticamente la transmitancia global U gracias al Mylar multicapa, se reduce el flujo térmico que cruza la pared y baja dTi."
+        ),
+    },
+    "Número de Rayleigh interno con capa celular (RaD)": {
+        "ecuacion": (
+            "Evalúa la fuerza de la convección natural dentro de la cavidad principal del dirigible cuando ya cuenta con aislamiento Mylar."
+        ),
+        "variables": (
+            "RaD es el número de Rayleigh interno referido al diámetro D: compara las fuerzas de flotabilidad térmica (g·β·dTi·D³) "
+            "frente a la viscosidad cinemática ν y la difusividad térmica α del aire, utilizando la caída interna amortiguada dTi."
+        ),
+        "criterio": (
+            "Aunque dTi disminuye respecto al casco sin aislar, RaD sigue estando por encima de 10⁹ en diámetros de ~2.5 m (régimen turbulento)."
+        ),
+    },
+    "Número de Nusselt interno con capa celular (Nui)": {
+        "ecuacion": (
+            "Calcula la intensidad adimensional de la convección natural dentro del casco aislado."
+        ),
+        "variables": (
+            "Nui es el número de Nusselt interno: expresa cuántas veces supera la transferencia convectiva interna "
+            "a la conducción térmica pura a través de un diámetro D de aire inmóvil."
+        ),
+        "coeficientes": (
+            "El multiplicador empírico 0.13 y el exponente 1/3 corresponden al régimen turbulento de convección natural en grandes cavidades "
+            "(Ra > 10⁹); como RaD^(1/3) ∝ D, el tamaño global D se cancela al pasar a hi porque la capa límite depende de la flotabilidad local."
+        ),
+    },
+    "Coeficiente convectivo interno con capa celular (hi)": {
+        "ecuacion": (
+            "Traduce el Nusselt interno Nui a coeficiente convectivo físico hi = fcal·Nui·ka/D sobre la lámina interior del casco aislado."
+        ),
+        "coeficientes": (
+            "fcal (~1.275) contempla la agitación moderada introducida por el sistema de recirculación y difusor del quemador de etanol."
+        ),
+    },
+    "Temperatura media absoluta de pared (Tm)": {
+        "ecuacion": (
+            "Calcula la temperatura absoluta media (en Kelvin) entre el interior caliente T₂ y el exterior T₁ para linealizar la radiación intracelular."
+        ),
+        "coeficientes": (
+            "Divide entre 2 la suma (T₁ + T₂) y suma 273.15 K para pasar a escala Kelvin."
+        ),
+    },
+    "Emisividad efectiva entre láminas (epsef)": {
+        "ecuacion": (
+            "Calcula la emisividad efectiva del intercambio radiativo infrarrojo entre dos láminas planas paralelas enfrentadas de igual emisividad ε."
+        ),
+        "coeficientes": (
+            "Al considerar las reflexiones múltiples entre ambas caras (cada superficie refleja 1 − ε), la resistencia radiativa combinada da "
+            "epsef = ε/(2 − ε). Para Mylar aluminizado (ε = 0.04) resulta ≈ 0.0204 (casi la mitad de ε)."
+        ),
+    },
+    "Coeficiente radiativo interno de cavidad (hrad)": {
+        "ecuacion": (
+            "Calcula la conductancia térmica por radiación infrarroja entre dos láminas vecinas de una celda aislante."
+        ),
+        "variables": (
+            "epsef es la emisividad efectiva entre láminas enfrentadas y Tm es la temperatura media absoluta de la pared."
+        ),
+        "coeficientes": (
+            "El coeficiente 4 surge de linealizar la diferencia de cuartas potencias en la ley de Stefan–Boltzmann, multiplicado por "
+            "σ_SB = 5.6704×10⁻⁸ W/(m²·K⁴)."
+        ),
+        "criterio": (
+            "Cada capa adicional de Mylar actúa como pantalla reflectora independiente en serie, y su baja emisividad reduce hrad ~40× frente a plástico opaco."
+        ),
+    },
+    "Caída térmica en la celda aislante (dTcel)": {
+        "ecuacion": (
+            "Calcula la caída de temperatura individual ΔTcel que soporta cada una de las ncapS celdas superiores."
+        ),
+        "variables": (
+            "Usup·ΔT es el flujo de calor constante que atraviesa toda la pared superior en serie; al dividirlo entre la conductancia de una sola celda "
+            "(ka·Nuc/e + hrad), se obtiene exactamente la caída térmica de una celda individual."
+        ),
+        "criterio": (
+            "Al aumentar ncapS disminuye Usup y se reparte el salto ΔT entre más celdas: pasar de 1 a 3 capas reduce ΔTcel a ~18.5 K, evitando que conveccione."
+        ),
+    },
+    "Número de Rayleigh en cavidad celular (Rae)": {
+        "ecuacion": (
+            "Evalúa si el aire encerrado dentro de cada micro-celda superior tiende a moverse por flotabilidad térmica o permanece inmóvil."
+        ),
+        "variables": (
+            "Rae es el número de Rayleigh local de la celda: depende del cubo del espesor de celda (e³) y de la caída individual dTcel."
+        ),
+        "criterio": (
+            "Con capas finas (~14 mm), caída fraccionada en 3 celdas y la menor densidad del aire en altura (ν·α mayor en La Paz), "
+            "Rae cae debajo de Rac = 1708 y suprime la convección intracelular."
+        ),
+    },
+    "Número de Nusselt efectivo en celda (Nuc)": {
+        "ecuacion": (
+            "Correlación física de Hollands (1976) para cavidades cerradas calentadas desde abajo, determinando cuánta convección ocurre dentro de cada celda superior."
+        ),
+        "coeficientes": (
+            "Los parámetros 1.44, Rac = 1708 (umbral crítico de Rayleigh–Bénard) y 5830 (transición turbulenta celular) ajustan los datos experimentales de Hollands; "
+            "los términos max(0, ...) garantizan que, cuando Rae ≤ Rac, Nuc sea exactamente 1.000 (conducción pura, nunca menor a 1)."
+        ),
+    },
+    "Coeficiente global mitad superior (Usup)": {
+        "ecuacion": (
+            "Transmitancia térmica en serie de la mitad superior del casco con ncapS capas de Mylar."
+        ),
+        "criterio": (
+            "Integra en serie convección interior (1/hi), las ncapS + 1 láminas de película, ncapS celdas con convección (Nuc) y radiación interna (hrad) en paralelo, "
+            "y el exterior (1/hetot). No hay doble conteo con hetot porque hrad actúa entre láminas internas y hrade solo en la piel exterior."
+        ),
+    },
+    "Coeficiente global mitad inferior (Uinf)": {
+        "ecuacion": (
+            "Transmitancia térmica de la mitad inferior del casco con ncapI capas de Mylar."
+        ),
+        "criterio": (
+            "Como el lado caliente está arriba y el frío abajo, el aire dentro de las celdas inferiores queda estratificado de forma estable sin convección (Nu = 1 exacto), "
+            "manteniendo solo conducción pura ka/e y radiación interna hrad en paralelo."
+        ),
+    },
+    "Coeficiente global con capa celular (U)": {
+        "ecuacion": (
+            "Promedia la transmitancia de la cúpula superior Usup y la mitad inferior Uinf para caracterizar la pérdida media global del dirigible."
+        ),
+    },
+    # --- C6: Pérdidas de calor, ahorro del aislante y enfriamiento ---
+    "Potencia perdida sin capa celular (Qp0)": {
+        "ecuacion": (
+            "Calcula la pérdida instantánea de calor (en W) que tendría el mismo casco si estuviera cubierto por una sola lámina de Mylar sin celdas aislantes."
+        ),
+    },
+    "Potencia perdida con capa celular (Qp)": {
+        "ecuacion": (
+            "Calcula la potencia térmica real perdida hacia el ambiente (en W) con el aislamiento multicapa asimétrico instalado."
+        ),
+    },
+    "Fracción de ahorro térmico celular (fais)": {
+        "ecuacion": (
+            "Mide la eficiencia relativa del aislamiento multicapa como fracción del calor ahorrado frente al casco simple (1 − U/U0)."
+        ),
+    },
+    "Velocidad de enfriamiento (dT/dt)": {
+        "ecuacion": (
+            "Ritmo instantáneo de enfriamiento pasivo vT = Qp/(m·cp) si se apagara el quemador; relaciona la fuga de calor con la inercia térmica del aire interior."
+        ),
+    },
+    "Tiempo de enfriamiento sin aporte": {
+        "ecuacion": (
+            "Estima el tiempo tc = Qc/Qp disponible antes de que la temperatura interior caiga dTc (aproximación lineal; en la pestaña Simulación se integra el enfriamiento no lineal)."
+        ),
+    },
+    # --- C7: Precalentamiento en tierra y quemador térmico ---
+    "Energía de precalentamiento en tierra (Epre)": {
+        "ecuacion": (
+            "Calcula la energía primaria consumida en la estación de tierra para llevar el volumen V desde T₁ hasta T₂ antes del despegue."
+        ),
+        "variables": (
+            "Q es el calor sensible útil que retiene el aire caliente y npre (~0.65) es el rendimiento del soplador/calentador externo con recirculación."
+        ),
+    },
+    "Costo de precalentamiento en tierra (Cpre)": {
+        "ecuacion": (
+            "Traduce la energía de precalentamiento Epre a costo económico en tierra."
+        ),
+        "coeficientes": (
+            "10⁶ convierte Joules a MegaJoules para multiplicar directamente por la tarifa en tierra cpre (Bs/MJ)."
+        ),
+    },
+    "Masa de combustible térmico para recuperar caída dTc": {
+        "ecuacion": (
+            "Calcula la masa de combustible térmico requerida para reponer una caída térmica admisible dTc mediante la reserva energética Qc."
+        ),
+        "variables": (
+            "PC es el poder calorífico inferior del combustible (25 MJ/kg calibrado para etanol al 96 %) y ncal (~0.75) el rendimiento del quemador."
+        ),
+    },
+    "Energía suministrada por combustible térmico en misión (Eprop)": {
+        "ecuacion": (
+            "Divide la pérdida térmica neta en vuelo Em entre el rendimiento del quemador ncal para incluir pérdidas térmicas de mezcla y escape."
+        ),
+    },
+    "Masa de combustible térmico para mantener T en misión": {
+        "ecuacion": (
+            "Calcula la masa total de combustible consumida en vuelo mgm = Eprop/PC para sostener T₂ constante durante toda la misión."
+        ),
+    },
+    # --- C8: Cinemática multi-viaje, viento y arrastre aerodinámico ---
+    "Velocidad neta de avance respecto al suelo (vg)": {
+        "ecuacion": (
+            "Calcula la velocidad efectiva sobre el terreno vg = v − vv descontando el viento frontal en contra vv a la velocidad aerodinámica v."
+        ),
+    },
+    "Distancia total por viajes (nv·d1)": {
+        "ecuacion": (
+            "Define la distancia total recorrida dm multiplicando nv viajes consecutivos por el tramo unitario d1 (3 × 280 m = 840 m por defecto) para evaluar escalabilidad."
+        ),
+    },
+    "Distancia recorrida en misión (dm)": {
+        "ecuacion": (
+            "Relaciona distancia total dm, velocidad neta sobre el suelo vg y duración total de vuelo tm."
+        ),
+        "criterio": (
+            "Con viento en contra (vv > 0), avanzar más lento respecto al suelo eleva tm y penaliza el consumo energético en vuelo."
+        ),
+    },
+    "Número de Reynolds longitudinal (ReL)": {
+        "ecuacion": (
+            "ReL = ρ₁·v·L/μ mide la razón entre fuerzas inerciales y viscosas del aire exterior que fluye alrededor del casco de longitud L."
+        ),
+        "variables": (
+            "Usa la velocidad aerodinámica v (y no vg) porque la fricción y capa límite dependen del aire incidente relativo."
+        ),
+        "criterio": (
+            "En el rango típico ReL ~ 10⁵–10⁶ el flujo exterior es turbulento y fija tanto Cf como Nue."
+        ),
+    },
+    "Coeficiente de fricción superficial (Cf)": {
+        "ecuacion": (
+            "Calcula el coeficiente medio de fricción viscosa sobre la piel lisa del casco mediante la correlación de Prandtl–Schlichting."
+        ),
+        "coeficientes": (
+            "Las constantes empíricas 0.455 y el exponente 2.58 sobre log10(ReL) corresponden específicamente al régimen de capa límite turbulenta sobre pared lisa."
+        ),
+    },
+    "Coeficiente volumétrico del casco (CDVc - Hoerner)": {
+        "ecuacion": (
+            "Correlación clásica de Hoerner referida al área volumétrica V^(2/3), combinando resistencia por fricción superficial y arrastre de presión por forma."
+        ),
+        "coeficientes": (
+            "Los términos 4·λ^(1/3), 6·λ^(−1.2) y 24·λ^(−2.7) capturan respectivamente el área mojada, la interacción del espesor y la separación de presión trasera en función de la esbeltez λ = L/D."
+        ),
+    },
+    "Coeficiente de resistencia volumétrico total (CDV)": {
+        "ecuacion": (
+            "Multiplica el casco limpio CDVc por el factor de resistencia parásita kp (~1.45) para incluir góndola, brazos motores, cables, quemador e irregularidades."
+        ),
+    },
+    "Fuerza de resistencia aerodinámica (FD)": {
+        "ecuacion": (
+            "Calcula la fuerza total de arrastre aerodinámico FD que frena el avance horizontal del dirigible."
+        ),
+        "variables": (
+            "Se evalúa siempre con la velocidad aerodinámica v = vg + vv y el área de referencia volumétrica V^(2/3)."
+        ),
+        "coeficientes": (
+            "El factor 1/2 proviene de la definición de presión dinámica ½·ρ₁·v²."
+        ),
+    },
+    # --- C9: Masas del dirigible y reparto híbrido ---
+    "Masa del artefacto con sus componentes (mart)": {
+        "ecuacion": (
+            "Suma la masa de todas las partes propias de la aeronave: cuadrícula Mylar mc, N motores, depósito/quemador térmico mp, "
+            "estructura/electrónica adicional mad y batería requerida mbat."
+        ),
+    },
+    "Masa residual a compensar por motores (mres)": {
+        "ecuacion": (
+            "Determina el peso neto residual mres = mtot − mflot que excede al empuje del aire caliente y debe ser cargado verticalmente por los rotores."
+        ),
+    },
+    "Masa aparente traslacional (map)": {
+        "ecuacion": (
+            "Calcula la inercia efectiva horizontal map = fap·mtot cuando el dirigible acelera."
+        ),
+        "coeficientes": (
+            "fap (~1.15) representa la masa añadida del aire circundante que debe desplazarse junto con un cuerpo voluminoso y ligero."
+        ),
+    },
+    # --- C10: Dinámica vectorial, empuje y actitud ---
+    "Aceleración vertical de ascenso (az)": {
+        "ecuacion": (
+            "Estima la aceleración vertical de maniobra az = vz/ta que sobrecarga temporalmente el empuje vertical FL (en crucero estacionario vale 0)."
+        ),
+    },
+    "Aceleración horizontal de traslación (ax)": {
+        "ecuacion": (
+            "Estima la aceleración horizontal de arranque ax = vx/ta aplicada sobre la masa aparente map (en crucero constante vale 0)."
+        ),
+    },
+    "Componente vertical de sustentación de motores (FL)": {
+        "ecuacion": (
+            "Empuje vertical total que deben producir los motores basculantes para sostener la masa residual mres·g y acelerar en ascenso mtot·az."
+        ),
+    },
+    "Componente horizontal de avance de motores (FX)": {
+        "ecuacion": (
+            "Empuje horizontal total necesario para vencer la resistencia aerodinámica FD y aportar la fuerza de aceleración horizontal map·ax."
+        ),
+    },
+    "Empuje vectorial total de los 4 motores (Ttot)": {
+        "ecuacion": (
+            "Calcula la magnitud del vector empuje total Ttot = √(FL² + FX²) combinando sustentación vertical y avance horizontal."
+        ),
+    },
+    "Ángulo de rotación respecto a la vertical (theta)": {
+        "ecuacion": (
+            "Calcula el ángulo de inclinación vectorial θ = arctan(FX/FL) respecto a la vertical."
+        ),
+        "coeficientes": (
+            "El factor 180/π convierte radianes a grados sexagesimales para compararlo con el límite mecánico thmax."
+        ),
+    },
+    # --- C11: Capacidad vertical, eficiencia y potencia eléctrica ---
+    "Sustentación vertical máxima de los 4 motores (FLmax)": {
+        "ecuacion": (
+            "Calcula el empuje vertical máximo disponible FLmax = √((N·Tmax1)² − FX²) tras reservar la componente horizontal FX requerida para avanzar."
+        ),
+    },
+    "Área de disco barrida por cada hélice (Ap)": {
+        "ecuacion": (
+            "Calcula el área circular barrida por cada rotor Ap = π·dp²/4, determinante en el empuje inducido de la teoría de disco actuador."
+        ),
+    },
+    "Eficiencia aerodinámica de hélice según velocidad (nprop)": {
+        "ecuacion": (
+            "Modela la caída cuadrática de eficiencia propulsiva nprop = nprop0·(1 − (v/vpitch)²) cuando la velocidad de avance v se acerca a la velocidad de paso nulo vpitch."
+        ),
+    },
+    "Eficiencia propulsiva global (ntot)": {
+        "ecuacion": (
+            "Multiplica en cascada el rendimiento aerodinámico de hélice (nprop), la eficiencia electromecánica del motor (nm) y la de los ESC (nESC)."
+        ),
+    },
+    "Potencia eléctrica demandada por los 4 motores (Pelec)": {
+        "ecuacion": (
+            "Calcula la potencia eléctrica total consumida por los rotores usando la teoría de disco actuador más la potencia útil de traslación."
+        ),
+        "variables": (
+            "El término Ttot^(3/2)/√(2·ρ₁·N·Ap) es la potencia inducida por acelerar el aire hacia abajo y FX·v la potencia útil horizontal; "
+            "ambos se dividen por la eficiencia global ntot."
+        ),
+        "coeficientes": (
+            "km (~1.20) es el factor de figura de mérito/margen que incorpora pérdidas de punta de pala, perfil, interferencia con el casco y control."
+        ),
+    },
+    # --- C12: Balance energético global y costos operativos ---
+    "Potencia eléctrica total a bordo (Ptot)": {
+        "ecuacion": (
+            "Suma la potencia eléctrica motriz Pelec más la carga base Pad de electrónica, telemetría y micro-ventilador mezclador del quemador."
+        ),
+    },
+    "Energía eléctrica requerida en misión (Ereq)": {
+        "ecuacion": (
+            "Integra la potencia eléctrica total Ptot durante el tiempo de misión tm, convirtiendo Watt-segundos (J) a Watt-hora (Wh)."
+        ),
+        "coeficientes": (
+            "Se divide entre 3600 s/h para obtener la energía en Wh y poder compararla directamente con la capacidad específica ebat (Wh/kg) de la batería."
+        ),
+    },
+    "Energía eléctrica total usada en misión (Eelec)": {
+        "ecuacion": (
+            "Convierte la energía eléctrica de misión Ereq (en Wh) a Joules multiplicando por 3600 s/h para sumarla homogéneamente con Eprop en Etot."
+        ),
+    },
+    "Costo de combustible térmico en vuelo (Ccomb)": {
+        "ecuacion": (
+            "Calcula el gasto económico del combustible térmico consumido en vuelo multiplicando la masa mgm (kg) por su precio unitario ccomb (Bs/kg)."
+        ),
+    },
+    "Costo de recarga eléctrica de batería (Celec)": {
+        "ecuacion": (
+            "Calcula el costo económico de recargar la energía eléctrica consumida en la misión."
+        ),
+        "coeficientes": (
+            "Divide Ereq entre 1000 para convertir Wh a kWh antes de multiplicar por la tarifa eléctrica celecU (Bs/kWh)."
+        ),
+    },
+    "Costo operativo total de misión (Cop)": {
+        "ecuacion": (
+            "Consolida el costo operativo completo del ciclo combinando precalentamiento en tierra (Cpre), combustible en vuelo (Ccomb) y recarga eléctrica (Celec)."
+        ),
+    },
+    # --- C13: Dimensionamiento y límites de la batería ---
+    "Masa de batería por energía de misión (mbe)": {
+        "ecuacion": (
+            "Calcula la masa mínima de batería exigida por autonomía energética mbe = Ereq/(ebat·DoD·ntemp)."
+        ),
+        "coeficientes": (
+            "DoD (~0.80) limita la profundidad de descarga para no dañar las celdas LiPo, y ntemp (~0.92) compensa pérdidas internas/térmicas."
+        ),
+    },
+    "Masa de batería por potencia pico (mbp)": {
+        "ecuacion": (
+            "Calcula la masa mínima de batería exigida por capacidad de entrega instantánea de corriente mbp = Ptot/(ebat·Cmax·ntemp)."
+        ),
+        "variables": (
+            "Cmax (h⁻¹) es la tasa máxima de descarga continua segura de la batería."
+        ),
+    },
+    "Masa de batería requerida (mbat)": {
+        "ecuacion": (
+            "Selecciona el criterio más exigente entre energía y potencia pico: mbat = max(mbe, mbp) mediante sp.Max."
+        ),
+        "criterio": (
+            "El resultado cierra el lazo acoplado regresando a mart en C9, porque una batería más pesada exige más sustentación y potencia."
+        ),
+    },
 }
 
 
+def bloques_nota_ecuacion(nombre_eq: str) -> list[dict[str, str]]:
+    """Devuelve la lista ordenada de bloques explicativos `{tipo, titulo, texto}` de una ecuación."""
+    data = NOTAS_ECUACIONES.get(nombre_eq)
+    if not data:
+        return []
+    return [
+        {"tipo": tipo, "titulo": titulo, "texto": data[tipo]}
+        for tipo, titulo in TIPOS_BLOQUES_NOTA
+        if data.get(tipo)
+    ]
+
+
 def nota_ecuacion(nombre_eq: str) -> str:
-    """Devuelve la explicación física breve asociada a una ecuación no trivial, o cadena vacía."""
-    return NOTAS_ECUACIONES.get(nombre_eq, "")
+    """Devuelve la explicación física unificada como texto plano, o cadena vacía."""
+    bloques = bloques_nota_ecuacion(nombre_eq)
+    if not bloques:
+        return ""
+    return " ".join(
+        f"{b['titulo']}: {b['texto']}" if b["tipo"] != "ecuacion" else b["texto"]
+        for b in bloques
+    )
 
 
 def validar_integridad_flujo() -> None:
@@ -1002,6 +1451,9 @@ def validar_integridad_flujo() -> None:
     eqs_totales = {nom_eq for _, eqs_cat in cats for nom_eq in eqs_cat}
     faltantes_notas = set(NOTAS_ECUACIONES) - eqs_totales
     assert not faltantes_notas, f"NOTAS_ECUACIONES referencia ecuaciones inexistentes: {faltantes_notas}"
+    for nom_eq, bloques_dict in NOTAS_ECUACIONES.items():
+        invalidos = set(bloques_dict) - _TIPOS_VALIDOS_NOTA
+        assert not invalidos, f"NOTAS_ECUACIONES['{nom_eq}'] tiene tipos inválidos: {invalidos}"
 
     vars_por_cat: list[set[str]] = []
     for idx, ((_, eqs_cat), flujo_cat) in enumerate(zip(cats, FLUJO_CATEGORIAS)):
@@ -1071,11 +1523,15 @@ def construir_flujo_categoria(cat_id: int) -> dict[str, Any]:
 
     nodos_enriquecidos = []
     for nodo in flujo_cat["nodos"]:
-        cats_eq = modelo.categorias_de_ecuacion(nodo["eq"])
+        cats_eq = modelo.categorias_numeradas_de_ecuacion(nodo["eq"])
+        eq_num = modelo.numero_ecuacion_en_categoria(cat_id, nodo["eq"])
         nodos_enriquecidos.append({
             **nodo,
+            "ecuacion_num": eq_num,
+            "ecuacion_codigo": f"(C{cat_id + 1}, E{eq_num})",
             "es_compartida": len(cats_eq) > 1,
-            "categorias_codigo_str": ", ".join(cod for _, cod, _ in cats_eq),
+            "categorias_codigo_str": ", ".join(cod for _, cod, _, _, _ in cats_eq),
+            "categorias_eq_codigo_str": ", ".join(eq_cod for _, _, _, _, eq_cod in cats_eq),
         })
 
     entradas = [

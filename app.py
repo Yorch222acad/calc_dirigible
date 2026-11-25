@@ -90,19 +90,23 @@ def _serializar_ecuacion(
 ) -> dict[str, Any]:
     vars_eq = formateo.variables_de_ecuacion(eq, valores_vista, fijas, penalizado=penalizado)
     tiene_penalizada = any(v["penalizada"] for v in vars_eq)
-    cats = modelo.categorias_de_ecuacion(nombre_eq)
+    cats_num = modelo.categorias_numeradas_de_ecuacion(nombre_eq)
     categorias_list = [
-        {"id": cid, "codigo": cod, "nombre": cnom}
-        for cid, cod, cnom in cats
+        {"id": cid, "codigo": cod, "nombre": cnom, "eq_num": enum, "eq_codigo": eq_cod}
+        for cid, cod, cnom, enum, eq_cod in cats_num
     ]
-    cat_idx = _CAT_INDICES[categoria] if categoria in _CAT_INDICES else (cats[0][0] if cats else 0)
-    cat_nombre = categoria if categoria in _CAT_INDICES else (cats[0][2] if cats else "")
+    cat_idx = _CAT_INDICES[categoria] if categoria in _CAT_INDICES else (cats_num[0][0] if cats_num else 0)
+    cat_nombre = categoria if categoria in _CAT_INDICES else (cats_num[0][2] if cats_num else "")
+    eq_num_actual = modelo.numero_ecuacion_en_categoria(cat_idx, nombre_eq)
+    eq_codigo_actual = f"(C{cat_idx + 1}, E{eq_num_actual})"
     return {
         "categoria": cat_nombre,
         "categoria_id": cat_idx,
         "categoria_codigo": f"C{cat_idx + 1}",
+        "ecuacion_num": eq_num_actual,
+        "ecuacion_codigo": eq_codigo_actual,
         "categorias": categorias_list,
-        "categorias_codigo_str": ", ".join(c["codigo"] for c in categorias_list),
+        "categorias_codigo_str": ", ".join(c["eq_codigo"] for c in categorias_list),
         "es_compartida": len(categorias_list) > 1,
         "nombre": nombre_eq,
         "latex_general": formateo.renderizar_general_latex(eq),
@@ -112,6 +116,7 @@ def _serializar_ecuacion(
         "variables": vars_eq,
         "tiene_penalizada": tiene_penalizada,
         "nota_fisica": flujo.nota_ecuacion(nombre_eq),
+        "notas_bloques": flujo.bloques_nota_ecuacion(nombre_eq),
     }
 
 

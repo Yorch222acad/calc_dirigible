@@ -8,10 +8,64 @@
  *   3. Derecha:   Explicación de cada variable involucrada y el nombre completo de su unidad.
  */
 
-import { renderizarFormulaKaTeX } from "../katex_helper.js?v=10";
-import { renderizarFlujoCategoria } from "./flowchart.js?v=11";
+import { renderizarFormulaKaTeX } from "../katex_helper.js?v=13";
+import { renderizarFlujoCategoria } from "./flowchart.js?v=13";
 
 let localFlashTimeout = null;
+
+/**
+ * Desplaza exclusivamente `contenedor` hasta mostrar `elemento` sin usar `scrollIntoView`
+ * (evita desplazar accidentalmente contenedores padre con overflow hidden/clip y recortar el header).
+ */
+export function desplazarDentroContenedor(contenedor, elemento, alineacion = "center") {
+  if (!contenedor || !elemento) return;
+  const contRect = contenedor.getBoundingClientRect();
+  const elRect = elemento.getBoundingClientRect();
+  const relTop = elRect.top - contRect.top + contenedor.scrollTop;
+
+  let destino = contenedor.scrollTop;
+  if (alineacion === "start" || elRect.height >= contRect.height - 24) {
+    destino = relTop - 12;
+  } else if (alineacion === "nearest") {
+    const visibleTop = contenedor.scrollTop;
+    const visibleBot = visibleTop + contRect.height;
+    const elBottom = relTop + elRect.height;
+    if (relTop < visibleTop + 6) {
+      destino = relTop - 8;
+    } else if (elBottom > visibleBot - 6) {
+      destino = elBottom - contRect.height + 8;
+    } else {
+      return;
+    }
+  } else {
+    destino = relTop - (contRect.height - elRect.height) / 2;
+  }
+
+  const maxScroll = Math.max(0, contenedor.scrollHeight - contenedor.clientHeight);
+  destino = Math.max(0, Math.min(maxScroll, destino));
+  contenedor.scrollTo({ top: destino, behavior: "smooth" });
+}
+
+/**
+ * Ubica una tarjeta de ecuación dentro de `contenedorLista`, la centra suavemente y aplica el destello amarillo/cian.
+ */
+export function resaltarYEncuadrarEcuacion(contenedorLista, nombreEq) {
+  if (!contenedorLista || !nombreEq) return;
+  const cards = contenedorLista.querySelectorAll(".equation-row-card");
+  const targetCard = Array.from(cards).find(
+    (el) => el.getAttribute("data-eq-nombre") === nombreEq
+  );
+  if (!targetCard) return;
+
+  desplazarDentroContenedor(contenedorLista, targetCard, "center");
+  cards.forEach((c) => c.classList.remove("equation-flash-highlight"));
+  void targetCard.offsetWidth; // reinicia animación CSS si se hace clic repetido sobre el mismo nodo
+  targetCard.classList.add("equation-flash-highlight");
+  if (localFlashTimeout) clearTimeout(localFlashTimeout);
+  localFlashTimeout = setTimeout(() => {
+    targetCard.classList.remove("equation-flash-highlight");
+  }, 2400);
+}
 
 function claseColorVariable(color) {
   if (color === "red") return "text-penalized";
@@ -37,7 +91,9 @@ export function crearFilaEcuacion(
   const header = document.createElement("div");
   header.className = "equation-row-header";
 
-  const prefijo = eqData.categorias_codigo_str || eqData.categoria_codigo;
+  const prefijo = mostrarCategoria
+    ? eqData.categorias_codigo_str || eqData.ecuacion_codigo || eqData.categoria_codigo
+    : eqData.ecuacion_codigo || eqData.categoria_codigo;
   const listaCats =
     eqData.categorias && eqData.categorias.length > 0
       ? eqData.categorias
@@ -54,6 +110,17 @@ export function crearFilaEcuacion(
   const title = document.createElement("h3");
   title.className = "equation-row-title";
   title.textContent = prefijo ? `${prefijo} - ${eqData.nombre}` : eqData.nombre;
+  if (!mostrarCategoria && eqData.es_compartida && listaCats.length > 1) {
+    const otrasCodigos = listaCats
+      .filter((c) => c.id !== eqData.categoria_id)
+      .map((c) => c.codigo);
+    if (otrasCodigos.length > 0) {
+      const otherCatsSpan = document.createElement("span");
+      otherCatsSpan.className = "equation-title-other-cats";
+      otherCatsSpan.textContent = ` (${otrasCodigos.join("/")})`;
+      title.appendChild(otherCatsSpan);
+    }
+  }
   if (mostrarCategoria && alClickIrAEcuacion && listaCats.length > 0) {
     const primeraCat = listaCats[0];
     title.classList.add("equation-title-clickable");
@@ -67,7 +134,7 @@ export function crearFilaEcuacion(
     group.className = "equation-goto-cats-group";
 
     listaCats.forEach((cat) => {
-      const catCodigo = cat.codigo ? `${cat.codigo}.` : "";
+      const catCodigo = cat.eq_codigo || (cat.codigo ? `${cat.codigo}.` : "");
       if (alClickIrAEcuacion) {
         const gotoBtn = document.createElement("button");
         gotoBtn.type = "button";
@@ -104,7 +171,7 @@ export function crearFilaEcuacion(
         chip.type = "button";
         chip.className = "equation-shared-chip";
         chip.title = `Ver esta ecuación en ${cat.codigo}. ${cat.nombre}`;
-        chip.textContent = `${cat.codigo} ↗`;
+        chip.textContent = cat.eq_num ? `${cat.codigo}, E${cat.eq_num} ↗` : `${cat.codigo} ↗`;
         chip.addEventListener("click", () => {
           if (alClickIrAEcuacion) alClickIrAEcuacion(eqData, cat.id);
         });
@@ -175,7 +242,28 @@ export function crearFilaEcuacion(
   grid.appendChild(colVars);
   card.appendChild(grid);
 
-  if (!mostrarCategoria && eqData.nota_fisica) {
+  if (!mostrarCategoria && eqData.notas_bloques && eqData.notas_bloques.length > 0) {
+    const ICONOS_BLOQUE = {
+      ecuacion: "ƒ",
+      variables: "𝑥",
+      coeficientes: "#",
+      criterio: "⚑",
+    };
+    const notesGrid = document.createElement("div");
+    notesGrid.className = `equation-notes-grid ${eqData.notas_bloques.length === 1 ? "notes-single" : ""}`;
+    eqData.notas_bloques.forEach((b) => {
+      const box = document.createElement("div");
+      box.className = `eq-note-box eq-note-${b.tipo}`;
+      const ico = ICONOS_BLOQUE[b.tipo] || "ⓘ";
+      box.innerHTML = `
+        <div class="eq-note-box-header"><span>${ico}</span><span>${escaparHtml(b.titulo)}</span></div>
+        <div class="eq-note-box-text"></div>
+      `;
+      box.querySelector(".eq-note-box-text").textContent = b.texto;
+      notesGrid.appendChild(box);
+    });
+    card.appendChild(notesGrid);
+  } else if (!mostrarCategoria && eqData.nota_fisica) {
     const notaBox = document.createElement("div");
     notaBox.className = "equation-physical-note";
     notaBox.innerHTML = `<span class="eq-note-icon" title="Interpretación física">ⓘ</span><span class="eq-note-text"></span>`;
@@ -256,7 +344,7 @@ export function renderizarPanelEcuaciones(
     ?.addEventListener("click", () => {
       const flowSec = contenedorLista.querySelector("#cat-flow-section");
       if (flowSec) {
-        flowSec.scrollIntoView({ behavior: "smooth", block: "start" });
+        desplazarDentroContenedor(contenedorLista, flowSec, "start");
       }
     });
 
@@ -271,19 +359,7 @@ export function renderizarPanelEcuaciones(
     alClickVariable,
     alAbrirMapaGlobal,
     alClickEcuacion: (nombreEq) => {
-      const cards = contenedorLista.querySelectorAll(".equation-row-card");
-      const targetCard = Array.from(cards).find(
-        (el) => el.getAttribute("data-eq-nombre") === nombreEq
-      );
-      if (targetCard) {
-        targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
-        cards.forEach((c) => c.classList.remove("equation-flash-highlight"));
-        targetCard.classList.add("equation-flash-highlight");
-        if (localFlashTimeout) clearTimeout(localFlashTimeout);
-        localFlashTimeout = setTimeout(() => {
-          targetCard.classList.remove("equation-flash-highlight");
-        }, 2400);
-      }
+      resaltarYEncuadrarEcuacion(contenedorLista, nombreEq);
     },
   });
 }

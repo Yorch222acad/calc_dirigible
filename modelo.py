@@ -53,7 +53,7 @@ VARIABLES = {
     # Sustentación aerostática (Arquímedes)
     "g":      ("Aceleración de la gravedad",             "m/s²",        9.775),
     "F":      ("Fuerza de sustentación aerostática",     "N",           None),
-    # Convección, radiación Mylar, aislamiento celular asimétrico y mamparos internos
+    # Convección, radiación Mylar y aislamiento celular asimétrico
     "e":      ("Espesor por capa celular aislante",      "m",           0.014),
     "W":      ("Ancho de celda cuadrada",                "m",           0.20),
     "ncapS":  ("Capas celulares en mitad superior",      "adim",        3.0),
@@ -62,11 +62,7 @@ VARIABLES = {
     "ep":     ("Espesor de película Mylar aluminizado",  "m",           6.0e-6),
     "ke":     ("Conductividad térmica película Mylar",   "W/(m·K)",     0.15),
     "eps":    ("Emisividad infrarroja de película Mylar","adim",        0.04),
-    "fcal":   ("Factor de agitación convectiva calefactor", "adim",     1.15),
-    "fmamp":  ("Factor convectivo por mamparos y estratificación", "adim", 0.78),
-    "nmamp":  ("Número de mamparos/deflectores internos","adim",        2.0),
-    "Smamp":  ("Área de película en mamparos internos",  "m²",          None),
-    "mmamp":  ("Masa de mamparos/deflectores internos",  "kg",          None),
+    "fcal":   ("Factor de agitación convectiva calefactor", "adim",     1.275),
     "beta":   ("Coef. expansión térmica del aire",       "K⁻¹",         0.00302),
     "nu":     ("Viscosidad cinemática del aire",         "m²/s",        2.65e-5),
     "alpha":  ("Difusividad térmica del aire",           "m²/s",        3.80e-5),
@@ -239,14 +235,14 @@ UNIDAD_NOMBRE = {
     "Bs/kWh":   "Bolivianos por kilovatio hora",
 }
 
-# Variables de entrada al iniciar (167 variables - 103 ecuaciones = 64 fijas)
-# Se fijan d1 y nv (multi-viaje), capas asimétricas Mylar (ncapS, ncapI, eps), mamparos (fmamp, nmamp),
+# Variables de entrada al iniciar (163 variables - 101 ecuaciones = 62 fijas)
+# Se fijan d1 y nv (multi-viaje), capas asimétricas Mylar (ncapS, ncapI, eps),
 # precalentamiento y costos (npre, cpre, ccomb, celecU), vv, Pad y mflot; dm, U0, U, Cop, mbat y mres se despejan automáticamente.
 FIJAS_INI = [
     "P1", "T1", "R1", "P2", "T2", "R2",
     "lam", "xf",
     "cp", "g",
-    "e", "W", "ncapS", "ncapI", "ep", "ke", "eps", "fcal", "fmamp", "nmamp",
+    "e", "W", "ncapS", "ncapI", "ep", "ke", "eps", "fcal",
     "beta", "nu", "alpha", "Rac", "ka", "sigma",
     "dTc",
     "npre", "cpre", "PC", "ncal",
@@ -262,7 +258,7 @@ POSITIVAS = {
     "P1", "R1", "rho1", "P2", "R2", "rho2",
     "R", "D", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
-    "e", "W", "ncapS", "ncapI", "ncap", "ep", "ke", "eps", "epsef", "fcal", "fmamp",
+    "e", "W", "ncapS", "ncapI", "ncap", "ep", "ke", "eps", "epsef", "fcal",
     "beta", "nu", "alpha",
     "Pr", "Nue", "he", "hrade", "hetot",
     "dTi0", "RaD0", "Nui0", "hi0", "U0",
@@ -297,7 +293,7 @@ UNIDAD_ING = {
     "Q":      ("J", "", 1),
     "g":      (None, "m/s²", 1),
     "F":      ("N", "", 1),
-    # Convección, radiación Mylar, capas asimétricas y mamparos
+    # Convección, radiación Mylar y capas asimétricas
     "e":      ("m", "", 1),
     "W":      ("m", "", 1),
     "ncapS":  (None, "adim", 1),
@@ -307,10 +303,6 @@ UNIDAD_ING = {
     "ke":     ("W", "/(m·K)", 1),
     "eps":    (None, "adim", 1),
     "fcal":   (None, "adim", 1),
-    "fmamp":  (None, "adim", 1),
-    "nmamp":  (None, "adim", 1),
-    "Smamp":  ("m²", "", 1),
-    "mmamp":  ("g", "", 1000),
     "beta":   ("K⁻¹", "", 1),
     "nu":     ("m²/s", "", 1),
     "alpha":  ("m²/s", "", 1),
@@ -454,7 +446,7 @@ S_POR_H = sp.Integer(3600)  # s -> h
 SIGMA_SB = sp.Float("5.670374419e-8")  # Constante de Stefan-Boltzmann [W/(m²·K⁴)]
 
 # =============================================================
-# Definición única de las 103 ecuaciones del modelo (fuente de verdad del solver)
+# Definición única de las 101 ecuaciones del modelo (fuente de verdad del solver)
 # =============================================================
 ECUACIONES_DEF: dict[str, sp.Eq] = {
     # Gases ideales, aire caliente y flotabilidad
@@ -465,7 +457,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Masa de aire caliente":         sp.Eq(S["m"], S["rho2"] * S["V"]),
     "Calor sensible":                sp.Eq(S["Q"], S["m"] * S["cp"] * S["dT"]),
     "Fuerza de sustentación aerostática": sp.Eq(S["F"], S["drho"] * S["g"] * S["V"]),
-    # Geometría del casco (dos semielipsoides) y película/mamparos
+    # Geometría del casco (dos semielipsoides) y película Mylar
     "Diámetro máximo transversal (2R)": sp.Eq(S["D"], 2 * S["R"]),
     "Relación de esbeltez (L/D)":       sp.Eq(S["lam"], S["L"] / (2 * S["R"])),
     "Fracción de nariz (cf/L)":         sp.Eq(S["xf"], S["cf"] / S["L"]),
@@ -483,14 +475,8 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Masa de la cuadrícula celular": sp.Eq(
         S["mc"], S["Sc"] * S["sigma"]
     ),
-    "Área de película de mamparos internos (Smamp)": sp.Eq(
-        S["Smamp"], S["nmamp"] * sp.Rational(2, 3) * sp.pi * S["R"] ** 2
-    ),
-    "Masa de mamparos/deflectores internos (mmamp)": sp.Eq(
-        S["mmamp"], S["Smamp"] * S["sigma"]
-    ),
     # Convección externa, radiación Mylar exterior y modelo térmico base (U0)
-    # NOTA: U0 es estrictamente independiente de e, W, ncapS, ncapI, fmamp, nmamp, Nuc y hrad.
+    # NOTA: U0 es estrictamente independiente de e, W, ncapS, ncapI, Nuc y hrad.
     "Número de Prandtl del aire (Pr)": sp.Eq(
         S["Pr"], S["nu"] / S["alpha"]
     ),
@@ -521,7 +507,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Coeficiente global sin capa celular (U0)": sp.Eq(
         S["U0"], 1 / (1 / S["hi0"] + S["ep"] / S["ke"] + 1 / S["hetot"])
     ),
-    # Aislamiento Mylar multicapa asimétrico, radiación interna y mamparos (U)
+    # Aislamiento Mylar multicapa asimétrico y radiación interna (U)
     "Caída térmica interna con capa celular (dTi)": sp.Eq(
         S["dTi"], (S["U"] / S["hi"]) * S["dT"]
     ),
@@ -532,7 +518,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["Nui"], sp.Float("0.13") * S["RaD"] ** sp.Rational(1, 3)
     ),
     "Coeficiente convectivo interno con capa celular (hi)": sp.Eq(
-        S["hi"], S["fcal"] * S["fmamp"] * (S["Nui"] * S["ka"]) / S["D"]
+        S["hi"], S["fcal"] * (S["Nui"] * S["ka"]) / S["D"]
     ),
     "Temperatura media absoluta de pared (Tm)": sp.Eq(
         S["Tm"], (S["T1"] + S["T2"]) / 2 + K
@@ -638,7 +624,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     ),
     # Masas y balance de peso (dirigible híbrido)
     "Masa del artefacto con sus componentes (mart)": sp.Eq(
-        S["mart"], S["mc"] + S["mmamp"] + S["N"] * S["mmot"] + S["mp"] + S["mad"] + S["mbat"]
+        S["mart"], S["mc"] + S["N"] * S["mmot"] + S["mp"] + S["mad"] + S["mbat"]
     ),
     "Masa total del dirigible con carga útil (mtot)": sp.Eq(
         S["mtot"], S["mart"] + S["mcarga"]
@@ -772,7 +758,7 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Volumen total del casco",
         "Área superficial total",
     ],
-    "Superficies del casco, capas Mylar y mamparos": [
+    "Superficies del casco y capas Mylar": [
         "Excentricidad frontal (cf > R)",
         "Excentricidad trasera (cr > R)",
         "Área superficial frontal",
@@ -781,8 +767,6 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Número promedio de capas celulares (ncap)",
         "Área total de película celular",
         "Masa de la cuadrícula celular",
-        "Área de película de mamparos internos (Smamp)",
-        "Masa de mamparos/deflectores internos (mmamp)",
     ],
     "Convección externa, radiación y modelo térmico base (U0)": [
         "Número de Prandtl del aire (Pr)",
@@ -796,7 +780,7 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Coeficiente convectivo interno sin capa celular (hi0)",
         "Coeficiente global sin capa celular (U0)",
     ],
-    "Aislamiento Mylar multicapa asimétrico y mamparos (U)": [
+    "Aislamiento Mylar multicapa asimétrico (U)": [
         "Coeficiente externo total del casco (hetot)",
         "Caída térmica interna con capa celular (dTi)",
         "Número de Rayleigh interno con capa celular (RaD)",
@@ -845,7 +829,6 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
     ],
     "Masas del dirigible y reparto de sustentación híbrida": [
         "Masa de la cuadrícula celular",
-        "Masa de mamparos/deflectores internos (mmamp)",
         "Masa de batería requerida (mbat)",
         "Masa del artefacto con sus componentes (mart)",
         "Masa total del dirigible con carga útil (mtot)",
@@ -909,16 +892,22 @@ CATEGORIAS: dict[str, dict[str, sp.Eq]] = {
 
 # Lista plana de ecuaciones únicas y estructuras precalculadas para emparejamiento y evaluación rápida
 ECUACIONES: dict[str, sp.Eq] = dict(ECUACIONES_DEF)
-assert len(ECUACIONES) == len(ECUACIONES_DEF) == 103
+assert len(ECUACIONES) == len(ECUACIONES_DEF) == 101
 assert {nom for eqs in _CATEGORIAS_NOMBRES.values() for nom in eqs} == set(ECUACIONES_DEF), (
     "Las categorías deben cubrir exactamente todas las ecuaciones de ECUACIONES_DEF"
 )
 
 _EQ_CATEGORIAS: dict[str, list[tuple[int, str, str]]] = {}
+_EQ_CATEGORIAS_NUM: dict[str, list[tuple[int, str, str, int, str]]] = {}
+_CAT_EQ_NUM: dict[tuple[int, str], int] = {}
 for _cat_idx, (_cat_nom, _eq_dict) in enumerate(CATEGORIAS.items()):
     _cat_cod = f"C{_cat_idx + 1}"
-    for _nom_eq in _eq_dict:
+    for _eq_idx, _nom_eq in enumerate(_eq_dict, start=1):
         _EQ_CATEGORIAS.setdefault(_nom_eq, []).append((_cat_idx, _cat_cod, _cat_nom))
+        _EQ_CATEGORIAS_NUM.setdefault(_nom_eq, []).append(
+            (_cat_idx, _cat_cod, _cat_nom, _eq_idx, f"({_cat_cod}, E{_eq_idx})")
+        )
+        _CAT_EQ_NUM[(_cat_idx, _nom_eq)] = _eq_idx
 
 _ECUACIONES_LIST: list[tuple[str, sp.Eq]] = list(ECUACIONES.items())
 _EQ_VARS: list[frozenset[str]] = [
@@ -938,6 +927,16 @@ def valores_iniciales() -> dict[str, float]:
 def categorias_de_ecuacion(nombre_eq: str) -> list[tuple[int, str, str]]:
     """Devuelve [(categoria_id, 'Cx', nombre_categoria), ...] a las que pertenece `nombre_eq`."""
     return list(_EQ_CATEGORIAS.get(nombre_eq, []))
+
+
+def categorias_numeradas_de_ecuacion(nombre_eq: str) -> list[tuple[int, str, str, int, str]]:
+    """Devuelve [(categoria_id, 'Cx', nombre_categoria, eq_num, '(Cx, Ey)'), ...] para `nombre_eq`."""
+    return list(_EQ_CATEGORIAS_NUM.get(nombre_eq, []))
+
+
+def numero_ecuacion_en_categoria(cat_idx: int, nombre_eq: str) -> int:
+    """Devuelve el número 1-based de `nombre_eq` dentro de la categoría `cat_idx`."""
+    return _CAT_EQ_NUM.get((cat_idx, nombre_eq), 0)
 
 
 def ecuaciones_detalladas_de_variable(
@@ -1059,13 +1058,27 @@ _FRACCIONES_UNITARIAS = frozenset({
     "nprop0", "nprop", "nm", "nESC", "ntot", "DoD", "ntemp"
 })
 _NO_NEGATIVAS = frozenset({
-    "vv", "Pad", "nmamp", "Smamp", "mmamp", "cpre", "ccomb", "celecU", "Cpre", "Ccomb", "Celec", "Cop"
+    "vv", "Pad", "cpre", "ccomb", "celecU", "Cpre", "Ccomb", "Celec", "Cop"
 })
 _SEMILLAS_DEFECTO = {
+    "R": 1.28,
+    "D": 2.56,
+    "cf": 2.06,
+    "cr": 3.82,
+    "L": 5.88,
+    "V": 20.18,
+    "S": 29.58,
+    "F": 31.3,
+    "mflot": 3.20,
+    "Pelec": 265.0,
     "mbat": 0.25,
     "mbe": 0.20,
     "mbp": 0.25,
     "mres": 0.35,
+    "e": 0.014,
+    "Rae": 1488.0,
+    "RaD": 1.0e10,
+    "RaD0": 3.0e10,
     "dTi0": 48.0,
     "dTi": 12.0,
     "dTcel": 15.0,

@@ -10,21 +10,25 @@ import {
   postModificar,
   postReiniciar,
   postOptimizar,
-} from "./api.js?v=10";
-import { store } from "./state.js?v=10";
+} from "./api.js?v=13";
+import { store } from "./state.js?v=13";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=10";
-import { renderizarPanelEcuaciones } from "./components/equations.js?v=10";
-import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=11";
-import { renderizarPanelSimulacion } from "./components/simulation.js?v=10";
-import { renderizarPanelGraficas } from "./components/charts.js?v=10";
+} from "./components/sidebar.js?v=13";
+import {
+  renderizarPanelEcuaciones,
+  desplazarDentroContenedor,
+  resaltarYEncuadrarEcuacion,
+} from "./components/equations.js?v=13";
+import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=13";
+import { renderizarPanelSimulacion } from "./components/simulation.js?v=13";
+import { renderizarPanelGraficas } from "./components/charts.js?v=13";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=10";
+} from "./components/varInput.js?v=13";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");
@@ -69,7 +73,12 @@ const catalogContainer = document.getElementById("catalog-container");
 const variableDetailContainer = document.getElementById("variable-detail-container");
 
 let feedbackTimeout = null;
-let flashTimeout = null;
+
+function restaurarScrollRaiz() {
+  if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0;
+  if (document.body.scrollTop) document.body.scrollTop = 0;
+  if (appShell && appShell.scrollTop) appShell.scrollTop = 0;
+}
 
 function irACategoriaYEcuacion(eqData, catIdObjetivo = null) {
   if (!eqData || !store.sistema) return;
@@ -91,24 +100,14 @@ function irACategoriaYEcuacion(eqData, catIdObjetivo = null) {
   store.seleccionarCategoria(catId);
 
   requestAnimationFrame(() => {
-    const activeCatBtn = categoryList?.querySelector(".category-btn.active");
-    if (activeCatBtn) {
-      activeCatBtn.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-
-    const cards = equationsList.querySelectorAll(".equation-row-card");
-    const targetCard = Array.from(cards).find(
-      (el) => el.getAttribute("data-eq-nombre") === eqData.nombre
-    );
-    if (targetCard) {
-      targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
-      cards.forEach((c) => c.classList.remove("equation-flash-highlight"));
-      targetCard.classList.add("equation-flash-highlight");
-      if (flashTimeout) clearTimeout(flashTimeout);
-      flashTimeout = setTimeout(() => {
-        targetCard.classList.remove("equation-flash-highlight");
-      }, 2400);
-    }
+    requestAnimationFrame(() => {
+      restaurarScrollRaiz();
+      const activeCatBtn = categoryList?.querySelector(".category-btn.active");
+      if (activeCatBtn) {
+        desplazarDentroContenedor(categoryList, activeCatBtn, "nearest");
+      }
+      resaltarYEncuadrarEcuacion(equationsList, eqData.nombre);
+    });
   });
 }
 
@@ -248,6 +247,7 @@ async function ejecutarOptimizacion(objetivo, variables) {
 }
 
 function renderizarTodo(estadoApp) {
+  restaurarScrollRaiz();
   renderizarBarraSuperiorYAlertas(estadoApp);
 
   const abrirMapaFlujo = () => {

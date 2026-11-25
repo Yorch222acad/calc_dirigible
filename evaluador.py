@@ -173,7 +173,6 @@ def resolver_tearing_u(
     nu: float,
     alpha: float,
     fcal: float,
-    fmamp: float,
     ka: float,
     ep: float,
     ke: float,
@@ -184,7 +183,7 @@ def resolver_tearing_u(
     dTcel_ini: float | None = None,
 ) -> tuple[float, float, float, float, float, float, float, float, float, float]:
     """
-    Resuelve el bloque térmico asimétrico con Mylar multicapa y mamparos (C5)
+    Resuelve el bloque térmico asimétrico con Mylar multicapa (C5)
     mediante dos variables de corte `(dTi, dTcel)` con Newton 2x2 amortiguado
     y respaldo por punto fijo.
     Devuelve `(dTi, RaD, Nui, hi, dTcel, Rae, Nuc, Usup, Uinf, U)`.
@@ -199,7 +198,7 @@ def resolver_tearing_u(
     def eval_vars(x1: float, x2: float) -> tuple[float, float, float, float, float, float, float, float, float]:
         rad = k_rad * x1
         nui = 0.13 * (rad ** (1.0 / 3.0))
-        hi = fcal * fmamp * (nui * ka) / D
+        hi = fcal * (nui * ka) / D
         rae = k_rae * x2
         nuc = nuc_hollands(rae, Rac)
         h_sup_cel = (ka * nuc) / e + hrad
@@ -379,7 +378,6 @@ def evaluar_termica_T2(base: dict[str, float], T2_val: float) -> tuple[float, fl
             nu=base["nu"],
             alpha=base["alpha"],
             fcal=base["fcal"],
-            fmamp=base["fmamp"],
             ka=base["ka"],
             ep=base["ep"],
             ke=base["ke"],
@@ -513,19 +511,17 @@ def evaluar_punto(
         ncapS = float(p["ncapS"])
         ncapI = float(p["ncapI"])
         ep, ke, eps = float(p["ep"]), float(p["ke"]), float(p["eps"])
-        fcal, fmamp, nmamp = float(p["fcal"]), float(p["fmamp"]), float(p["nmamp"])
+        fcal = float(p["fcal"])
         beta, nu, alpha = float(p["beta"]), float(p["nu"]), float(p["alpha"])
         Rac, ka, sigma = float(p["Rac"]), float(p["ka"]), float(p["sigma"])
-        if min(e, W, ncapS, ep, ke, fcal, fmamp, beta, nu, alpha, Rac, ka, sigma) <= 0.0:
+        if min(e, W, ncapS, ep, ke, fcal, beta, nu, alpha, Rac, ka, sigma) <= 0.0:
             return None
-        if ncapI < 0.0 or (estricto_prolado and ncapI <= 0.0) or nmamp < 0.0:
+        if ncapI < 0.0 or (estricto_prolado and ncapI <= 0.0):
             return None
         if not (0.0 < eps < 1.0):
             return None
 
         ncap = 0.5 * (ncapS + ncapI)
-        Smamp = nmamp * (2.0 / 3.0) * math.pi * (R ** 2)
-        mmamp = Smamp * sigma
 
         Pr = nu / alpha
         Nue = 0.037 * (ReL ** 0.8) * (Pr ** (1.0 / 3.0))
@@ -537,14 +533,14 @@ def evaluar_punto(
         epsef = eps / (2.0 - eps)
         hrad = 4.0 * epsef * SIGMA_SB * (Tm ** 3)
 
-        # U0: estrictamente independiente de e, W, ncapS, ncapI, fmamp, nmamp, Nuc y hrad
+        # U0: estrictamente independiente de e, W, ncapS, ncapI, Nuc y hrad
         dTi0, RaD0, Nui0, hi0, U0 = resolver_tearing_u0(
             dT=dT, D=D, g=g, beta=beta, nu=nu, alpha=alpha,
             fcal=fcal, ka=ka, ep=ep, ke=ke, he=hetot,
         )
         dTi, RaD, Nui, hi, dTcel, Rae, Nuc, Usup, Uinf, U = resolver_tearing_u(
             dT=dT, D=D, e=e, ncapS=ncapS, ncapI=ncapI, g=g, beta=beta, nu=nu, alpha=alpha,
-            fcal=fcal, fmamp=fmamp, ka=ka, ep=ep, ke=ke, Rac=Rac, hrad=hrad, hetot=hetot,
+            fcal=fcal, ka=ka, ep=ep, ke=ke, Rac=Rac, hrad=hrad, hetot=hetot,
             dTi_ini=base.get("dTi"), dTcel_ini=base.get("dTcel"),
         )
 
@@ -609,7 +605,7 @@ def evaluar_punto(
         Pmax = N * Pmax1
 
         sol_mbat = resolver_tearing_mbat(
-            mc=mc + mmamp, N=N, mmot=mmot, mp=mp, mad=mad, mcarga=mcarga,
+            mc=mc, N=N, mmot=mmot, mp=mp, mad=mad, mcarga=mcarga,
             mflot=mflot, fap=fap, g=g, az=az, ax=ax, FD=FD,
             v=v, tm=tm, rho1=rho1, Ap=Ap, ntot=ntot, km=km,
             Pad=Pad, ebat=ebat, DoD=DoD, ntemp=ntemp, Cmax=Cmax,
@@ -662,8 +658,7 @@ def evaluar_punto(
             "Sf": Sf, "Sr": Sr, "S": S,
             "m": m, "cp": cp, "dT": dT, "Q": Q, "g": g, "F": F,
             "e": e, "W": W, "ncapS": ncapS, "ncapI": ncapI, "ncap": ncap,
-            "ep": ep, "ke": ke, "eps": eps, "fcal": fcal, "fmamp": fmamp,
-            "nmamp": nmamp, "Smamp": Smamp, "mmamp": mmamp,
+            "ep": ep, "ke": ke, "eps": eps, "fcal": fcal,
             "beta": beta, "nu": nu, "alpha": alpha, "Pr": Pr, "Nue": Nue,
             "he": he, "hrade": hrade, "hetot": hetot,
             "dTi0": dTi0, "RaD0": RaD0, "Nui0": Nui0, "hi0": hi0, "U0": U0,

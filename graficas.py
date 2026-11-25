@@ -458,7 +458,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
             "Cómo influye el Espesor por Capa (e) con Mylar aluminizado asimétrico (ncapS/ncapI), radiación (hrad) y Hollands (Nuc) "
             "en la Energía Ahorrada (Eah), Energía Perdida (Em vs Em0 constante), Combustible (mgm) y Masa Total (mtot)."
         ),
-        "variables": vars_meta(["e", "ncapS", "ncapI", "eps", "hrad", "Nuc", "Usup", "Uinf", "U", "U0", "Eah", "Em", "Em0", "mc", "mmamp", "mtot", "mgm"]),
+        "variables": vars_meta(["e", "ncapS", "ncapI", "eps", "hrad", "Nuc", "Usup", "Uinf", "U", "U0", "Eah", "Em", "Em0", "mc", "mtot", "mgm"]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
@@ -793,12 +793,6 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "codigo": "mc",
                         "valor_g": round(valores["mc"] * 1000.0, 2),
                         "color": "#4ade80",
-                    },
-                    {
-                        "etiqueta": "Mamparos internos (mmamp)",
-                        "codigo": "mmamp",
-                        "valor_g": round(valores["mmamp"] * 1000.0, 2),
-                        "color": "#2dd4bf",
                     },
                     {
                         "etiqueta": "Combustible térmico a bordo (mp)",
