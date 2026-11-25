@@ -293,6 +293,7 @@ def resolver_tearing_mbat(
     DoD: float,
     ntemp: float,
     Cmax: float,
+    mbat_ini: float | None = None,
 ) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float, float] | None:
     """
     Resuelve el bloque cerrado masa <-> batería <-> propulsión (C9-C13) usando `mbat`
@@ -324,24 +325,34 @@ def resolver_tearing_mbat(
     def residual(mbat_cand: float) -> float:
         return mbat_cand - eval_con_mbat(mbat_cand)[12]
 
-    malla = (1e-5, 0.02, 0.08, 0.25, 0.7, 1.8, 4.5, 10.0, 25.0)
-    a_prev = malla[0]
-    r_prev = residual(a_prev)
-    if abs(r_prev) < 1e-12:
-        sol_m = a_prev
-    else:
-        sol_m = None
-        for b_curr in malla[1:]:
-            r_curr = residual(b_curr)
-            if r_prev * r_curr <= 0.0:
-                sol_m = brent_1d(residual, a_prev, b_curr, tol=1e-12, max_iter=60)
-                break
-            a_prev, r_prev = b_curr, r_curr
-        if sol_m is None:
-            return None
+    sol_m = None
+    if mbat_ini is not None and math.isfinite(mbat_ini) and mbat_ini > 1e-4:
+        lo_w = max(1e-5, 0.65 * mbat_ini)
+        hi_w = min(60.0, 1.45 * mbat_ini)
+        if lo_w < hi_w:
+            r_lo = residual(lo_w)
+            r_hi = residual(hi_w)
+            if r_lo * r_hi <= 0.0:
+                sol_m = brent_1d(residual, lo_w, hi_w, tol=1e-12, max_iter=60)
+
+    if sol_m is None:
+        malla = (1e-5, 0.02, 0.08, 0.25, 0.7, 1.8, 4.5, 10.0, 25.0, 60.0)
+        a_prev = malla[0]
+        r_prev = residual(a_prev)
+        if abs(r_prev) < 1e-12:
+            sol_m = a_prev
+        else:
+            for b_curr in malla[1:]:
+                r_curr = residual(b_curr)
+                if r_prev * r_curr <= 0.0:
+                    sol_m = brent_1d(residual, a_prev, b_curr, tol=1e-12, max_iter=60)
+                    break
+                a_prev, r_prev = b_curr, r_curr
+            if sol_m is None:
+                return None
 
     res = eval_con_mbat(sol_m)
-    if not math.isfinite(res[12]) or res[12] <= 0.0 or res[12] > 25.0:
+    if not math.isfinite(res[12]) or res[12] <= 0.0 or res[12] > 60.0:
         return None
     return (
         res[0], res[1], res[2], res[3], res[4], res[5],
@@ -514,9 +525,11 @@ def evaluar_punto(
         fcal = float(p["fcal"])
         beta, nu, alpha = float(p["beta"]), float(p["nu"]), float(p["alpha"])
         Rac, ka, sigma = float(p["Rac"]), float(p["ka"]), float(p["sigma"])
-        if min(e, W, ncapS, ep, ke, fcal, beta, nu, alpha, Rac, ka, sigma) <= 0.0:
+        if min(e, W, ep, ke, fcal, beta, nu, alpha, Rac, ka, sigma) <= 0.0:
             return None
-        if ncapI < 0.0 or (estricto_prolado and ncapI <= 0.0):
+        if estricto_prolado and (ncapS <= 0.0 or ncapI <= 0.0):
+            return None
+        if ncapS < 0.0 or ncapI < 0.0:
             return None
         if not (0.0 < eps < 1.0):
             return None
@@ -538,19 +551,29 @@ def evaluar_punto(
             dT=dT, D=D, g=g, beta=beta, nu=nu, alpha=alpha,
             fcal=fcal, ka=ka, ep=ep, ke=ke, he=hetot,
         )
-        dTi, RaD, Nui, hi, dTcel, Rae, Nuc, Usup, Uinf, U = resolver_tearing_u(
-            dT=dT, D=D, e=e, ncapS=ncapS, ncapI=ncapI, g=g, beta=beta, nu=nu, alpha=alpha,
-            fcal=fcal, ka=ka, ep=ep, ke=ke, Rac=Rac, hrad=hrad, hetot=hetot,
-            dTi_ini=base.get("dTi"), dTcel_ini=base.get("dTcel"),
-        )
-
-        Qp0 = U0 * S * dT
-        Qp = U * S * dT
-        dQp = Qp0 - Qp
-        fais = dQp / Qp0 if Qp0 > 0.0 else 0.0
-        if estricto_prolado and not (0.0 < fais < 1.0):
-            return None
-        Sc = ncap * S * (1.0 + 2.0 * e / W)
+        if ncapS == 0.0 and ncapI == 0.0:
+            dTi, RaD, Nui, hi = dTi0, RaD0, Nui0, hi0
+            dTcel, Rae, Nuc = 0.0, 0.0, 1.0
+            Usup, Uinf, U = U0, U0, U0
+            Qp0 = U0 * S * dT
+            Qp = Qp0
+            dQp = 0.0
+            fais = 0.0
+            Sc = S
+        else:
+            dTi, RaD, Nui, hi, dTcel, Rae, Nuc, Usup, Uinf, U = resolver_tearing_u(
+                dT=dT, D=D, e=e, ncapS=ncapS, ncapI=ncapI, g=g, beta=beta, nu=nu, alpha=alpha,
+                fcal=fcal, ka=ka, ep=ep, ke=ke, Rac=Rac, hrad=hrad, hetot=hetot,
+                dTi_ini=base.get("dTi"), dTcel_ini=base.get("dTcel"),
+            )
+            Qp0 = U0 * S * dT
+            Qp = U * S * dT
+            dQp = Qp0 - Qp
+            fais = dQp / Qp0 if Qp0 > 0.0 else 0.0
+            if estricto_prolado and not (0.0 < fais < 1.0):
+                return None
+            Sc_cel = ncap * S * (1.0 + 2.0 * e / W)
+            Sc = Sc_cel if estricto_prolado else max(S, Sc_cel)
         mc = Sc * sigma
 
         dTc = float(p["dTc"])
@@ -609,6 +632,7 @@ def evaluar_punto(
             mflot=mflot, fap=fap, g=g, az=az, ax=ax, FD=FD,
             v=v, tm=tm, rho1=rho1, Ap=Ap, ntot=ntot, km=km,
             Pad=Pad, ebat=ebat, DoD=DoD, ntemp=ntemp, Cmax=Cmax,
+            mbat_ini=base.get("mbat"),
         )
         if sol_mbat is None:
             return None

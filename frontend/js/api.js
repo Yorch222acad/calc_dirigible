@@ -54,3 +54,42 @@ export async function postOptimizar(objetivo, variables) {
   });
   return parsearRespuesta(resp);
 }
+
+export async function postAnalizarDiseno(payload) {
+  const resp = await fetch("/api/diseno/analizar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parsearRespuesta(resp);
+}
+
+export async function fetchHistorico() {
+  const resp = await fetch("/api/historico");
+  return parsearRespuesta(resp);
+}
+
+export async function postGuardarHistorico(payload) {
+  const resp = await fetch("/api/historico", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parsearRespuesta(resp);
+}
+
+export async function deleteHistorico(id) {
+  const resp = await fetch(`/api/historico/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  return parsearRespuesta(resp);
+}
+
+export async function postImportarHistorico(registros) {
+  const resp = await fetch("/api/historico/importar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ registros }),
+  });
+  return parsearRespuesta(resp);
+}

@@ -10,9 +10,9 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
 
   <!-- Hojas de estilo modulares -->
-  <link rel="stylesheet" href="/static/css/base.css?v=13" />
-  <link rel="stylesheet" href="/static/css/layout.css?v=13" />
-  <link rel="stylesheet" href="/static/css/components.css?v=13" />
+  <link rel="stylesheet" href="/static/css/base.css?v=14" />
+  <link rel="stylesheet" href="/static/css/layout.css?v=14" />
+  <link rel="stylesheet" href="/static/css/components.css?v=14" />
 </head>
 <body>
   <div id="app-shell" class="app-shell">
@@ -41,6 +41,9 @@
       </div>
 
       <div class="header-actions">
+        <button id="btn-open-design" type="button" class="btn btn-design-header" title="Indicadores ponderados, especificaciones óptimas de construcción, histórico manual y casos tipo">
+          📐 Óptimo y Casos Tipo
+        </button>
         <button id="btn-open-sim" type="button" class="btn btn-sim-header" title="Simulación por fases (maniobra/crucero), enfriamiento no lineal y optimizador de diseño">
           ⚡ Simulación y optimización
         </button>
@@ -104,6 +107,12 @@
           <div id="sim-header" class="equations-header sim-view-header"></div>
           <div id="sim-content" class="sim-content"></div>
         </div>
+
+        <!-- VISTA 5: INDICADORES PONDERADOS, ÓPTIMO DE CONSTRUCCIÓN, HISTÓRICO Y CASOS TIPO -->
+        <div id="design-view" class="central-view hidden">
+          <div id="design-header" class="equations-header design-view-header"></div>
+          <div id="design-content" class="sim-content design-content"></div>
+        </div>
       </main>
     </div>
 
@@ -156,6 +165,6 @@
   </div>
 
   <!-- Punto de entrada JavaScript Modular (ES6) -->
-  <script type="module" src="/static/js/main.js?v=13"></script>
+  <script type="module" src="/static/js/main.js?v=14"></script>
 </body>
 </html>

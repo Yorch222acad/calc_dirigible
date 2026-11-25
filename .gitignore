@@ -2,3 +2,4 @@ venv_sus_d/
 __pycache__/
 *.pyc
 teoria_a_considerar/
+historico_disenos.json

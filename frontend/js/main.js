@@ -10,25 +10,31 @@ import {
   postModificar,
   postReiniciar,
   postOptimizar,
-} from "./api.js?v=13";
-import { store } from "./state.js?v=13";
+  postAnalizarDiseno,
+  fetchHistorico,
+  postGuardarHistorico,
+  deleteHistorico,
+  postImportarHistorico,
+} from "./api.js?v=14";
+import { store } from "./state.js?v=14";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=13";
+} from "./components/sidebar.js?v=14";
 import {
   renderizarPanelEcuaciones,
   desplazarDentroContenedor,
   resaltarYEncuadrarEcuacion,
-} from "./components/equations.js?v=13";
-import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=13";
-import { renderizarPanelSimulacion } from "./components/simulation.js?v=13";
-import { renderizarPanelGraficas } from "./components/charts.js?v=13";
+} from "./components/equations.js?v=14";
+import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=14";
+import { renderizarPanelSimulacion } from "./components/simulation.js?v=14";
+import { renderizarPanelDiseno } from "./components/designStudio.js?v=14";
+import { renderizarPanelGraficas } from "./components/charts.js?v=14";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=13";
+} from "./components/varInput.js?v=14";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");
@@ -36,6 +42,7 @@ const alertBanner = document.getElementById("alert-banner");
 const countFixedEl = document.getElementById("count-fixed");
 const countCalcEl = document.getElementById("count-calc");
 const legendPenalizedEl = document.getElementById("legend-penalized");
+const btnOpenDesign = document.getElementById("btn-open-design");
 const btnOpenSim = document.getElementById("btn-open-sim");
 const btnReset = document.getElementById("btn-reset");
 
@@ -59,6 +66,10 @@ const flowContent = document.getElementById("flow-content");
 const simView = document.getElementById("sim-view");
 const simHeader = document.getElementById("sim-header");
 const simContent = document.getElementById("sim-content");
+
+const designView = document.getElementById("design-view");
+const designHeader = document.getElementById("design-header");
+const designContent = document.getElementById("design-content");
 
 const bottomPanel = document.getElementById("bottom-panel");
 const bottomResizer = document.getElementById("bottom-resizer");
@@ -212,6 +223,7 @@ async function aplicarModificacion(entradas) {
     const nuevoEstado = await postModificar(entradas);
     store.sistema = nuevoEstado;
     store.resultadoOptimizacion = null;
+    store.resultadoDiseno = null;
 
     // Si hay una variable abierta en detalle, refrescar su detalle con los nuevos cálculos
     if (store.variableDetalle) {
@@ -220,6 +232,9 @@ async function aplicarModificacion(entradas) {
     }
 
     store.notificar();
+    if (store.vistaActiva === "diseno") {
+      analizarDisenoYCargar(ultimoPayloadDiseno);
+    }
     mostrarMensaje("Sistema resuelto y actualizado correctamente.", "success");
   } catch (err) {
     mostrarMensaje(err.message, "error");
@@ -241,6 +256,62 @@ async function ejecutarOptimizacion(objetivo, variables) {
         "error"
       );
     }
+  } catch (err) {
+    mostrarMensaje(err.message, "error");
+  }
+}
+
+let ultimoPayloadDiseno = {};
+
+async function analizarDisenoYCargar(payload = {}) {
+  ultimoPayloadDiseno = { ...payload };
+  store.cargandoDiseno = true;
+  store.notificar();
+  try {
+    const res = await postAnalizarDiseno(payload);
+    store.cargandoDiseno = false;
+    store.establecerResultadoDiseno(res);
+  } catch (err) {
+    store.cargandoDiseno = false;
+    store.notificar();
+    mostrarMensaje(err.message, "error");
+  }
+}
+
+async function cargarHistorico() {
+  try {
+    const data = await fetchHistorico();
+    store.establecerHistorico(data.registros || []);
+  } catch (err) {
+    mostrarMensaje(err.message, "error");
+  }
+}
+
+async function guardarEnHistorico(payload) {
+  try {
+    const data = await postGuardarHistorico(payload);
+    store.establecerHistorico(data.registros || []);
+    mostrarMensaje(`Configuración "${payload.nombre}" guardada en el histórico.`, "success");
+  } catch (err) {
+    mostrarMensaje(err.message, "error");
+  }
+}
+
+async function eliminarDeHistorico(id) {
+  try {
+    const data = await deleteHistorico(id);
+    store.establecerHistorico(data.registros || []);
+    mostrarMensaje("Registro eliminado del histórico.", "success");
+  } catch (err) {
+    mostrarMensaje(err.message, "error");
+  }
+}
+
+async function importarEnHistorico(registros) {
+  try {
+    const data = await postImportarHistorico(registros);
+    store.establecerHistorico(data.registros || []);
+    mostrarMensaje("Histórico importado correctamente.", "success");
   } catch (err) {
     mostrarMensaje(err.message, "error");
   }
@@ -280,14 +351,17 @@ function renderizarTodo(estadoApp) {
   const esVistaGraficas = estadoApp.vistaActiva === "graficas";
   const esVistaFlujo = estadoApp.vistaActiva === "flujo";
   const esVistaSim = estadoApp.vistaActiva === "simulacion";
-  const esVistaEcuaciones = !esVistaGraficas && !esVistaFlujo && !esVistaSim;
+  const esVistaDiseno = estadoApp.vistaActiva === "diseno";
+  const esVistaEcuaciones = !esVistaGraficas && !esVistaFlujo && !esVistaSim && !esVistaDiseno;
 
   btnOpenSim?.classList.toggle("active", esVistaSim);
+  btnOpenDesign?.classList.toggle("active", esVistaDiseno);
 
   equationsView.classList.toggle("hidden", !esVistaEcuaciones);
   chartsView.classList.toggle("hidden", !esVistaGraficas);
   flowView?.classList.toggle("hidden", !esVistaFlujo);
   simView?.classList.toggle("hidden", !esVistaSim);
+  designView?.classList.toggle("hidden", !esVistaDiseno);
 
   if (esVistaGraficas) {
     renderizarPanelGraficas(
@@ -310,6 +384,19 @@ function renderizarTodo(estadoApp) {
       alEjecutarOptimizacion: ejecutarOptimizacion,
       alAplicarOptimo: aplicarModificacion,
       alClickVariable: (nomVar) => seleccionarVariable(nomVar),
+    });
+  } else if (esVistaDiseno) {
+    renderizarPanelDiseno(designHeader, designContent, estadoApp, {
+      alAnalizar: analizarDisenoYCargar,
+      alAplicar: aplicarModificacion,
+      alGuardarHistorico: guardarEnHistorico,
+      alEliminarHistorico: eliminarDeHistorico,
+      alImportarHistorico: importarEnHistorico,
+      alMensaje: mostrarMensaje,
+      alCambiarPestana: (tab) => {
+        store.seleccionarDiseno(tab);
+        if (designContent) designContent.scrollTop = 0;
+      },
     });
   } else {
     renderizarPanelEcuaciones(
@@ -378,6 +465,15 @@ async function iniciarApp() {
     btnToggleBottomSize.textContent = exp ? "⇕ Reducir panel" : "⇕ Expandir panel";
   });
 
+  btnOpenDesign?.addEventListener("click", () => {
+    store.seleccionarDiseno();
+    if (designContent) designContent.scrollTop = 0;
+    if (!store.resultadoDiseno) {
+      analizarDisenoYCargar(ultimoPayloadDiseno);
+    }
+    cargarHistorico();
+  });
+
   btnOpenSim?.addEventListener("click", () => {
     store.seleccionarSimulacion();
     if (simContent) simContent.scrollTop = 0;
@@ -388,12 +484,16 @@ async function iniciarApp() {
       const estadoInicial = await postReiniciar();
       store.sistema = estadoInicial;
       store.resultadoOptimizacion = null;
+      store.resultadoDiseno = null;
       if (store.variableDetalle) {
         store.variableDetalle = await fetchDetalleVariable(
           store.variableDetalle.variable.nombre
         );
       }
       store.notificar();
+      if (store.vistaActiva === "diseno") {
+        analizarDisenoYCargar(ultimoPayloadDiseno);
+      }
       mostrarMensaje("Valores restaurados a la calibración inicial.", "success");
     } catch (err) {
       mostrarMensaje(err.message, "error");

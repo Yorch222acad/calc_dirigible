@@ -8,8 +8,8 @@
  *   3. Derecha:   Explicación de cada variable involucrada y el nombre completo de su unidad.
  */
 
-import { renderizarFormulaKaTeX } from "../katex_helper.js?v=13";
-import { renderizarFlujoCategoria } from "./flowchart.js?v=13";
+import { renderizarFormulaKaTeX } from "../katex_helper.js?v=14";
+import { renderizarFlujoCategoria } from "./flowchart.js?v=14";
 
 let localFlashTimeout = null;
 

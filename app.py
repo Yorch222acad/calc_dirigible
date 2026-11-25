@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import diseno
 import flujo
 import formateo
 import graficas
@@ -234,6 +235,30 @@ class PeticionOptimizar(BaseModel):
     variables: list[str] = ["lam", "v", "mflot", "e", "T2"]
 
 
+class PeticionAnalisisDiseno(BaseModel):
+    pesos: dict[str, float] | None = None
+    variables: list[str] | None = None
+    cbat_kg: float = diseno.CBAT_KG_DEFECTO
+    respetar_limites: bool = False
+    restricciones: list[dict[str, Any]] | None = None
+    base_overrides: dict[str, float] | None = None
+    ejecutar_optimizador: bool = True
+    usar_optimo_como_base: bool = True
+
+
+class PeticionGuardarHistorico(BaseModel):
+    nombre: str
+    nota: str = ""
+    origen: str = "actual"
+    entradas: dict[str, float] | None = None
+    pesos: dict[str, float] | None = None
+    cbat_kg: float = diseno.CBAT_KG_DEFECTO
+
+
+class PeticionImportarHistorico(BaseModel):
+    registros: list[dict[str, Any]]
+
+
 # =============================================================
 # Endpoints de la API
 # =============================================================
@@ -344,6 +369,135 @@ def optimizar_sistema(req: PeticionOptimizar) -> dict[str, Any]:
         res["entradas_optimo"] = None
     res["requiere_cambio_fijas"] = set(modelo.FIJAS_INI) != estado.fijas
     return res
+
+
+@app.post("/api/diseno/analizar")
+def analizar_diseno(req: PeticionAnalisisDiseno) -> dict[str, Any]:
+    """
+    Evalúa los 6 indicadores ponderados, optimiza especificaciones técnicas de construcción
+    (sin SymPy en runtime) y genera los Casos Tipo referenciados al punto óptimo.
+    """
+    import time
+
+    t_ini = time.perf_counter()
+    pesos_limpios = diseno.normalizar_pesos(req.pesos)
+    cbat_kg = max(0.0, float(req.cbat_kg))
+
+    try:
+        if req.ejecutar_optimizador:
+            opt_res = diseno.optimizar_especificaciones(
+                estado.valores,
+                pesos=pesos_limpios,
+                vars_libres=req.variables,
+                cbat_kg=cbat_kg,
+                respetar_limites=req.respetar_limites,
+                restricciones=req.restricciones,
+                base_overrides=req.base_overrides,
+            )
+        else:
+            fijas_act = diseno.extraer_entradas_fijas(estado.valores)
+            if req.base_overrides:
+                for k, v in req.base_overrides.items():
+                    if k in fijas_act:
+                        fijas_act[k] = float(v)
+            import evaluador
+
+            sol_act = evaluador.evaluar_punto(fijas_act, estricto_prolado=False)
+            if sol_act is None:
+                raise ValueError("El estado actual no pudo evaluarse físicamente.")
+            ev_act = diseno.evaluar_indicadores(sol_act, pesos_limpios, cbat_kg=cbat_kg)
+            restr_limpias = diseno.normalizar_restricciones(
+                req.restricciones, fijas_act, respetar_limites=req.respetar_limites
+            )
+            opt_res = {
+                "encontrado": True,
+                "tiempo_ms": 0.0,
+                "evaluaciones": 1,
+                "evaluaciones_validas": 1,
+                "actual": ev_act,
+                "entradas_actual": fijas_act,
+                "avisos_restricciones_actual": [],
+                "optimo": ev_act,
+                "entradas_optimo": fijas_act,
+                "mejora_score": 0.0,
+                "cambios": {},
+                "vars_optimizadas": list(req.variables if req.variables is not None else diseno.VARS_OPTIMIZABLES_DISENO),
+                "respetar_limites": any(r["grupo"] == "hardware" and r["activa"] for r in restr_limpias),
+                "restricciones": restr_limpias,
+            }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    base_casos = (
+        opt_res["entradas_optimo"]
+        if req.usar_optimo_como_base and opt_res["encontrado"] and opt_res["entradas_optimo"] is not None
+        else opt_res.get("entradas_actual", diseno.extraer_entradas_fijas(estado.valores))
+    )
+    casos_res = diseno.generar_casos_tipo(base_casos, pesos=pesos_limpios, cbat_kg=cbat_kg)
+    tiempo_total_ms = round((time.perf_counter() - t_ini) * 1000.0, 2)
+
+    return {
+        **opt_res,
+        "tiempo_opt_ms": opt_res["tiempo_ms"],
+        "tiempo_total_ms": tiempo_total_ms,
+        "casos_tipo": casos_res["casos"],
+        "familias": casos_res["familias"],
+        "referencia_score": casos_res["referencia_score"],
+        "referencia_capas": casos_res["referencia_capas"],
+        "indicadores_meta": diseno.INDICADORES_META,
+        "variables_restriccion": diseno.VARIABLES_RESTRICCION,
+        "pesos": pesos_limpios,
+        "cbat_kg": cbat_kg,
+        "anclas": diseno.ANCLAS_BASE,
+        "requiere_cambio_fijas": set(modelo.FIJAS_INI) != estado.fijas,
+    }
+
+
+@app.get("/api/historico")
+def listar_historico() -> dict[str, Any]:
+    """Devuelve la lista de configuraciones e indicadores guardados manualmente."""
+    return {"registros": diseno.cargar_historico()}
+
+
+@app.post("/api/historico")
+def guardar_en_historico(req: PeticionGuardarHistorico) -> dict[str, Any]:
+    """Guarda manualmente una configuración y sus puntuaciones en `historico_disenos.json`."""
+    entradas = (
+        req.entradas
+        if req.entradas is not None
+        else diseno.extraer_entradas_fijas(estado.valores)
+    )
+    try:
+        reg = diseno.guardar_registro_historico(
+            nombre=req.nombre,
+            nota=req.nota,
+            origen=req.origen,
+            entradas_fijas=entradas,
+            pesos=req.pesos,
+            cbat_kg=req.cbat_kg,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"registro": reg, "registros": diseno.cargar_historico()}
+
+
+@app.delete("/api/historico/{item_id}")
+def borrar_de_historico(item_id: str) -> dict[str, Any]:
+    """Elimina un registro guardado del histórico manual por ID."""
+    ok = diseno.eliminar_registro_historico(item_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Registro '{item_id}' no encontrado en el histórico.")
+    return {"eliminado": item_id, "registros": diseno.cargar_historico()}
+
+
+@app.post("/api/historico/importar")
+def importar_en_historico(req: PeticionImportarHistorico) -> dict[str, Any]:
+    """Importa registros desde un JSON exportado previamente al histórico local."""
+    try:
+        registros = diseno.importar_historico(req.registros)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"registros": registros}
 
 
 # =============================================================
