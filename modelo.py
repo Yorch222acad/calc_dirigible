@@ -17,7 +17,7 @@ import evaluador
 # =============================================================
 # VARIABLES: nombre -> (descripción, unidad, valor inicial o None)
 # Calibradas para La Paz - Zona Sur a 100 m (~3.350 m s.n.m.)
-# Diseño base: 3 viajes (nv=3, d1=280 m), Mylar 6 um (3/2 capas 14 mm), T2=85°C, v=5.5 m/s, lam=2.3
+# Diseño base: 3 viajes (nv=3, d1=280 m), Mylar 6 um (3/2 capas 14 mm), T2=85°C, v=8.5 m/s, vv=6.0 m/s, lam=2.3
 # =============================================================
 VARIABLES = {
     # Caso 1: gas a temperatura ambiente (exterior)
@@ -118,8 +118,8 @@ VARIABLES = {
     "Eprop":  ("Energía suministrada por combustible en misión", "J",   None),
     "mgm":    ("Masa de combustible consumida en misión","kg",          None),
     # Resistencia aerodinámica y desplazamiento multi-viaje
-    "v":      ("Velocidad relativa al aire",             "m/s",         5.5),
-    "vv":     ("Velocidad del viento en contra",         "m/s",         2.5),
+    "v":      ("Velocidad relativa al aire",             "m/s",         8.5),
+    "vv":     ("Velocidad del viento en contra",         "m/s",         6.0),
     "vg":     ("Velocidad neta respecto al suelo (v-vv)","m/s",         None),
     "d1":     ("Distancia de un viaje base",             "m",           280.0),
     "nv":     ("Número de viajes consecutivos en misión","adim",        3.0),

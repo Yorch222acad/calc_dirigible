@@ -33,20 +33,22 @@ const PRESETS_PESOS = {
 
 const COLORES_SERIES = ["#38bdf8", "#4ade80", "#facc15", "#f472b6", "#fb923c"];
 
-const VARS_CONSTRUCTIVAS_META = [
-  { key: "lam", label: "Esbeltez (λ)", unidad: "adim", factor: 1, step: 0.05, min: 1.4, max: 6.0, dec: 2 },
-  { key: "v", label: "Vel. aire (v)", unidad: "m/s", factor: 1, step: 0.1, min: 1.0, max: 15.0, dec: 2 },
-  { key: "mflot", label: "Aire cal. (mflot)", unidad: "kg", factor: 1, step: 0.05, min: 0.2, max: 15.0, dec: 3 },
-  { key: "e", label: "Celda Mylar (e)", unidad: "mm", factor: 1000, step: 0.5, min: 1.0, max: 50.0, dec: 1 },
-  { key: "T2", label: "Temp. gas (T₂)", unidad: "°C", factor: 1, step: 1.0, min: 30.0, max: 130.0, dec: 1 },
-  { key: "ncapS", label: "Capas sup. (ncapS)", unidad: "capas", factor: 1, step: 1, min: 0, max: 6, dec: 0 },
-  { key: "ncapI", label: "Capas inf. (ncapI)", unidad: "capas", factor: 1, step: 1, min: 0, max: 6, dec: 0 },
-];
+const CATALOGO_VARS_DEFECTO = {
+  lam: { label: "Esbeltez (λ)", unidad: "adim", factor: 1, step: 0.05, min: 1.4, max: 6.0, dec: 2, por_defecto: true },
+  v: { label: "Vel. aire (v)", unidad: "m/s", factor: 1, step: 0.1, min: 1.0, max: 15.0, dec: 2, por_defecto: true },
+  mflot: { label: "Aire cal. (mflot)", unidad: "kg", factor: 1, step: 0.05, min: 0.2, max: 15.0, dec: 3, por_defecto: true },
+  e: { label: "Celda Mylar (e)", unidad: "mm", factor: 1000, step: 0.5, min: 1.0, max: 50.0, dec: 1, por_defecto: true },
+  T2: { label: "Temp. gas (T₂)", unidad: "°C", factor: 1, step: 1.0, min: 30.0, max: 130.0, dec: 1, por_defecto: true },
+  ncapS: { label: "Capas sup. (ncapS)", unidad: "capas", factor: 1, step: 1, min: 0, max: 6, dec: 0, por_defecto: true },
+  ncapI: { label: "Capas inf. (ncapI)", unidad: "capas", factor: 1, step: 1, min: 0, max: 6, dec: 0, por_defecto: true },
+  mp: { label: "Combustible a bordo (mp)", unidad: "g", factor: 1000, step: 5, min: 5, max: 1000, dec: 1, por_defecto: true },
+};
 
 const designUi = {
   pesos: { ...PRESETS_PESOS.equilibrado.pesos },
   cbat_kg: 750,
-  variables: new Set(["lam", "v", "mflot", "e", "T2", "ncapS", "ncapI"]),
+  varsVisibles: Object.keys(CATALOGO_VARS_DEFECTO),
+  variables: new Set(Object.keys(CATALOGO_VARS_DEFECTO)),
   valoresInputs: {},
   ultimoSistemaRef: null,
   restricciones: null,
@@ -56,30 +58,35 @@ const designUi = {
   expandidoHistId: null,
 };
 
-function obtenerValorSistemaDisplay(estadoApp, meta) {
-  const varObj = estadoApp?.sistema?.variables?.find((v) => v.nombre === meta.key);
-  if (!varObj || !Number.isFinite(Number(varObj.valor))) return null;
+function obtenerCatalogoVars(res) {
+  return res?.catalogo_vars_constructivas || CATALOGO_VARS_DEFECTO;
+}
+
+function obtenerValorSistemaDisplay(estadoApp, varKey, meta) {
+  const varObj = estadoApp?.sistema?.variables?.find((v) => v.nombre === varKey);
+  if (!varObj || !Number.isFinite(Number(varObj.valor)) || !meta) return null;
   return Number((Number(varObj.valor) * meta.factor).toFixed(meta.dec));
 }
 
-function sincronizarInputsConSistema(estadoApp, forzar = false) {
+function sincronizarInputsConSistema(estadoApp, catalogo = CATALOGO_VARS_DEFECTO, forzar = false) {
   if (!estadoApp?.sistema?.variables) return;
   if (!forzar && designUi.ultimoSistemaRef === estadoApp.sistema) return;
   designUi.ultimoSistemaRef = estadoApp.sistema;
   const nuevo = {};
-  for (const meta of VARS_CONSTRUCTIVAS_META) {
-    const val = obtenerValorSistemaDisplay(estadoApp, meta);
-    if (val !== null) nuevo[meta.key] = val;
+  for (const key of designUi.varsVisibles) {
+    const val = obtenerValorSistemaDisplay(estadoApp, key, catalogo[key]);
+    if (val !== null) nuevo[key] = val;
   }
   designUi.valoresInputs = nuevo;
 }
 
-function construirBaseOverrides() {
+function construirBaseOverrides(catalogo = CATALOGO_VARS_DEFECTO) {
   const ov = {};
-  for (const meta of VARS_CONSTRUCTIVAS_META) {
-    const vDisp = Number(designUi.valoresInputs[meta.key]);
-    if (Number.isFinite(vDisp)) {
-      ov[meta.key] = vDisp / meta.factor;
+  for (const key of designUi.varsVisibles) {
+    const meta = catalogo[key];
+    const vDisp = Number(designUi.valoresInputs[key]);
+    if (meta && Number.isFinite(vDisp)) {
+      ov[key] = vDisp / meta.factor;
     }
   }
   return ov;
@@ -195,7 +202,12 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
   const { alAnalizar, alAplicar, alGuardarHistorico } = callbacks;
   const metas = res.indicadores_meta || {};
   const varsRestrMeta = res.variables_restriccion || {};
+  const catalogoVars = obtenerCatalogoVars(res);
   const cargando = Boolean(estadoApp?.cargandoDiseno);
+
+  const varsDisponiblesAgregar = Object.entries(catalogoVars).filter(
+    ([vk]) => !designUi.varsVisibles.includes(vk)
+  );
 
   if (designUi.restricciones === null && Array.isArray(res.restricciones)) {
     designUi.restricciones = res.restricciones.map((r) => ({ ...r }));
@@ -256,28 +268,52 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
         <button id="btn-reset-design-vars" type="button" class="btn btn-ghost design-mini-btn">↺ Restablecer valores del sistema</button>
       </div>
       <div class="design-vars-grid">
-        ${VARS_CONSTRUCTIVAS_META.map((meta) => {
-          const libre = designUi.variables.has(meta.key);
-          const valSis = obtenerValorSistemaDisplay(estadoApp, meta);
-          const valInput = designUi.valoresInputs[meta.key] ?? valSis ?? "";
-          return `
+        ${designUi.varsVisibles
+          .map((varKey) => {
+            const meta = catalogoVars[varKey];
+            if (!meta) return "";
+            const libre = designUi.variables.has(varKey);
+            const valSis = obtenerValorSistemaDisplay(estadoApp, varKey, meta);
+            const valInput = designUi.valoresInputs[varKey] ?? valSis ?? "";
+            const btnQuitar =
+              designUi.varsVisibles.length > 1
+                ? `<button type="button" class="btn btn-ghost design-mini-btn design-var-del" data-var="${escaparHtml(varKey)}" title="Quitar variable del panel">✕</button>`
+                : "";
+            return `
             <div class="design-var-card ${libre ? "is-free" : "is-fixed"}">
               <div class="design-var-top">
-                <label class="design-var-chk-lbl" title="Si está marcado, el optimizador varía ${meta.key}; si se desmarca, usa exactamente el valor numérico ingresado abajo.">
-                  <input type="checkbox" class="design-var-check" value="${meta.key}" ${libre ? "checked" : ""} />
+                <label class="design-var-chk-lbl" title="Si está marcado, el optimizador varía ${escaparHtml(varKey)}; si se desmarca, usa exactamente el valor numérico ingresado abajo.">
+                  <input type="checkbox" class="design-var-check" value="${escaparHtml(varKey)}" ${libre ? "checked" : ""} />
                   <span>${escaparHtml(meta.label)}</span>
                 </label>
-                <span class="design-var-state">${libre ? "Libre" : "Fija"}</span>
+                <div class="design-var-top-actions">
+                  <span class="design-var-state">${libre ? "Libre" : "Fija"}</span>
+                  ${btnQuitar}
+                </div>
               </div>
               <div class="design-var-input-row">
-                <input type="number" class="design-var-num" data-var="${meta.key}" step="${meta.step}" min="${meta.min}" max="${meta.max}" value="${valInput}" />
+                <input type="number" class="design-var-num" data-var="${escaparHtml(varKey)}" step="${meta.step}" min="${meta.min}" max="${meta.max}" value="${valInput}" />
                 <span class="design-var-unit">${escaparHtml(meta.unidad)}</span>
               </div>
               <div class="design-var-sys">Actual sistema: <strong>${valSis !== null ? valSis : "—"} ${escaparHtml(meta.unidad)}</strong></div>
             </div>
           `;
-        }).join("")}
+          })
+          .join("")}
       </div>
+      ${
+        varsDisponiblesAgregar.length > 0
+          ? `<div class="design-add-var-row">
+              <span class="opt-label">+ Agregar variable constructiva:</span>
+              <select id="design-new-var-sel" class="design-lim-var-sel">
+                ${varsDisponiblesAgregar
+                  .map(([vk, vm]) => `<option value="${escaparHtml(vk)}">${escaparHtml(vm.label)} (${escaparHtml(vm.unidad)})</option>`)
+                  .join("")}
+              </select>
+              <button id="btn-add-design-var" type="button" class="btn btn-outline design-mini-btn">+ Añadir</button>
+            </div>`
+          : ""
+      }
     </div>
 
     <div class="design-limits-panel">
@@ -386,7 +422,7 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
   });
 
   secCtrl.querySelector("#btn-reset-design-vars")?.addEventListener("click", () => {
-    sincronizarInputsConSistema(estadoApp, true);
+    sincronizarInputsConSistema(estadoApp, catalogoVars, true);
     alAnalizar(true);
   });
 
@@ -397,6 +433,27 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
       renderizarPestanaOptimo(root, res, estadoApp, callbacks);
     }
   };
+
+  secCtrl.querySelector("#btn-add-design-var")?.addEventListener("click", () => {
+    const vk = secCtrl.querySelector("#design-new-var-sel")?.value;
+    if (!vk || !catalogoVars[vk] || designUi.varsVisibles.includes(vk)) return;
+    designUi.varsVisibles.push(vk);
+    designUi.variables.add(vk);
+    const valSis = obtenerValorSistemaDisplay(estadoApp, vk, catalogoVars[vk]);
+    if (valSis !== null) designUi.valoresInputs[vk] = valSis;
+    repintarLocal();
+  });
+
+  secCtrl.querySelectorAll(".design-var-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const vk = btn.dataset.var;
+      if (designUi.varsVisibles.length <= 1) return;
+      designUi.varsVisibles = designUi.varsVisibles.filter((k) => k !== vk);
+      designUi.variables.delete(vk);
+      delete designUi.valoresInputs[vk];
+      repintarLocal();
+    });
+  });
 
   secCtrl.querySelector("#design-limits-toggle")?.addEventListener("change", (e) => {
     const act = Boolean(e.target.checked);
@@ -677,6 +734,7 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
           <div><span>Temperatura (T₁ → T₂)</span><strong>${esp.T1} °C → ${esp.T2} °C</strong></div>
           <div><span>Pérdida térmica (Qp)</span><strong>${esp.Qp_w} W</strong></div>
           <div><span>Precalentamiento tierra</span><strong>${esp.Epre_kj} kJ (${esp.Cpre} Bs)</strong></div>
+          <div><span>Combustible a bordo (mp)</span><strong>${esp.mp_g} g</strong></div>
           <div><span>Combustible vuelo (mgm)</span><strong>${esp.mgm_g} g (${esp.Ccomb} Bs)</strong></div>
           <div><span>Enfriamiento 20K (tc)</span><strong>${esp.tc_s} s</strong></div>
         </div>
@@ -1106,9 +1164,9 @@ export function renderizarPanelDiseno(
   callbacks = {}
 ) {
   if (!estadoApp.sistema) return;
-  sincronizarInputsConSistema(estadoApp);
-
   const res = estadoApp.resultadoDiseno;
+  const catalogoVars = obtenerCatalogoVars(res);
+  sincronizarInputsConSistema(estadoApp, catalogoVars);
   const historico = estadoApp.historicoDisenos || [];
   const pestana = estadoApp.pestanaDiseno || "optimo";
 
@@ -1161,7 +1219,7 @@ export function renderizarPanelDiseno(
           cbat_kg: designUi.cbat_kg,
           respetar_limites: hwAct,
           restricciones: restrPayload,
-          base_overrides: construirBaseOverrides(),
+          base_overrides: construirBaseOverrides(catalogoVars),
           ejecutar_optimizador: ejecutarOpt,
           usar_optimo_como_base: designUi.usarOptimoComoBase,
         });

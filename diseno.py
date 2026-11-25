@@ -78,12 +78,39 @@ INDICADORES_META: dict[str, dict[str, str]] = {
     },
 }
 
-VARS_OPTIMIZABLES_DISENO = ("lam", "v", "mflot", "e", "T2", "ncapS", "ncapI")
-_PRIMOS_HALTON = (2, 3, 5, 7, 11, 13, 17)
+CATALOGO_VARS_CONSTRUCTIVAS: dict[str, dict[str, Any]] = {
+    "lam": {"label": "Esbeltez (λ)", "unidad": "adim", "factor": 1.0, "step": 0.05, "min": 1.4, "max": 6.0, "dec": 2, "entera": False, "por_defecto": True, "rango_opt": (1.52, 4.8)},
+    "v": {"label": "Vel. aire (v)", "unidad": "m/s", "factor": 1.0, "step": 0.1, "min": 1.0, "max": 15.0, "dec": 2, "entera": False, "por_defecto": True, "rango_opt": (3.0, 12.5)},
+    "mflot": {"label": "Aire cal. (mflot)", "unidad": "kg", "factor": 1.0, "step": 0.05, "min": 0.2, "max": 15.0, "dec": 3, "entera": False, "por_defecto": True, "rango_opt": (0.55, 6.8)},
+    "e": {"label": "Celda Mylar (e)", "unidad": "mm", "factor": 1000.0, "step": 0.5, "min": 1.0, "max": 50.0, "dec": 1, "entera": False, "por_defecto": True, "rango_opt": (0.008, 0.032)},
+    "T2": {"label": "Temp. gas (T₂)", "unidad": "°C", "factor": 1.0, "step": 1.0, "min": 30.0, "max": 130.0, "dec": 1, "entera": False, "por_defecto": True, "rango_opt": (55.0, 115.0)},
+    "ncapS": {"label": "Capas sup. (ncapS)", "unidad": "capas", "factor": 1.0, "step": 1.0, "min": 0.0, "max": 6.0, "dec": 0, "entera": True, "por_defecto": True, "rango_opt": (1.0, 4.0)},
+    "ncapI": {"label": "Capas inf. (ncapI)", "unidad": "capas", "factor": 1.0, "step": 1.0, "min": 0.0, "max": 6.0, "dec": 0, "entera": True, "por_defecto": True, "rango_opt": (1.0, 3.0)},
+    "mp": {"label": "Combustible a bordo (mp)", "unidad": "g", "factor": 1000.0, "step": 5.0, "min": 5.0, "max": 1000.0, "dec": 1, "entera": False, "por_defecto": True, "rango_opt": (0.015, 0.500)},
+    # Variables adicionales agregables dinámicamente desde el panel
+    "W": {"label": "Ancho celda (W)", "unidad": "cm", "factor": 100.0, "step": 1.0, "min": 8.0, "max": 60.0, "dec": 1, "entera": False, "por_defecto": False, "rango_opt": (0.10, 0.45)},
+    "xf": {"label": "Fracción nariz (xf)", "unidad": "adim", "factor": 1.0, "step": 0.01, "min": 0.22, "max": 0.48, "dec": 2, "entera": False, "por_defecto": False, "rango_opt": (0.25, 0.45)},
+    "mcarga": {"label": "Carga útil (mcarga)", "unidad": "kg", "factor": 1.0, "step": 0.1, "min": 0.2, "max": 6.0, "dec": 2, "entera": False, "por_defecto": False, "rango_opt": (0.3, 4.0)},
+    "nv": {"label": "Nº viajes (nv)", "unidad": "viajes", "factor": 1.0, "step": 1.0, "min": 1.0, "max": 15.0, "dec": 0, "entera": True, "por_defecto": False, "rango_opt": (1.0, 10.0)},
+    "d1": {"label": "Distancia viaje (d1)", "unidad": "m", "factor": 1.0, "step": 20.0, "min": 50.0, "max": 2000.0, "dec": 0, "entera": False, "por_defecto": False, "rango_opt": (100.0, 1000.0)},
+    "vv": {"label": "Viento en contra (vv)", "unidad": "m/s", "factor": 1.0, "step": 0.5, "min": 0.0, "max": 10.0, "dec": 1, "entera": False, "por_defecto": False, "rango_opt": (0.0, 8.0)},
+    "N": {"label": "Nº motores (N)", "unidad": "motores", "factor": 1.0, "step": 1.0, "min": 2.0, "max": 8.0, "dec": 0, "entera": True, "por_defecto": False, "rango_opt": (2.0, 8.0)},
+    "dp": {"label": "Diámetro hélice (dp)", "unidad": "cm", "factor": 100.0, "step": 0.5, "min": 15.0, "max": 45.0, "dec": 1, "entera": False, "por_defecto": False, "rango_opt": (0.18, 0.38)},
+    "ep": {"label": "Espesor Mylar (ep)", "unidad": "µm", "factor": 1.0e6, "step": 1.0, "min": 4.0, "max": 40.0, "dec": 1, "entera": False, "por_defecto": False, "rango_opt": (5.0e-6, 25.0e-6)},
+    "sigma": {"label": "Gramaje Mylar (σ)", "unidad": "g/m²", "factor": 1000.0, "step": 0.5, "min": 5.0, "max": 50.0, "dec": 1, "entera": False, "por_defecto": False, "rango_opt": (0.006, 0.035)},
+    "eps": {"label": "Emisividad Mylar (ε)", "unidad": "adim", "factor": 1.0, "step": 0.01, "min": 0.02, "max": 0.95, "dec": 2, "entera": False, "por_defecto": False, "rango_opt": (0.03, 0.90)},
+    "mad": {"label": "Masa adicional (mad)", "unidad": "kg", "factor": 1.0, "step": 0.05, "min": 0.3, "max": 4.0, "dec": 2, "entera": False, "por_defecto": False, "rango_opt": (0.5, 2.5)},
+    "dTc": {"label": "Caída temp. adm. (dTc)", "unidad": "K", "factor": 1.0, "step": 1.0, "min": 5.0, "max": 40.0, "dec": 1, "entera": False, "por_defecto": False, "rango_opt": (10.0, 35.0)},
+    "ncal": {"label": "Efic. calefactor (ncal)", "unidad": "adim", "factor": 1.0, "step": 0.02, "min": 0.4, "max": 0.95, "dec": 2, "entera": False, "por_defecto": False, "rango_opt": (0.55, 0.90)},
+}
+
+VARS_OPTIMIZABLES_DISENO = tuple(k for k, m in CATALOGO_VARS_CONSTRUCTIVAS.items() if m["por_defecto"])
+_PRIMOS_HALTON = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79)
 _ENTRADAS_KEYS = tuple(modelo.FIJAS_INI)
 
 VARIABLES_RESTRICCION: dict[str, dict[str, Any]] = {
     "T2": {"nombre": "Temp. interna máxima (T2)", "unidad": "°C", "factor": 1.0, "op_def": "<=", "valor_def": 95.0, "paso": 1.0, "origen": "sol"},
+    "mp": {"nombre": "Combustible a bordo (mp)", "unidad": "g", "factor": 1000.0, "op_def": "<=", "valor_def": 300.0, "paso": 10.0, "origen": "sol"},
     "mbat": {"nombre": "Masa de batería (mbat)", "unidad": "g", "factor": 1000.0, "op_def": "<=", "valor_def": 1000.0, "paso": 50.0, "origen": "sol"},
     "Pelec": {"nombre": "Potencia eléctrica (Pelec)", "unidad": "W", "factor": 1.0, "op_def": "<=", "valor_def": 640.0, "paso": 20.0, "origen": "sol"},
     "Ttot": {"nombre": "Empuje total (Ttot)", "unidad": "N", "factor": 1.0, "op_def": "<=", "valor_def": 34.5, "paso": 0.5, "origen": "sol"},
@@ -111,15 +138,16 @@ def restricciones_defecto(
     valores_base: dict[str, float] | None = None,
     activar_hardware: bool = False,
 ) -> list[dict[str, Any]]:
-    """Lista inicial de restricciones: T2 <= 95 °C activo por defecto + límites editables de hardware."""
+    """Lista inicial de restricciones: T2 <= 95 °C y mp <= 300 g activos + límites editables de hardware."""
     base = valores_base or modelo.valores_iniciales()
     mbmax_g = round(float(base.get("mbmax", 1.0)) * 1000.0, 1)
     pmax_w = round(float(base.get("Pmax", 640.0)), 1)
-    tmax_n = round(float(base.get("N", 4.0)) * float(base.get("Tmax1", 8.625)), 2)
-    thmax_deg = round(float(base.get("thmax", 65.0)), 1)
+    tmax_n = round(float(base.get("N", 4.0)) * float(base.get("Tmax1", 5.5)), 2)
+    thmax_deg = round(float(base.get("thmax", 75.0)), 1)
     hw_act = bool(activar_hardware)
     return [
         {"id": "lim_T2", "variable": "T2", "op": "<=", "valor": 95.0, "activa": True, "grupo": "general"},
+        {"id": "lim_mp", "variable": "mp", "op": "<=", "valor": 300.0, "activa": True, "grupo": "general"},
         {"id": "hw_mbat", "variable": "mbat", "op": "<=", "valor": mbmax_g, "activa": hw_act, "grupo": "hardware"},
         {"id": "hw_Pelec", "variable": "Pelec", "op": "<=", "valor": pmax_w, "activa": hw_act, "grupo": "hardware"},
         {"id": "hw_Ttot", "variable": "Ttot", "op": "<=", "valor": tmax_n, "activa": hw_act, "grupo": "hardware"},
@@ -467,7 +495,7 @@ def _evaluar_score_candidato(
     sol = evaluador.evaluar_punto(base_fijas, estricto_prolado=False, **ov)
     if sol is None:
         return None
-    if sol["cf"] <= sol["R"] or sol["cr"] <= sol["R"] or sol["mres"] <= 0.05 or sol["vg"] <= 0.35:
+    if sol["cf"] <= sol["R"] or sol["cr"] <= sol["R"] or sol["mres"] <= 0.05 or sol["vg"] <= 0.35 or sol["mp"] < sol["mgm"]:
         return None
     crudos = _metricas_indicadores_crudos(sol, cbat_kg)
     if not _cumple_restricciones(sol, crudos, restricciones):
@@ -511,7 +539,7 @@ def optimizar_especificaciones(
     if vars_libres is None:
         elegidas = list(VARS_OPTIMIZABLES_DISENO)
     else:
-        elegidas = [v for v in vars_libres if v in VARS_OPTIMIZABLES_DISENO]
+        elegidas = [v for v in vars_libres if v in CATALOGO_VARS_CONSTRUCTIVAS]
 
     sol_actual = evaluador.evaluar_punto(base_fijas, estricto_prolado=False)
     if sol_actual is None:
@@ -522,21 +550,28 @@ def optimizar_especificaciones(
 
     xf = base_fijas["xf"]
     lam_min = max(1.52, (0.5 / max(0.05, min(xf, 1.0 - xf))) * 1.06)
-    v_min = max(base_fijas["vv"] + 0.8, 3.0)
-    v_max = min(base_fijas["vpitch"] * 0.88, 11.5)
+    v_min = 3.0 if "vv" in elegidas else max(base_fijas["vv"] + 0.8, 3.0)
+    v_max = min(base_fijas["vpitch"] * 0.89, 12.5)
     if v_max <= v_min + 0.5:
-        v_max = v_min + 2.0
+        v_max = min(base_fijas["vpitch"] * 0.94, v_min + 2.0)
 
     mtot_ref = sol_actual["mtot"]
-    limites: dict[str, tuple[float, float]] = {
-        "lam": (lam_min, 4.8),
-        "v": (v_min, v_max),
-        "mflot": (max(0.55, 0.30 * mtot_ref), max(6.8, 1.85 * mtot_ref)),
-        "e": (0.008, 0.032),
-        "T2": (max(base_fijas["T1"] + 35.0, 55.0), 115.0),
-        "ncapS": (1.0, 4.0),
-        "ncapI": (1.0, 3.0),
-    }
+    limites: dict[str, tuple[float, float]] = {}
+    for vn in elegidas:
+        if vn == "lam":
+            limites[vn] = (lam_min, 4.8)
+        elif vn == "v":
+            limites[vn] = (v_min, v_max)
+        elif vn == "mflot":
+            limites[vn] = (max(0.55, 0.30 * mtot_ref), max(6.8, 1.85 * mtot_ref))
+        elif vn == "T2":
+            limites[vn] = (max(base_fijas["T1"] + 35.0, 55.0), 115.0)
+        elif vn == "mp":
+            limites[vn] = (max(0.015, sol_actual["mgm"] * 0.7), max(0.500, base_fijas["mp"] * 1.6))
+        else:
+            rango_def = CATALOGO_VARS_CONSTRUCTIVAS[vn]["rango_opt"]
+            val_act_vn = float(base_fijas[vn])
+            limites[vn] = (min(float(rango_def[0]), val_act_vn), max(float(rango_def[1]), val_act_vn))
 
     # Acotar rangos de búsqueda según restricciones activas sobre variables libres
     for r in restr_limpias:
@@ -591,14 +626,14 @@ def optimizar_especificaciones(
         candidatos.append((sc, ov_actual, s_sol, s_ev))
 
     if elegidas:
-        n_muestras = 300
+        n_muestras = 360
         for idx in range(1, n_muestras + 1):
             ov: dict[str, float] = {}
             for dim, v_nom in enumerate(elegidas):
                 lo, hi = limites[v_nom]
-                u = _halton(idx, _PRIMOS_HALTON[dim])
+                u = _halton(idx, _PRIMOS_HALTON[dim % len(_PRIMOS_HALTON)])
                 val = lo + u * (hi - lo)
-                if v_nom in ("ncapS", "ncapI"):
+                if CATALOGO_VARS_CONSTRUCTIVAS[v_nom].get("entera"):
                     val = float(round(val))
                 ov[v_nom] = val
             if "ncapS" in ov and "ncapI" in ov and ov["ncapI"] > ov["ncapS"]:
@@ -646,7 +681,7 @@ def optimizar_especificaciones(
             for frac in (0.08, 0.04, 0.02, 0.01):
                 for var_nom in elegidas:
                     lo, hi = limites[var_nom]
-                    if var_nom in ("ncapS", "ncapI"):
+                    if CATALOGO_VARS_CONSTRUCTIVAS[var_nom].get("entera"):
                         deltas = (-1.0, 1.0)
                     else:
                         paso = frac * (hi - lo)
@@ -763,6 +798,14 @@ def generar_casos_tipo(
     mflot_mres30 = _resolver_mflot_fraccion(base_fijas, {}, 0.70) or (sol_ref["mtot"] * 0.70)
     mflot_mres40 = _resolver_mflot_fraccion(base_fijas, {}, 0.60) or (sol_ref["mtot"] * 0.60)
 
+    vp_o = float(base_fijas["vpitch"])
+    v_c1 = round(min(vp_o * 0.85, vv_o + 1.5), 1)
+    v_c2 = round(min(vp_o * 0.87, vv_o + 2.5), 1)
+    v_c3 = round(min(vp_o * 0.89, vv_o + 3.5), 1)
+    v_c4 = round(min(vp_o * 0.91, vv_o + 5.0), 1)
+    vv_fuerte = round(max(4.2, vv_o + 2.0), 1)
+    v_fuerte = round(min(vp_o * 0.89, max(v_o, vv_fuerte + 2.0)), 1)
+
     specs: list[tuple[str, str, str, str, dict[str, float]]] = [
         ("referencia", "Referencia", "★ Punto óptimo base", "Configuración de referencia", {}),
 
@@ -817,11 +860,11 @@ def generar_casos_tipo(
         ("viajes", "10. Viajes consecutivos (nv)", "5 viajes (1400 m)", "nv = 5", {"nv": 5.0}),
         ("viajes", "10. Viajes consecutivos (nv)", "7 viajes (1960 m)", "nv = 7", {"nv": 7.0}),
 
-        # 11. Distintas velocidades relativas
-        ("velocidades", "11. Velocidades relativas (v)", "Crucero lento (4.0 m/s)", f"v = 4.0 m/s (vg = {4.0 - vv_o:.1f} m/s)", {"v": 4.0}),
-        ("velocidades", "11. Velocidades relativas (v)", "Crucero medio (6.0 m/s)", f"v = 6.0 m/s (vg = {6.0 - vv_o:.1f} m/s)", {"v": 6.0}),
-        ("velocidades", "11. Velocidades relativas (v)", "Crucero rápido (8.0 m/s)", f"v = 8.0 m/s (vg = {8.0 - vv_o:.1f} m/s)", {"v": 8.0}),
-        ("velocidades", "11. Velocidades relativas (v)", "Alta velocidad (10.0 m/s)", f"v = 10.0 m/s (vg = {10.0 - vv_o:.1f} m/s)", {"v": 10.0}),
+        # 11. Distintas velocidades relativas respecto al viento
+        ("velocidades", "11. Velocidades relativas (v)", f"Crucero lento ({v_c1:.1f} m/s)", f"v = {v_c1:.1f} m/s (vg = {v_c1 - vv_o:.1f} m/s)", {"v": v_c1}),
+        ("velocidades", "11. Velocidades relativas (v)", f"Crucero medio ({v_c2:.1f} m/s)", f"v = {v_c2:.1f} m/s (vg = {v_c2 - vv_o:.1f} m/s)", {"v": v_c2}),
+        ("velocidades", "11. Velocidades relativas (v)", f"Crucero rápido ({v_c3:.1f} m/s)", f"v = {v_c3:.1f} m/s (vg = {v_c3 - vv_o:.1f} m/s)", {"v": v_c3}),
+        ("velocidades", "11. Velocidades relativas (v)", f"Alta velocidad ({v_c4:.1f} m/s)", f"v = {v_c4:.1f} m/s (vg = {v_c4 - vv_o:.1f} m/s)", {"v": v_c4}),
 
         # 12. Distintos valores de masa residual (mayoría en aire caliente)
         ("masa_residual", "12. Masa residual a motores", "10% residual (90% aire caliente)", f"mflot={mflot_mres10:.2f} kg", {"mflot": round(mflot_mres10, 4)}),
@@ -831,7 +874,7 @@ def generar_casos_tipo(
 
         # 13. Casos adicionales de entorno/operación
         ("entorno", "13. Entorno y temperatura (extra)", "Sin viento (vv = 0 m/s)", "vv = 0.0 m/s", {"vv": 0.0}),
-        ("entorno", "13. Entorno y temperatura (extra)", "Viento fuerte en contra (4.2 m/s)", f"vv = 4.2 m/s, v = {max(v_o, 6.2):.1f} m/s", {"vv": 4.2, "v": max(v_o, 6.2)}),
+        ("entorno", "13. Entorno y temperatura (extra)", f"Viento fuerte en contra ({vv_fuerte:.1f} m/s)", f"vv = {vv_fuerte:.1f} m/s, v = {v_fuerte:.1f} m/s", {"vv": vv_fuerte, "v": v_fuerte}),
         ("entorno", "13. Entorno y temperatura (extra)", "Mañana fría La Paz (T1 = 2 °C)", "T1 = 2.0 °C", {"T1": 2.0}),
         ("entorno", "13. Entorno y temperatura (extra)", "T2 baja (65 °C)", "T2 = 65 °C", {"T2": 65.0}),
         ("entorno", "13. Entorno y temperatura (extra)", "T2 alta (110 °C)", "T2 = 110 °C", {"T2": 110.0}),

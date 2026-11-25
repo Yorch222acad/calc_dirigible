@@ -412,6 +412,7 @@ def analizar_diseno(req: PeticionAnalisisDiseno) -> dict[str, Any]:
         "referencia_capas": casos_res["referencia_capas"],
         "indicadores_meta": diseno.INDICADORES_META,
         "variables_restriccion": diseno.VARIABLES_RESTRICCION,
+        "catalogo_vars_constructivas": diseno.CATALOGO_VARS_CONSTRUCTIVAS,
         "pesos": pesos_limpios,
         "cbat_kg": cbat_kg,
         "anclas": diseno.ANCLAS_BASE,

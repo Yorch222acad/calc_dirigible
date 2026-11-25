@@ -2509,6 +2509,21 @@
   font-family: var(--font-mono);
 }
 
+.design-var-top-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.design-add-var-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
 .design-add-limit-row {
   display: flex;
   align-items: center;
