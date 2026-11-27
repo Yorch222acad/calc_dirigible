@@ -84,3 +84,10 @@ export async function postImportarHistorico(registros) {
   });
   return parsearRespuesta(resp);
 }
+
+export async function postReevaluarHistorico(id) {
+  const resp = await fetch(`/api/historico/${encodeURIComponent(id)}/reevaluar`, {
+    method: "POST",
+  });
+  return parsearRespuesta(resp);
+}

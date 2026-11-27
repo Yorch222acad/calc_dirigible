@@ -55,10 +55,12 @@ def _serializar_variable(
     valores_vista: dict[str, float],
     fijas: set[str],
     penalizado: bool,
+    vars_alerta: set[str] | None = None,
 ) -> dict[str, Any]:
     desc, unidad, _ = modelo.VARIABLES[nombre]
     es_fija = nombre in fijas
-    es_penalizada = bool(penalizado and nombre in formateo.VARS_SUSTENTACION)
+    en_alerta = vars_alerta if vars_alerta is not None else (formateo.variables_en_alerta(valores) if penalizado else set())
+    es_penalizada = bool(penalizado and nombre in en_alerta)
     color = "red" if es_penalizada else ("yellow" if es_fija else "green")
     return {
         "nombre": nombre,
@@ -123,6 +125,7 @@ def _serializar_ecuacion(
 def construir_respuesta_estado() -> dict[str, Any]:
     valores_vista, alertas = formateo.evaluar_alertas_y_vista(estado.valores)
     penalizado = bool(alertas)
+    vars_alerta = formateo.variables_en_alerta(estado.valores) if penalizado else set()
 
     categorias_out = []
     for idx, (cat_nombre, ecuaciones) in enumerate(modelo.CATEGORIAS.items()):
@@ -150,7 +153,7 @@ def construir_respuesta_estado() -> dict[str, Any]:
         })
 
     variables_out = [
-        _serializar_variable(nom, estado.valores, valores_vista, estado.fijas, penalizado)
+        _serializar_variable(nom, estado.valores, valores_vista, estado.fijas, penalizado, vars_alerta)
         for nom in modelo.VARIABLES
     ]
 
@@ -231,7 +234,7 @@ class PeticionAnalisisDiseno(BaseModel):
     pesos: dict[str, float] | None = None
     variables: list[str] | None = None
     cbat_kg: float = diseno.CBAT_KG_DEFECTO
-    respetar_limites: bool = False
+    respetar_limites: bool = True
     restricciones: list[dict[str, Any]] | None = None
     base_overrides: dict[str, float] | None = None
     ejecutar_optimizador: bool = True
@@ -245,6 +248,8 @@ class PeticionGuardarHistorico(BaseModel):
     entradas: dict[str, float] | None = None
     pesos: dict[str, float] | None = None
     cbat_kg: float = diseno.CBAT_KG_DEFECTO
+    respetar_limites: bool = True
+    restricciones: list[dict[str, Any]] | None = None
 
 
 class PeticionImportarHistorico(BaseModel):
@@ -361,36 +366,18 @@ def analizar_diseno(req: PeticionAnalisisDiseno) -> dict[str, Any]:
                 base_overrides=req.base_overrides,
             )
         else:
-            fijas_act = diseno.extraer_entradas_fijas(estado.valores)
-            if req.base_overrides:
-                for k, v in req.base_overrides.items():
-                    if k in fijas_act:
-                        fijas_act[k] = float(v)
-            import evaluador
-
-            sol_act = evaluador.evaluar_punto(fijas_act, estricto_prolado=False)
-            if sol_act is None:
-                raise ValueError("El estado actual no pudo evaluarse físicamente.")
-            ev_act = diseno.evaluar_indicadores(sol_act, pesos_limpios, cbat_kg=cbat_kg)
-            restr_limpias = diseno.normalizar_restricciones(
-                req.restricciones, fijas_act, respetar_limites=req.respetar_limites
+            opt_res = diseno.optimizar_especificaciones(
+                estado.valores,
+                pesos=pesos_limpios,
+                vars_libres=[],
+                cbat_kg=cbat_kg,
+                respetar_limites=req.respetar_limites,
+                restricciones=req.restricciones,
+                base_overrides=req.base_overrides,
             )
-            opt_res = {
-                "encontrado": True,
-                "tiempo_ms": 0.0,
-                "evaluaciones": 1,
-                "evaluaciones_validas": 1,
-                "actual": ev_act,
-                "entradas_actual": fijas_act,
-                "avisos_restricciones_actual": [],
-                "optimo": ev_act,
-                "entradas_optimo": fijas_act,
-                "mejora_score": 0.0,
-                "cambios": {},
-                "vars_optimizadas": list(req.variables if req.variables is not None else diseno.VARS_OPTIMIZABLES_DISENO),
-                "respetar_limites": any(r["grupo"] == "hardware" and r["activa"] for r in restr_limpias),
-                "restricciones": restr_limpias,
-            }
+            opt_res["vars_optimizadas"] = list(
+                req.variables if req.variables is not None else diseno.VARS_OPTIMIZABLES_DISENO
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -442,6 +429,8 @@ def guardar_en_historico(req: PeticionGuardarHistorico) -> dict[str, Any]:
             entradas_fijas=entradas,
             pesos=req.pesos,
             cbat_kg=req.cbat_kg,
+            restricciones=req.restricciones,
+            respetar_limites=req.respetar_limites,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -465,6 +454,18 @@ def importar_en_historico(req: PeticionImportarHistorico) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"registros": registros}
+
+
+@app.post("/api/historico/{item_id}/reevaluar")
+def reevaluar_de_historico(item_id: str) -> dict[str, Any]:
+    """Crea un nuevo registro evaluado con el motor v2 a partir de un registro histórico archivado."""
+    try:
+        reg = diseno.reevaluar_registro_historico(item_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if reg is None:
+        raise HTTPException(status_code=404, detail=f"Registro '{item_id}' no encontrado en el histórico.")
+    return {"registro": reg, "registros": diseno.cargar_historico()}
 
 
 # =============================================================

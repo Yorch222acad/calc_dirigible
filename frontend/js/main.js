@@ -14,25 +14,26 @@ import {
   postGuardarHistorico,
   deleteHistorico,
   postImportarHistorico,
-} from "./api.js?v=14";
-import { store } from "./state.js?v=14";
+  postReevaluarHistorico,
+} from "./api.js?v=20";
+import { store } from "./state.js?v=20";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=14";
+} from "./components/sidebar.js?v=20";
 import {
   renderizarPanelEcuaciones,
   desplazarDentroContenedor,
   resaltarYEncuadrarEcuacion,
-} from "./components/equations.js?v=14";
-import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=14";
-import { renderizarPanelDiseno } from "./components/designStudio.js?v=14";
-import { renderizarPanelGraficas } from "./components/charts.js?v=14";
+} from "./components/equations.js?v=20";
+import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=20";
+import { renderizarPanelDiseno } from "./components/designStudio.js?v=20";
+import { renderizarPanelGraficas } from "./components/charts.js?v=20";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=14";
+} from "./components/varInput.js?v=20";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");
@@ -224,8 +225,10 @@ async function aplicarModificacion(entradas) {
     }
 
     store.notificar();
+    const { base_overrides: _descartarBase, ...payloadFresco } = ultimoPayloadDiseno;
+    ultimoPayloadDiseno = payloadFresco;
     if (store.vistaActiva === "diseno") {
-      analizarDisenoYCargar(ultimoPayloadDiseno);
+      analizarDisenoYCargar(payloadFresco);
     }
     mostrarMensaje("Sistema resuelto y actualizado correctamente.", "success");
   } catch (err) {
@@ -284,6 +287,16 @@ async function importarEnHistorico(registros) {
     const data = await postImportarHistorico(registros);
     store.establecerHistorico(data.registros || []);
     mostrarMensaje("Histórico importado correctamente.", "success");
+  } catch (err) {
+    mostrarMensaje(err.message, "error");
+  }
+}
+
+async function reevaluarEnHistorico(id) {
+  try {
+    const data = await postReevaluarHistorico(id);
+    store.establecerHistorico(data.registros || []);
+    mostrarMensaje("Registro reevaluado en motor v2 como nueva entrada del histórico.", "success");
   } catch (err) {
     mostrarMensaje(err.message, "error");
   }
@@ -355,6 +368,7 @@ function renderizarTodo(estadoApp) {
       alGuardarHistorico: guardarEnHistorico,
       alEliminarHistorico: eliminarDeHistorico,
       alImportarHistorico: importarEnHistorico,
+      alReevaluarHistorico: reevaluarEnHistorico,
       alMensaje: mostrarMensaje,
       alCambiarPestana: (tab) => {
         store.seleccionarDiseno(tab);
@@ -448,8 +462,10 @@ async function iniciarApp() {
         );
       }
       store.notificar();
+      const { base_overrides: _descartarBase, ...payloadFresco } = ultimoPayloadDiseno;
+      ultimoPayloadDiseno = payloadFresco;
       if (store.vistaActiva === "diseno") {
-        analizarDisenoYCargar(ultimoPayloadDiseno);
+        analizarDisenoYCargar(payloadFresco);
       }
       mostrarMensaje("Valores restaurados a la calibración inicial.", "success");
     } catch (err) {

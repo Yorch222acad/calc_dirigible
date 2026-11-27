@@ -50,20 +50,29 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
     {
         "origen": 0,
         "destino": 1,
-        "variables": ["drho", "F"],
-        "origenes_internos": ["drho", "F"],
-        "destinos_internos": ["F", "V"],
-        "explicacion": "La diferencia de densidades (drho) y la fuerza de flotación (F) fijan el volumen necesario del globo V = F / (drho·g).",
+        "variables": ["drho", "rhocel", "F"],
+        "origenes_internos": ["drho", "rhocel", "F"],
+        "destinos_internos": ["F"],
+        "explicacion": "Las densidades drho y rhocel junto al empuje F fijan el volumen exterior V del casco descontando el volumen periférico de las celdas aislantes.",
         "es_lazo": False,
     },
     {
         "origen": 1,
         "destino": 0,
-        "variables": ["V"],
-        "origenes_internos": ["V"],
-        "destinos_internos": ["m"],
-        "explicacion": "El volumen geométrico V obtenido del casco determina la masa de aire caliente encerrada m = rho2·V y su calor sensible Q.",
+        "variables": ["Vnuc", "Vcel"],
+        "origenes_internos": ["Vnuc", "Vcel"],
+        "destinos_internos": ["F", "m", "Q"],
+        "explicacion": "El volumen del núcleo Vnuc y el de celdas Vcel determinan la flotabilidad exacta F, la masa total de aire encerrado m y el calor sensible regional Q.",
         "es_lazo": True,
+    },
+    {
+        "origen": 4,
+        "destino": 0,
+        "variables": ["Tm"],
+        "origenes_internos": ["Tm"],
+        "destinos_internos": ["rhocel"],
+        "explicacion": "La temperatura media de pared Tm fija la densidad media rhocel del aire encerrado en las celdas aislantes.",
+        "es_lazo": False,
     },
     {
         "origen": 0,
@@ -86,10 +95,10 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
     {
         "origen": 0,
         "destino": 5,
-        "variables": ["dT", "m"],
-        "origenes_internos": ["dT", "m"],
-        "destinos_internos": ["Qp0", "Qp", "vT", "Qc"],
-        "explicacion": "El salto dT determina los flujos térmicos Qp0 y Qp, mientras que la masa m de aire caliente define la capacidad calorífica (vT y Qc).",
+        "variables": ["dT", "Q"],
+        "origenes_internos": ["dT", "Q"],
+        "destinos_internos": ["Qp0", "Qp", "vT", "Qc", "tc"],
+        "explicacion": "El salto dT determina los flujos térmicos Qp0 y Qp, mientras que el calor sensible regional Q define la capacidad calorífica efectiva C_ef = Q/dT para vT, Qc y tc.",
         "es_lazo": False,
     },
     {
@@ -113,10 +122,10 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
     {
         "origen": 0,
         "destino": 8,
-        "variables": ["F", "mflot"],
-        "origenes_internos": ["F", "mflot"],
-        "destinos_internos": ["F", "mflot"],
-        "explicacion": "C1 comparte directamente la fuerza F y la masa compensada mflot = F/g que descarga peso de los motores.",
+        "variables": ["F", "mflot", "m"],
+        "origenes_internos": ["F", "mflot", "m"],
+        "destinos_internos": ["F", "mflot", "map"],
+        "explicacion": "C1 comparte F, la masa compensada mflot = F/g y la masa de gas encerrado m que contribuye a la inercia traslacional y vertical.",
         "es_lazo": False,
     },
     {
@@ -252,8 +261,8 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
         "destino": 9,
         "variables": ["FD"],
         "origenes_internos": ["FD"],
-        "destinos_internos": ["FD", "FX"],
-        "explicacion": "La fuerza de resistencia aerodinámica FD constituye la carga base que deben vencer los motores en la componente horizontal FX.",
+        "destinos_internos": ["FD", "FX", "thcruc"],
+        "explicacion": "La fuerza de resistencia aerodinámica FD constituye la carga base horizontal tanto en maniobra (FX) como en crucero (thcruc).",
         "es_lazo": False,
     },
     {
@@ -269,19 +278,28 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
     {
         "origen": 8,
         "destino": 9,
-        "variables": ["mres", "mtot", "map"],
-        "origenes_internos": ["mres", "mtot", "map"],
-        "destinos_internos": ["FL", "FX"],
-        "explicacion": "La masa residual mres exige empuje vertical FL; mtot y la masa aparente map añaden las fuerzas inerciales de ascenso/avance.",
+        "variables": ["mres", "map"],
+        "origenes_internos": ["mres", "map"],
+        "destinos_internos": ["FL", "FX", "thcruc"],
+        "explicacion": "La masa residual mres exige sustentación estática FL (e inclinación thcruc en crucero) y la masa aparente inercial map = fap·(mtot + m) aporta las fuerzas de ascenso y arranque.",
         "es_lazo": False,
     },
     {
         "origen": 8,
         "destino": 10,
-        "variables": ["F", "mtot"],
-        "origenes_internos": ["F", "mtot"],
-        "destinos_internos": ["Fexc"],
-        "explicacion": "El empuje hidrostático F y el peso total mtot·g se combinan con FLmax para evaluar el excedente de sustentación Fexc.",
+        "variables": ["F", "mtot", "mres"],
+        "origenes_internos": ["F", "mtot", "mres"],
+        "destinos_internos": ["Fexc", "Tcruc"],
+        "explicacion": "F y mtot·g fijan el excedente Fexc, mientras mres·g determina el empuje vertical requerido en crucero estacionario (Tcruc).",
+        "es_lazo": False,
+    },
+    {
+        "origen": 7,
+        "destino": 10,
+        "variables": ["FD"],
+        "origenes_internos": ["FD"],
+        "destinos_internos": ["Tcruc", "Pcruc"],
+        "explicacion": "El arrastre aerodinámico FD fija el empuje y potencia de avance en régimen de crucero estacionario (Tcruc, Pcruc).",
         "es_lazo": False,
     },
     {
@@ -290,16 +308,16 @@ CONEXIONES_INTER_CATEGORIAS: list[dict[str, Any]] = [
         "variables": ["FX", "Ttot"],
         "origenes_internos": ["FX", "Ttot"],
         "destinos_internos": ["Ttot", "FLmax", "Pelec"],
-        "explicacion": "FX limita la sustentación vertical disponible FLmax y el empuje vectorial total Ttot fija la potencia inducida y de avance Pelec.",
+        "explicacion": "FX limita la sustentación vertical disponible FLmax y el empuje pico de maniobra Ttot fija la potencia pico Pelec.",
         "es_lazo": False,
     },
     {
         "origen": 10,
         "destino": 11,
-        "variables": ["Pelec"],
-        "origenes_internos": ["Pelec"],
-        "destinos_internos": ["Pelec", "Ptot"],
-        "explicacion": "La potencia eléctrica demandada por los motores Pelec se suma al consumo adicional Pad en Ptot = Pelec + Pad para integrar la energía de misión.",
+        "variables": ["Pelec", "Pcruc"],
+        "origenes_internos": ["Pelec", "Pcruc"],
+        "destinos_internos": ["Pelec", "Pcruc", "Ptot", "Ereq"],
+        "explicacion": "Pelec fija el pico Ptot = Pelec + Pad durante tman, mientras Pcruc + Pad gobierna el consumo energético durante el crucero estacionario.",
         "es_lazo": False,
     },
     {
@@ -339,22 +357,26 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         ),
         "nodos": [
             {"eq": "Gas ideal (caso 1 - ambiente)", "var": "rho1", "etiqueta": "Densidad aire exterior", "capa": 0},
-            {"eq": "Gas ideal (caso 2 - caliente)", "var": "rho2", "etiqueta": "Densidad aire caliente", "capa": 0},
+            {"eq": "Gas ideal (caso 2 - caliente)", "var": "rho2", "etiqueta": "Densidad núcleo caliente", "capa": 0},
+            {"eq": "Densidad media del aire en celdas aislantes", "var": "rhocel", "etiqueta": "Densidad celdas rhocel", "capa": 0},
             {"eq": "Gradiente térmico", "var": "dT", "etiqueta": "Salto térmico T2 - T1", "capa": 0},
             {"eq": "Masa compensada por aire caliente (mflot)", "var": "mflot", "etiqueta": "Carga asignada al globo", "capa": 0},
             {"eq": "Diferencia de densidades", "var": "drho", "etiqueta": "Contraste rho1 - rho2", "capa": 1},
             {"eq": "Fuerza de sustentación aerostática", "var": "F", "etiqueta": "Empuje de Arquímedes", "capa": 1},
-            {"eq": "Masa de aire caliente", "var": "m", "etiqueta": "Masa interna rho2·V", "capa": 1},
-            {"eq": "Calor sensible", "var": "Q", "etiqueta": "Contenido térmico m·cp·dT", "capa": 2},
+            {"eq": "Masa de aire caliente", "var": "m", "etiqueta": "Gas núcleo + celdas", "capa": 1},
+            {"eq": "Calor sensible", "var": "Q", "etiqueta": "Calor regional Q", "capa": 2},
         ],
         "aristas_internas": [
             {"origen": "rho1", "destino": "drho", "etiqueta": "rho1 - rho2", "lazo": False},
             {"origen": "rho2", "destino": "drho", "etiqueta": "rho1 - rho2", "lazo": False},
             {"origen": "mflot", "destino": "F", "etiqueta": "F = mflot·g", "lazo": False},
-            {"origen": "drho", "destino": "F", "etiqueta": "escala V en C2", "lazo": False},
-            {"origen": "rho2", "destino": "m", "etiqueta": "rho2 · V", "lazo": False},
-            {"origen": "m", "destino": "Q", "etiqueta": "m · cp · dT", "lazo": False},
-            {"origen": "dT", "destino": "Q", "etiqueta": "ΔT", "lazo": False},
+            {"origen": "drho", "destino": "F", "etiqueta": "núcleo Vnuc", "lazo": False},
+            {"origen": "rhocel", "destino": "F", "etiqueta": "celdas Vcel", "lazo": False},
+            {"origen": "rho2", "destino": "m", "etiqueta": "rho2 · Vnuc", "lazo": False},
+            {"origen": "rhocel", "destino": "m", "etiqueta": "rhocel · Vcel", "lazo": False},
+            {"origen": "rho2", "destino": "Q", "etiqueta": "núcleo ΔT", "lazo": False},
+            {"origen": "rhocel", "destino": "Q", "etiqueta": "celdas ΔT/2", "lazo": False},
+            {"origen": "dT", "destino": "Q", "etiqueta": "cp · ΔT", "lazo": False},
         ],
     },
     {
@@ -363,12 +385,11 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "pos_global": {"fila": 0, "col": 1},
         "resumen": (
             "Convierte la fuerza aerostática F en volumen de casco y deduce las dimensiones principales "
-            "(radio R, diámetro D, esbeltez λ, longitud L y partición proa/popa cf y cr) del dirigible prolado."
+            "(R, D, λ, L, cf, cr), además de separar el núcleo caliente Vnuc del volumen periférico de celdas Vcel."
         ),
         "flujo_interno": (
-            "Partiendo de F y drho se despeja el volumen V = F/(drho·g). Junto con la relación de esbeltez lam = L/D, "
-            "el bloque acoplado {L, R} determina el radio R, el diámetro D = 2R y la longitud total L; la fracción xf "
-            "parte el casco en cf y cr, sirviendo de entrada para el área total S."
+            "Partiendo de F, drho y rhocel se despeja el volumen exterior V y su reparto en núcleo Vnuc y celdas Vcel. "
+            "Junto con lam = L/D determina R, D y L; la fracción xf parte el casco en cf y cr hacia el área S."
         ),
         "nodos": [
             {"eq": "Fuerza de sustentación aerostática", "var": "F", "etiqueta": "Empuje aerostático", "capa": 0},
@@ -377,10 +398,12 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Relación de esbeltez (L/D)", "var": "lam", "etiqueta": "Esbeltez λ = L/D", "capa": 2},
             {"eq": "Longitud total del casco", "var": "L", "etiqueta": "Longitud L = cf + cr", "capa": 3},
             {"eq": "Fracción de nariz (cf/L)", "var": "xf", "etiqueta": "Partición nariz cf/L", "capa": 3},
+            {"eq": "Volumen del núcleo interior caliente", "var": "Vnuc", "etiqueta": "Núcleo caliente Vnuc", "capa": 4},
             {"eq": "Área superficial total", "var": "S", "etiqueta": "Área envolvente S", "capa": 4},
+            {"eq": "Volumen ocupado por celdas aislantes", "var": "Vcel", "etiqueta": "Celdas V - Vnuc", "capa": 5},
         ],
         "aristas_internas": [
-            {"origen": "F", "destino": "V", "etiqueta": "F / (drho·g)", "lazo": False},
+            {"origen": "F", "destino": "V", "etiqueta": "arquímedes", "lazo": False},
             {"origen": "V", "destino": "D", "etiqueta": "R ∝ (V/λ)^(1/3)", "lazo": False},
             {"origen": "V", "destino": "lam", "etiqueta": "geometría", "lazo": False},
             {"origen": "D", "destino": "L", "etiqueta": "L = λ·D", "lazo": False},
@@ -388,6 +411,12 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"origen": "L", "destino": "xf", "etiqueta": "cf = xf·L", "lazo": False},
             {"origen": "D", "destino": "S", "etiqueta": "R en Sf, Sr", "lazo": False},
             {"origen": "xf", "destino": "S", "etiqueta": "cf, cr en C3", "lazo": False},
+            {"origen": "D", "destino": "Vnuc", "etiqueta": "R - ncap·e", "lazo": False},
+            {"origen": "L", "destino": "Vnuc", "etiqueta": "L - 2ncap·e", "lazo": False},
+            {"origen": "V", "destino": "Vcel", "etiqueta": "+V", "lazo": False},
+            {"origen": "Vnuc", "destino": "Vcel", "etiqueta": "-Vnuc", "lazo": False},
+            {"origen": "Vnuc", "destino": "F", "etiqueta": "↺ núcleo", "lazo": True},
+            {"origen": "Vcel", "destino": "F", "etiqueta": "↺ celdas", "lazo": True},
         ],
     },
     {
@@ -395,12 +424,12 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "grupo": "aerostatica",
         "pos_global": {"fila": 0, "col": 2},
         "resumen": (
-            "Calcula el área superficial exacta de los dos semielipsoides prolados, el promedio asimétrico "
-            "de capas Mylar (ncapS/ncapI) y la masa de la cuadrícula celular mc."
+            "Calcula el área curva exacta de los dos semielipsoides prolados, el promedio asimétrico "
+            "de capas Mylar (ncapS/ncapI), la piel exterior y la masa total de película mc."
         ),
         "flujo_interno": (
             "Con R, cf y cr se obtienen ef, er, Sf, Sr y S. El promedio ncap = (ncapS + ncapI)/2 escala la "
-            "superficie multicapa Sc = ncap·S·(1+2e/W) y determina su masa total mc = Sc·σ."
+            "superficie multicapa con piel exterior Sc = S·(1 + ncap·(1+2e/W)) y su masa mc = Sc·σ."
         ),
         "nodos": [
             {"eq": "Excentricidad frontal (cf > R)", "var": "ef", "etiqueta": "Excentricidad nariz", "capa": 0},
@@ -409,15 +438,15 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Área superficial frontal", "var": "Sf", "etiqueta": "Área nariz Sf", "capa": 1},
             {"eq": "Área superficial trasera", "var": "Sr", "etiqueta": "Área cola Sr", "capa": 1},
             {"eq": "Área superficial total", "var": "S", "etiqueta": "Área casco S = Sf + Sr", "capa": 2},
-            {"eq": "Área total de película celular", "var": "Sc", "etiqueta": "Multicapa ncap·S·(1+2e/W)", "capa": 3},
+            {"eq": "Área total de película celular", "var": "Sc", "etiqueta": "Piel + ncap·(1+2e/W)", "capa": 3},
             {"eq": "Masa de la cuadrícula celular", "var": "mc", "etiqueta": "Masa Mylar mc = Sc·σ", "capa": 4},
         ],
         "aristas_internas": [
-            {"origen": "ef", "destino": "Sf", "etiqueta": "arcsin(ef)", "lazo": False},
-            {"origen": "er", "destino": "Sr", "etiqueta": "arcsin(er)", "lazo": False},
+            {"origen": "ef", "destino": "Sf", "etiqueta": "πR²+arcsin(ef)", "lazo": False},
+            {"origen": "er", "destino": "Sr", "etiqueta": "πR²+arcsin(er)", "lazo": False},
             {"origen": "Sf", "destino": "S", "etiqueta": "suma", "lazo": False},
             {"origen": "Sr", "destino": "S", "etiqueta": "suma", "lazo": False},
-            {"origen": "S", "destino": "Sc", "etiqueta": "ncap·(1+2e/W)", "lazo": False},
+            {"origen": "S", "destino": "Sc", "etiqueta": "1+ncap·(1+2e/W)", "lazo": False},
             {"origen": "ncap", "destino": "Sc", "etiqueta": "ncap", "lazo": False},
             {"origen": "Sc", "destino": "mc", "etiqueta": "Sc · σ", "lazo": False},
         ],
@@ -518,8 +547,8 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         ),
         "flujo_interno": (
             "Multiplicando U0 y U por S·dT se obtienen las potencias térmicas Qp0 y Qp; su diferencia define el ahorro "
-            "instantáneo dQp y el porcentaje fais. En paralelo, Qp y la capacidad calorífica m·cp dan la tasa de "
-            "enfriamiento vT y el tiempo tc para agotar la caída admisible Qc."
+            "instantáneo dQp y el porcentaje fais. En paralelo, Qp y la capacidad calorífica efectiva regional Q/dT dan la tasa de "
+            "enfriamiento vT, la energía Qc y el tiempo tc para agotar la caída admisible dTc."
         ),
         "nodos": [
             {"eq": "Potencia perdida sin capa celular (Qp0)", "var": "Qp0", "etiqueta": "Potencia base Qp0", "capa": 0},
@@ -528,16 +557,16 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Potencia ahorrada por capa celular (dQp)", "var": "dQp", "etiqueta": "Ahorro Qp0 - Qp", "capa": 1},
             {"eq": "Velocidad de enfriamiento (dT/dt)", "var": "vT", "etiqueta": "Tasa dT/dt", "capa": 1},
             {"eq": "Fracción de ahorro térmico celular (fais)", "var": "fais", "etiqueta": "Fracción fais", "capa": 2},
-            {"eq": "Tiempo de enfriamiento sin aporte", "var": "tc", "etiqueta": "Autonomía Qc / Qp", "capa": 2},
+            {"eq": "Tiempo de enfriamiento sin aporte", "var": "tc", "etiqueta": "Enfriamiento log. tc", "capa": 2},
         ],
         "aristas_internas": [
             {"origen": "Qp0", "destino": "dQp", "etiqueta": "Qp0 - Qp", "lazo": False},
             {"origen": "Qp", "destino": "dQp", "etiqueta": "resta", "lazo": False},
             {"origen": "dQp", "destino": "fais", "etiqueta": "dQp / Qp0", "lazo": False},
             {"origen": "Qp0", "destino": "fais", "etiqueta": "base", "lazo": False},
-            {"origen": "Qp", "destino": "vT", "etiqueta": "Qp / (m·cp)", "lazo": False},
-            {"origen": "Qp", "destino": "tc", "etiqueta": "Qc / Qp", "lazo": False},
-            {"origen": "Qc", "destino": "tc", "etiqueta": "Qc", "lazo": False},
+            {"origen": "Qp", "destino": "vT", "etiqueta": "Qp / (Q/dT)", "lazo": False},
+            {"origen": "Qp", "destino": "tc", "etiqueta": "ln(ΔT/(ΔT-dTc))", "lazo": False},
+            {"origen": "Qc", "destino": "tc", "etiqueta": "C_ef = Q/ΔT", "lazo": False},
         ],
     },
     {
@@ -602,8 +631,8 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"origen": "Cf", "destino": "CDVc", "etiqueta": "f(λ)", "lazo": False},
             {"origen": "CDVc", "destino": "CDV", "etiqueta": "× kp", "lazo": False},
             {"origen": "CDV", "destino": "FD", "etiqueta": "½ρ₁v²·CDV", "lazo": False},
-            {"origen": "FD", "destino": "ED", "etiqueta": "FD · dm", "lazo": False},
-            {"origen": "tm", "destino": "ED", "etiqueta": "vg · tm", "lazo": False},
+            {"origen": "FD", "destino": "ED", "etiqueta": "FD · v · tm", "lazo": False},
+            {"origen": "tm", "destino": "ED", "etiqueta": "v · tm", "lazo": False},
         ],
     },
     {
@@ -612,11 +641,11 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "pos_global": {"fila": 3, "col": 0},
         "resumen": (
             "Consolida la masa del artefacto (capas Mylar mc, motores, combustible, batería), añade "
-            "la carga útil en mtot y determina la masa residual mres que deben sostener los rotores."
+            "la carga útil en mtot y determina la masa residual mres y la inercia aparente map = fap·(mtot + m)."
         ),
         "flujo_interno": (
             "Suma mc (C3) y mbat (lazo C13) con motores, combustible y componentes para hallar mart y mtot. "
-            "Luego calcula map = fap·mtot y la carga residual mres = mtot - mflot."
+            "Luego calcula map = fap·(mtot + m) incluyendo el gas interior y la carga residual mres = mtot - mflot."
         ),
         "nodos": [
             {"eq": "Masa de la cuadrícula celular", "var": "mc", "etiqueta": "Masa Mylar mc", "capa": 0},
@@ -625,14 +654,14 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Fuerza de sustentación aerostática", "var": "F", "etiqueta": "Fuerza globo F", "capa": 1},
             {"eq": "Masa total del dirigible con carga útil (mtot)", "var": "mtot", "etiqueta": "Masa total mtot", "capa": 2},
             {"eq": "Masa compensada por aire caliente (mflot)", "var": "mflot", "etiqueta": "Flotabilidad mflot", "capa": 2},
-            {"eq": "Masa aparente traslacional (map)", "var": "map", "etiqueta": "Masa aparente map", "capa": 3},
+            {"eq": "Masa aparente traslacional (map)", "var": "map", "etiqueta": "Inercia fap·(mtot+m)", "capa": 3},
             {"eq": "Masa residual a compensar por motores (mres)", "var": "mres", "etiqueta": "Carga rotores mres", "capa": 3},
         ],
         "aristas_internas": [
             {"origen": "mc", "destino": "mart", "etiqueta": "+mc", "lazo": False},
             {"origen": "mbat", "destino": "mart", "etiqueta": "+mbat", "lazo": False},
             {"origen": "mart", "destino": "mtot", "etiqueta": "+mcarga", "lazo": False},
-            {"origen": "mtot", "destino": "map", "etiqueta": "fap·mtot", "lazo": False},
+            {"origen": "mtot", "destino": "map", "etiqueta": "fap·(mtot+m)", "lazo": False},
             {"origen": "mtot", "destino": "mres", "etiqueta": "mtot - mflot", "lazo": False},
             {"origen": "F", "destino": "mflot", "etiqueta": "F / g", "lazo": False},
             {"origen": "mflot", "destino": "mres", "etiqueta": "-mflot", "lazo": False},
@@ -643,11 +672,11 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "grupo": "propulsion",
         "pos_global": {"fila": 3, "col": 1},
         "resumen": (
-            "Descompone las fuerzas vertical (sustentación residual + ascenso) y horizontal (arrastre + inercia aparente) "
-            "para hallar el empuje vectorial total Ttot y el ángulo de inclinación theta frente a sus límites."
+            "Descompone las fuerzas de maniobra vertical (sustentación residual + ascenso) y horizontal (arrastre + inercia aparente) "
+            "para hallar el empuje pico Ttot y el ángulo de inclinación theta frente a sus límites."
         ),
         "flujo_interno": (
-            "Calcula las aceleraciones az y ax de maniobra. Con mres y mtot determina el empuje vertical FL; con FD (C8) "
+            "Calcula las aceleraciones az y ax de maniobra. Con mres y map determina el empuje vertical FL; con FD (C8) "
             "y map determina la fuerza de avance FX. Su suma vectorial fija Ttot = √(FL² + FX²) y el ángulo de "
             "inclinación theta = atan(FX/FL), evaluando los márgenes de empuje dTtot y ángulo dth."
         ),
@@ -657,21 +686,24 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"eq": "Fuerza de resistencia aerodinámica (FD)", "var": "FD", "etiqueta": "Arrastre FD", "capa": 0},
             {"eq": "Componente vertical de sustentación de motores (FL)", "var": "FL", "etiqueta": "Empuje vertical FL", "capa": 1},
             {"eq": "Componente horizontal de avance de motores (FX)", "var": "FX", "etiqueta": "Empuje avance FX", "capa": 1},
-            {"eq": "Empuje vectorial total de los 4 motores (Ttot)", "var": "Ttot", "etiqueta": "Empuje Ttot", "capa": 2},
-            {"eq": "Ángulo de rotación respecto a la vertical (theta)", "var": "theta", "etiqueta": "Inclinación theta", "capa": 2},
+            {"eq": "Empuje vectorial total de los 4 motores (Ttot)", "var": "Ttot", "etiqueta": "Empuje pico Ttot", "capa": 2},
+            {"eq": "Ángulo de rotación respecto a la vertical (theta)", "var": "theta", "etiqueta": "Inclinación maniobra θ", "capa": 2},
+            {"eq": "Ángulo de rotación en crucero estacionario (thcruc)", "var": "thcruc", "etiqueta": "Inclinación crucero θcruc", "capa": 2},
             {"eq": "Margen de empuje disponible de los 4 motores (dTtot)", "var": "dTtot", "etiqueta": "Margen dTtot", "capa": 3},
             {"eq": "Margen respecto al ángulo máximo de rotación (dth)", "var": "dth", "etiqueta": "Margen angular dth", "capa": 3},
         ],
         "aristas_internas": [
-            {"origen": "az", "destino": "FL", "etiqueta": "mtot·az", "lazo": False},
+            {"origen": "az", "destino": "FL", "etiqueta": "map·az", "lazo": False},
             {"origen": "ax", "destino": "FX", "etiqueta": "map·ax", "lazo": False},
             {"origen": "FD", "destino": "FX", "etiqueta": "+map·ax", "lazo": False},
+            {"origen": "FD", "destino": "thcruc", "etiqueta": "atan(FD/mres·g)", "lazo": False},
             {"origen": "FL", "destino": "Ttot", "etiqueta": "√(FL²+FX²)", "lazo": False},
             {"origen": "FX", "destino": "Ttot", "etiqueta": "√(FL²+FX²)", "lazo": False},
             {"origen": "FL", "destino": "theta", "etiqueta": "atan(FX/FL)", "lazo": False},
             {"origen": "FX", "destino": "theta", "etiqueta": "atan(FX/FL)", "lazo": False},
             {"origen": "Ttot", "destino": "dTtot", "etiqueta": "N·Tmax1-Ttot", "lazo": False},
-            {"origen": "theta", "destino": "dth", "etiqueta": "thmax-theta", "lazo": False},
+            {"origen": "theta", "destino": "dth", "etiqueta": "thmax-max(θ)", "lazo": False},
+            {"origen": "thcruc", "destino": "dth", "etiqueta": "thmax-max(θ)", "lazo": False},
         ],
     },
     {
@@ -680,22 +712,24 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "pos_global": {"fila": 3, "col": 2},
         "resumen": (
             "Evalúa la reserva de sustentación vertical (FLmax, Fexc), la caída cuadrática de eficiencia de la hélice "
-            "con la velocidad v hacia vpitch y la potencia eléctrica continua demandada Pelec respecto a Pmax."
+            "con la velocidad v hacia vpitch, la potencia eléctrica pico de maniobra (Pelec) y la de crucero (Pcruc)."
         ),
         "flujo_interno": (
-            "Por un lado, la capacidad de los rotores menos el avance FX deja FLmax y el excedente Fexc. Por otro, "
-            "el diámetro dp fija el disco Ap y la velocidad v degrada nprop hasta obtener ntot = nprop·nm·nESC. "
-            "Ttot, FX, Ap y ntot fijan Pelec, comparada finalmente contra Pmax = N·Pmax1 en dPelec."
+            "La capacidad de los rotores menos el avance FX deja FLmax y el excedente Fexc. Por otro lado, "
+            "dp fija Ap y la velocidad v degrada nprop hasta ntot = nprop·nm·nESC. "
+            "Ttot fija el pico Pelec frente a Pmax = N·Pmax1, mientras Tcruc y FD fijan la potencia continua de crucero Pcruc."
         ),
         "nodos": [
-            {"eq": "Empuje vectorial total de los 4 motores (Ttot)", "var": "Ttot", "etiqueta": "Empuje total Ttot", "capa": 0},
+            {"eq": "Empuje vectorial total de los 4 motores (Ttot)", "var": "Ttot", "etiqueta": "Empuje pico Ttot", "capa": 0},
             {"eq": "Área de disco barrida por cada hélice (Ap)", "var": "Ap", "etiqueta": "Área disco Ap", "capa": 0},
             {"eq": "Eficiencia aerodinámica de hélice según velocidad (nprop)", "var": "nprop", "etiqueta": "Eficiencia nprop(v)", "capa": 0},
             {"eq": "Sustentación vertical máxima de los 4 motores (FLmax)", "var": "FLmax", "etiqueta": "Máx. vertical FLmax", "capa": 1},
+            {"eq": "Empuje vectorial en crucero estacionario (Tcruc)", "var": "Tcruc", "etiqueta": "Empuje crucero Tcruc", "capa": 1},
             {"eq": "Eficiencia propulsiva global (ntot)", "var": "ntot", "etiqueta": "Eficiencia ntot", "capa": 1},
             {"eq": "Potencia eléctrica máxima continua de 4 motores (Pmax)", "var": "Pmax", "etiqueta": "Límite Pmax", "capa": 1},
             {"eq": "Excedente de sustentación total (Fexc)", "var": "Fexc", "etiqueta": "Excedente Fexc", "capa": 2},
-            {"eq": "Potencia eléctrica demandada por los 4 motores (Pelec)", "var": "Pelec", "etiqueta": "Potencia Pelec", "capa": 2},
+            {"eq": "Potencia eléctrica demandada por los 4 motores (Pelec)", "var": "Pelec", "etiqueta": "Potencia pico Pelec", "capa": 2},
+            {"eq": "Potencia eléctrica motriz en crucero estacionario (Pcruc)", "var": "Pcruc", "etiqueta": "Potencia crucero Pcruc", "capa": 2},
             {"eq": "Margen de potencia eléctrica de los motores (dPelec)", "var": "dPelec", "etiqueta": "Margen dPelec", "capa": 3},
         ],
         "aristas_internas": [
@@ -704,6 +738,9 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
             {"origen": "Ttot", "destino": "Pelec", "etiqueta": "Ttot^(3/2)", "lazo": False},
             {"origen": "Ap", "destino": "Pelec", "etiqueta": "disco N·Ap", "lazo": False},
             {"origen": "ntot", "destino": "Pelec", "etiqueta": "km / ntot", "lazo": False},
+            {"origen": "Tcruc", "destino": "Pcruc", "etiqueta": "Tcruc^(3/2)", "lazo": False},
+            {"origen": "Ap", "destino": "Pcruc", "etiqueta": "disco N·Ap", "lazo": False},
+            {"origen": "ntot", "destino": "Pcruc", "etiqueta": "km / ntot", "lazo": False},
             {"origen": "Pelec", "destino": "dPelec", "etiqueta": "Pmax-Pelec", "lazo": False},
             {"origen": "Pmax", "destino": "dPelec", "etiqueta": "Pmax", "lazo": False},
         ],
@@ -713,17 +750,19 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         "grupo": "propulsion",
         "pos_global": {"fila": 3, "col": 3},
         "resumen": (
-            "Integra la energía eléctrica de a bordo y la suma con Eprop en Etot; además consolida el costo "
-            "operativo total Cop sumando precalentamiento en tierra (Cpre), combustible en vuelo (Ccomb) y recarga (Celec)."
+            "Integra la energía eléctrica diferenciando maniobras pico (Ptot durante tman) y crucero estacionario "
+            "(Pcruc + Pad durante tm - tman), suma Eprop en Etot y consolida el costo operativo total Cop."
         ),
         "flujo_interno": (
-            "Ptot = Pelec + Pad integrada durante tm da Ereq (Wh), Eelec (J), celec y el costo eléctrico Celec. "
-            "Sumando Eelec + Eprop resulta Etot y ctot, y sumando Cpre + Ccomb + Celec resulta Cop."
+            "Ptot = Pelec + Pad actúa durante el tiempo acumulado de maniobras tman = min(tm, nv·ta), y Pcruc + Pad "
+            "durante el crucero restante para obtener Ereq (Wh), Eelec (J) y Celec. Sumando Eelec + Eprop resulta Etot."
         ),
         "nodos": [
-            {"eq": "Potencia eléctrica demandada por los 4 motores (Pelec)", "var": "Pelec", "etiqueta": "Potencia motores Pelec", "capa": 0},
+            {"eq": "Potencia eléctrica demandada por los 4 motores (Pelec)", "var": "Pelec", "etiqueta": "Potencia pico Pelec", "capa": 0},
+            {"eq": "Potencia eléctrica motriz en crucero estacionario (Pcruc)", "var": "Pcruc", "etiqueta": "Potencia crucero Pcruc", "capa": 0},
             {"eq": "Costo de precalentamiento en tierra (Cpre)", "var": "Cpre", "etiqueta": "Costo tierra Cpre", "capa": 0},
-            {"eq": "Potencia eléctrica total a bordo (Ptot)", "var": "Ptot", "etiqueta": "Total Pelec + Pad", "capa": 1},
+            {"eq": "Potencia eléctrica total a bordo (Ptot)", "var": "Ptot", "etiqueta": "Pico Pelec + Pad", "capa": 1},
+            {"eq": "Tiempo acumulado de maniobras en misión (tman)", "var": "tman", "etiqueta": "Maniobras min(tm,nv·ta)", "capa": 1},
             {"eq": "Energía suministrada por combustible térmico en misión (Eprop)", "var": "Eprop", "etiqueta": "Energía comb. Eprop", "capa": 1},
             {"eq": "Energía perdida por resistencia aerodinámica (ED)", "var": "ED", "etiqueta": "Arrastre ED", "capa": 1},
             {"eq": "Energía eléctrica requerida en misión (Ereq)", "var": "Ereq", "etiqueta": "Energía (Wh) Ereq", "capa": 2},
@@ -737,7 +776,9 @@ FLUJO_CATEGORIAS: list[dict[str, Any]] = [
         ],
         "aristas_internas": [
             {"origen": "Pelec", "destino": "Ptot", "etiqueta": "+ Pad", "lazo": False},
-            {"origen": "Ptot", "destino": "Ereq", "etiqueta": "Ptot·tm/3600", "lazo": False},
+            {"origen": "Ptot", "destino": "Ereq", "etiqueta": "× tman/3600", "lazo": False},
+            {"origen": "Pcruc", "destino": "Ereq", "etiqueta": "× (tm-tman)", "lazo": False},
+            {"origen": "tman", "destino": "Ereq", "etiqueta": "peso fase", "lazo": False},
             {"origen": "Ereq", "destino": "Eelec", "etiqueta": "× 3600", "lazo": False},
             {"origen": "Ereq", "destino": "celec", "etiqueta": "Ereq / dm", "lazo": False},
             {"origen": "Ereq", "destino": "Celec", "etiqueta": "× celecU", "lazo": False},
@@ -814,27 +855,42 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
             "la presión interior P₂ iguala prácticamente a la atmosférica P₁ y la densidad cae."
         ),
     },
+    "Densidad media del aire en celdas aislantes": {
+        "ecuacion": (
+            "Calcula la densidad media rhocel del aire encerrado en las capas celulares aislantes a temperatura media Tm."
+        ),
+        "criterio": (
+            "Como las celdas están entre la cavidad caliente T₂ y el exterior T₁, su aire es más frío y denso que el núcleo ρ₂."
+        ),
+    },
     "Diferencia de densidades": {
         "ecuacion": (
             "Cuantifica el contraste de densidad Δρ = ρ₁ − ρ₂ entre el aire exterior frío y el aire interior caliente, "
             "que es la fuente física de flotabilidad aerostática por cada metro cúbico de casco."
         ),
     },
+    "Masa de aire caliente": {
+        "ecuacion": (
+            "Calcula la masa total m del aire contenido dentro del dirigible sumando el núcleo caliente (ρ₂·Vnuc) y el aire periférico "
+            "en las celdas aislantes (rhocel·Vcel)."
+        ),
+    },
     "Calor sensible": {
         "ecuacion": (
-            "Calcula la energía térmica almacenada en la masa m de aire caliente dentro del casco respecto al aire exterior."
+            "Calcula la energía térmica almacenada por regiones en el aire interior respecto a T₁: el núcleo Vnuc se calienta todo ΔT = T₂ − T₁, "
+            "mientras el aire en las celdas Vcel a temperatura media (T₁ + T₂)/2 aporta ΔT/2."
         ),
         "variables": (
-            "cp (1005 J/(kg·K)) es el calor específico a presión constante del aire; ΔT es el salto térmico T₂ − T₁."
+            "cp (1005 J/(kg·K)) es el calor específico a presión constante del aire; ρ₂·Vnuc y rhocel·Vcel son las masas regionales a masas finales."
         ),
     },
     "Fuerza de sustentación aerostática": {
         "ecuacion": (
-            "Empuje hidrostático de Arquímedes F = (ρ₁ − ρ₂)·g·V generado por el volumen de aire caliente desplazado."
+            "Empuje hidrostático de Arquímedes por regiones: F = g·[(ρ₁ − ρ₂)·Vnuc + (ρ₁ − rhocel)·Vcel]."
         ),
         "criterio": (
-            "Solo se contabiliza el volumen interior principal V; las finas celdas aislantes quedan fuera de V (conservador si están "
-            "selladas en frío y con un margen extra de ~2.8 % si se ventilan al calentar)."
+            "Descuenta la menor flotabilidad de la corona de celdas aislantes (a densidad media rhocel > ρ₂), evitando sobreestimar "
+            "la sustentación cuando aumentan el espesor e o el número de capas."
         ),
     },
     "Masa compensada por aire caliente (mflot)": {
@@ -861,10 +917,21 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Volumen total del casco": {
         "ecuacion": (
-            "Calcula el volumen encerrado por dos semielipsoides prolados de revolución unidos por su círculo máximo de radio R."
+            "Calcula el volumen exterior total V desplazado por dos semielipsoides prolados de revolución unidos por su círculo máximo de radio R."
         ),
         "coeficientes": (
             "El factor 2/3·π proviene de sumar los volúmenes de ambos semielipsoides: (2/3)·π·R²·cf + (2/3)·π·R²·cr = (2/3)·π·R²·(cf + cr) = (2/3)·π·R²·L."
+        ),
+    },
+    "Volumen del núcleo interior caliente": {
+        "ecuacion": (
+            "Calcula el volumen interno Vnuc que queda libre a temperatura plena T₂ tras restar radial y axialmente los espesores asimétricos "
+            "ncapS·e (mitad superior) y ncapI·e (mitad inferior)."
+        ),
+    },
+    "Volumen ocupado por celdas aislantes": {
+        "ecuacion": (
+            "Obtiene por diferencia geométrica el volumen periférico Vcel = V − Vnuc ocupado por el aire estratificado en las celdas Mylar."
         ),
     },
     # --- C3: Superficies del casco y capas Mylar ---
@@ -883,15 +950,16 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Área superficial frontal": {
         "ecuacion": (
-            "Calcula el área curva exacta del semielipsoide prolado de nariz."
+            "Calcula el área curva exacta del semielipsoide prolado de nariz: π·R² + π·R·cf·arcsin(ef)/ef."
         ),
         "coeficientes": (
-            "El factor arcsin(ef)/ef corrige la curvatura axial entre una sección circular plana y una superficie elipsoidal alargada."
+            "Al integrar la superficie curva de revolución aparecen dos términos (ambos corresponden solo a la cáscara exterior, sin disco ecuatorial); "
+            "cuando cf → R (semiesfera, ef → 0), el área converge exactamente a π·R² + π·R² = 2·π·R²."
         ),
     },
     "Área superficial trasera": {
         "ecuacion": (
-            "Calcula el área curva exacta del semielipsoide prolado de popa mediante arcsin(er)/er; sumada a Sf da la envolvente S."
+            "Calcula el área curva exacta del semielipsoide prolado de popa mediante π·R² + π·R·cr·arcsin(er)/er; sumada a Sf da la envolvente exterior S."
         ),
     },
     "Número promedio de capas celulares (ncap)": {
@@ -902,11 +970,12 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Área total de película celular": {
         "ecuacion": (
-            "Calcula la superficie real de película Mylar necesaria para formar todas las láminas paralelas y los tabiques internos de las celdas."
+            "Calcula la superficie real de película Mylar sumando la piel exterior (1·S) más todas las láminas y tabiques celulares internos: "
+            "Sc = S·[1 + ncap·(1 + 2·e/W)]."
         ),
         "coeficientes": (
-            "Cada celda cuadrada de paso W y altura e lleva 2 paredes ortogonales compartidas de área e·W sobre una base W², "
-            "lo que añade la fracción geométrica (1 + 2·e/W) por capa sobre el área exterior S."
+            "Incluir la piel exterior mantiene coherencia exacta con las ncap + 1 películas del modelo térmico y con el caso base sin aislamiento (0/0 → Sc = S). "
+            "Cada celda de paso W y altura e aporta dos tabiques ortogonales de fracción 2·e/W."
         ),
     },
     "Masa de la cuadrícula celular": {
@@ -1143,6 +1212,10 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
         "ecuacion": (
             "Promedia la transmitancia de la cúpula superior Usup y la mitad inferior Uinf para caracterizar la pérdida media global del dirigible."
         ),
+        "criterio": (
+            "Al invertir U para despejar el espesor e, pueden existir dos raíces físicas a ambos lados de Rac = 1708: una fina en conducción "
+            "pura (Nuc = 1) y otra más gruesa con convección intracelular (Nuc > 1)."
+        ),
     },
     # --- C6: Pérdidas de calor, ahorro del aislante y enfriamiento ---
     "Potencia perdida sin capa celular (Qp0)": {
@@ -1162,12 +1235,16 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Velocidad de enfriamiento (dT/dt)": {
         "ecuacion": (
-            "Ritmo instantáneo de enfriamiento pasivo vT = Qp/(m·cp) si se apagara el quemador; relaciona la fuga de calor con la inercia térmica del aire interior."
+            "Ritmo instantáneo de enfriamiento pasivo vT = Qp / C_ef = (Qp·ΔT)/Q si se apagara el quemador; usa la capacidad térmica efectiva regional C_ef = Q/ΔT."
         ),
     },
     "Tiempo de enfriamiento sin aporte": {
         "ecuacion": (
-            "Estima el tiempo tc = Qc/Qp disponible antes de que la temperatura interior caiga dTc (aproximación lineal; en la pestaña Simulación se integra el enfriamiento no lineal)."
+            "Integra analíticamente el decaimiento exponencial de temperatura desde ΔT hasta ΔT − dTc manteniendo el perfil lineal en la capa celular (C_ef = Q/ΔT): "
+            "tc = (Q/Qp)·ln(ΔT/(ΔT − dTc))."
+        ),
+        "criterio": (
+            "Coherente con el balance energético regional del calentamiento Q e impone el dominio físico dTc < ΔT."
         ),
     },
     # --- C7: Precalentamiento en tierra y quemador térmico ---
@@ -1267,6 +1344,14 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
             "El factor 1/2 proviene de la definición de presión dinámica ½·ρ₁·v²."
         ),
     },
+    "Energía perdida por resistencia aerodinámica (ED)": {
+        "ecuacion": (
+            "Calcula la energía disipada contra la masa de aire circundante durante el vuelo: ED = FD·v·tm."
+        ),
+        "criterio": (
+            "Emplea el recorrido aerodinámico v·tm (y no el desplazamiento sobre el suelo dm), por lo que permanece consistente con el trabajo útil FD·v en potencia cuando hay viento frontal."
+        ),
+    },
     # --- C9: Masas del dirigible y reparto híbrido ---
     "Masa del artefacto con sus componentes (mart)": {
         "ecuacion": (
@@ -1281,16 +1366,16 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Masa aparente traslacional (map)": {
         "ecuacion": (
-            "Calcula la inercia efectiva horizontal map = fap·mtot cuando el dirigible acelera."
+            "Calcula la inercia efectiva completa map = fap·(mtot + m) durante aceleraciones verticales u horizontales."
         ),
         "coeficientes": (
-            "fap (~1.15) representa la masa añadida del aire circundante que debe desplazarse junto con un cuerpo voluminoso y ligero."
+            "Incluye explícitamente la masa de gas encerrado m (aunque su peso se compense estáticamente en Arquímedes, debe acelerarse junto al casco) multiplicada por el factor de masa añadida del aire desplazado fap (~1.15)."
         ),
     },
     # --- C10: Dinámica vectorial, empuje y actitud ---
     "Aceleración vertical de ascenso (az)": {
         "ecuacion": (
-            "Estima la aceleración vertical de maniobra az = vz/ta que sobrecarga temporalmente el empuje vertical FL (en crucero estacionario vale 0)."
+            "Estima la aceleración vertical de maniobra az = vz/ta en el arranque (en crucero estacionario vale 0)."
         ),
     },
     "Aceleración horizontal de traslación (ax)": {
@@ -1300,7 +1385,7 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Componente vertical de sustentación de motores (FL)": {
         "ecuacion": (
-            "Empuje vertical total que deben producir los motores basculantes para sostener la masa residual mres·g y acelerar en ascenso mtot·az."
+            "Empuje vertical pico de maniobra necesario para sostener la masa residual mres·g y acelerar en ascenso la masa inercial map·az."
         ),
     },
     "Componente horizontal de avance de motores (FX)": {
@@ -1310,21 +1395,46 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Empuje vectorial total de los 4 motores (Ttot)": {
         "ecuacion": (
-            "Calcula la magnitud del vector empuje total Ttot = √(FL² + FX²) combinando sustentación vertical y avance horizontal."
+            "Calcula la magnitud del empuje vectorial pico de maniobra Ttot = √(FL² + FX²) combinando sustentación vertical y avance horizontal."
         ),
     },
     "Ángulo de rotación respecto a la vertical (theta)": {
         "ecuacion": (
-            "Calcula el ángulo de inclinación vectorial θ = arctan(FX/FL) respecto a la vertical."
+            "Calcula el ángulo de inclinación vectorial de maniobra θ = arctan(FX/FL) respecto a la vertical."
         ),
         "coeficientes": (
             "El factor 180/π convierte radianes a grados sexagesimales para compararlo con el límite mecánico thmax."
+        ),
+    },
+    "Ángulo de rotación en crucero estacionario (thcruc)": {
+        "ecuacion": (
+            "Calcula la inclinación de los motores durante el crucero horizontal estacionario (sin aceleraciones az ni ax): "
+            "thcruc = arctan(FD / (mres·g))."
+        ),
+        "criterio": (
+            "Cuando la flotabilidad mflot es muy alta (mres pequeño), el ángulo en crucero puede superar al de maniobra y volverse limitante frente a thmax."
+        ),
+    },
+    "Margen respecto al ángulo máximo de rotación (dth)": {
+        "ecuacion": (
+            "Calcula el margen angular restante frente al límite mecánico thmax usando el peor régimen entre maniobra y crucero: "
+            "dth = thmax − max(theta, thcruc)."
         ),
     },
     # --- C11: Capacidad vertical, eficiencia y potencia eléctrica ---
     "Sustentación vertical máxima de los 4 motores (FLmax)": {
         "ecuacion": (
             "Calcula el empuje vertical máximo disponible FLmax = √((N·Tmax1)² − FX²) tras reservar la componente horizontal FX requerida para avanzar."
+        ),
+    },
+    "Empuje vectorial en crucero estacionario (Tcruc)": {
+        "ecuacion": (
+            "Calcula el empuje vectorial continuo en vuelo estacionario (az = 0, ax = 0): Tcruc = √((mres·g)² + FD²)."
+        ),
+    },
+    "Potencia eléctrica motriz en crucero estacionario (Pcruc)": {
+        "ecuacion": (
+            "Evalúa la potencia eléctrica continua de los rotores durante la fase de crucero sin aceleraciones (empuje Tcruc y avance FD·v)."
         ),
     },
     "Área de disco barrida por cada hélice (Ap)": {
@@ -1344,11 +1454,10 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     },
     "Potencia eléctrica demandada por los 4 motores (Pelec)": {
         "ecuacion": (
-            "Calcula la potencia eléctrica total consumida por los rotores usando la teoría de disco actuador más la potencia útil de traslación."
+            "Calcula la potencia eléctrica pico de maniobra exigida a los rotores para dimensionar ESC/motores (Pmax) y corriente pico de batería (mbp)."
         ),
         "variables": (
-            "El término Ttot^(3/2)/√(2·ρ₁·N·Ap) es la potencia inducida por acelerar el aire hacia abajo y FX·v la potencia útil horizontal; "
-            "ambos se dividen por la eficiencia global ntot."
+            "El término Ttot^(3/2)/√(2·ρ₁·N·Ap) es la potencia inducida y FX·v el trabajo útil horizontal de maniobra, divididos entre ntot."
         ),
         "coeficientes": (
             "km (~1.20) es el factor de figura de mérito/margen que incorpora pérdidas de punta de pala, perfil, interferencia con el casco y control."
@@ -1357,15 +1466,20 @@ NOTAS_ECUACIONES: dict[str, dict[str, str]] = {
     # --- C12: Balance energético global y costos operativos ---
     "Potencia eléctrica total a bordo (Ptot)": {
         "ecuacion": (
-            "Suma la potencia eléctrica motriz Pelec más la carga base Pad de electrónica, telemetría y micro-ventilador mezclador del quemador."
+            "Suma la potencia eléctrica motriz pico Pelec más la carga base Pad de electrónica, telemetría y micro-ventilador mezclador del quemador."
+        ),
+    },
+    "Tiempo acumulado de maniobras en misión (tman)": {
+        "ecuacion": (
+            "Determina el tiempo total dedicado a maniobras de arranque/ascenso durante los nv viajes: tman = min(tm, nv·ta)."
         ),
     },
     "Energía eléctrica requerida en misión (Ereq)": {
         "ecuacion": (
-            "Integra la potencia eléctrica total Ptot durante el tiempo de misión tm, convirtiendo Watt-segundos (J) a Watt-hora (Wh)."
+            "Integra por fases reales el consumo eléctrico total en Watt-hora: potencia pico Ptot durante tman más potencia estacionaria (Pcruc + Pad) durante el crucero tm − tman."
         ),
         "coeficientes": (
-            "Se divide entre 3600 s/h para obtener la energía en Wh y poder compararla directamente con la capacidad específica ebat (Wh/kg) de la batería."
+            "Se divide entre 3600 s/h para obtener la energía en Wh y compararla directamente con la capacidad específica ebat (Wh/kg) en mbe."
         ),
     },
     "Energía eléctrica total usada en misión (Eelec)": {

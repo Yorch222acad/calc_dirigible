@@ -106,7 +106,7 @@ def mostrar_pantalla(valores: dict[str, float], fijas: set[str]) -> None:
 
     leyenda = "[yellow]■ fija[/yellow]   [green]■ calculada[/green]"
     if penalizado:
-        leyenda += "   [red]■ sustentación penalizada (negativa)[/red]"
+        leyenda += "   [red]■ variable con límite excedido[/red]"
     elementos += [Text(""), Text.from_markup(leyenda)]
 
     if alertas:

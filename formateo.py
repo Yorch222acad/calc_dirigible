@@ -1,8 +1,9 @@
 """
 Módulo compartido de presentación y reglas visuales:
 - Notación de ingeniería con guion bajo (ej. 67.120 (K_Pa), 20.000 (m_m), 3.000 (K_g)).
-- Evaluación de alertas de diseño (mbat > mbmax, theta > thmax) y penalización en negativo
-  de las variables de sustentación (F, mflot, FL, FLmax, Fexc).
+- Evaluación de alertas de diseño (mbat > mbmax, theta > thmax, Pelec > Pmax, Ttot > N·Tmax1,
+  Fexc < 0, mp < mgm) conservando siempre el signo físico real de todas las magnitudes y
+  marcando en rojo únicamente las variables con límite excedido.
 - Generación de ecuaciones en formato 2D (para terminal con Rich) y en formato LaTeX/KaTeX
   coloreado (para el frontend web).
 """
@@ -69,46 +70,86 @@ def formatear_ingenieria(nombre: str, valor: float) -> str:
     return f"({texto})" if es_neg else texto
 
 
+def variables_en_alerta(valores: dict[str, float]) -> set[str]:
+    """Devuelve el conjunto exacto de variables involucradas en límites físicos excedidos."""
+    en_alerta: set[str] = set()
+    if valores["mbat"] > valores["mbmax"]:
+        en_alerta.update(("mbat", "mbmax", "dmbat"))
+    if valores["theta"] > valores["thmax"]:
+        en_alerta.update(("theta", "thmax", "dth"))
+    if valores.get("thcruc", 0.0) > valores["thmax"]:
+        en_alerta.update(("thcruc", "thmax", "dth"))
+    if valores["Pelec"] > valores["Pmax"]:
+        en_alerta.update(("Pelec", "Pmax", "dPelec"))
+    if valores.get("Pcruc", 0.0) > valores["Pmax"]:
+        en_alerta.update(("Pcruc", "Pmax", "dPelec"))
+    tmax_total = valores["N"] * valores["Tmax1"]
+    if valores["Ttot"] > tmax_total:
+        en_alerta.update(("Ttot", "dTtot"))
+    if valores.get("Tcruc", 0.0) > tmax_total:
+        en_alerta.update(("Tcruc", "dTtot"))
+    if valores["Fexc"] < 0.0:
+        en_alerta.update(("Fexc", "FLmax"))
+    if valores["mp"] < valores["mgm"]:
+        en_alerta.update(("mp", "mgm"))
+    return en_alerta
+
+
 def evaluar_alertas_y_vista(valores: dict[str, float]) -> tuple[dict[str, float], list[str]]:
     """
     Verifica si se excede el peso máximo de batería (mbmax), el ángulo máximo de
-    rotación (thmax), la potencia eléctrica continua de motores (Pmax) o el empuje
-    máximo (N·Tmax1). Si se supera algún límite, pone en negativo los valores de
-    sustentación en la vista y devuelve los mensajes de alerta correspondientes.
+    rotación en maniobra o crucero (thmax), la potencia eléctrica continua de motores (Pmax),
+    el empuje máximo (N·Tmax1), el excedente vertical (Fexc < 0) o el combustible a bordo (mp < mgm).
+    Conserva siempre el signo físico real de las variables en la vista.
     """
     alertas: list[str] = []
     if valores["mbat"] > valores["mbmax"]:
         alertas.append(
             f"PESO DE BATERÍA EXCEDIDO: mbat = {formatear_ingenieria('mbat', valores['mbat'])} "
-            f"supera el máximo permitido mbmax = {formatear_ingenieria('mbmax', valores['mbmax'])}. "
-            "Cálculos de sustentación puestos en NEGATIVO."
+            f"supera el máximo permitido mbmax = {formatear_ingenieria('mbmax', valores['mbmax'])}."
         )
     if valores["theta"] > valores["thmax"]:
         alertas.append(
-            f"ÁNGULO DE ROTACIÓN EXCEDIDO: theta = {valores['theta']:.2f}° "
-            f"supera el máximo permitido thmax = {valores['thmax']:.2f}°. "
-            "Cálculos de sustentación puestos en NEGATIVO."
+            f"ÁNGULO DE ROTACIÓN EXCEDIDO (MANIOBRA): theta = {valores['theta']:.2f}° "
+            f"supera el máximo permitido thmax = {valores['thmax']:.2f}°."
+        )
+    if valores.get("thcruc", 0.0) > valores["thmax"]:
+        alertas.append(
+            f"ÁNGULO DE ROTACIÓN EXCEDIDO (CRUCERO): thcruc = {valores['thcruc']:.2f}° "
+            f"supera el máximo permitido thmax = {valores['thmax']:.2f}°."
         )
     if valores["Pelec"] > valores["Pmax"]:
         alertas.append(
-            f"POTENCIA ELÉCTRICA EXCEDIDA: Pelec = {formatear_ingenieria('Pelec', valores['Pelec'])} "
-            f"supera el límite continuo de motores Pmax = {formatear_ingenieria('Pmax', valores['Pmax'])}. "
-            "Cálculos de sustentación puestos en NEGATIVO."
+            f"POTENCIA ELÉCTRICA EXCEDIDA (MANIOBRA): Pelec = {formatear_ingenieria('Pelec', valores['Pelec'])} "
+            f"supera el límite continuo de motores Pmax = {formatear_ingenieria('Pmax', valores['Pmax'])}."
+        )
+    if valores.get("Pcruc", 0.0) > valores["Pmax"]:
+        alertas.append(
+            f"POTENCIA ELÉCTRICA EXCEDIDA (CRUCERO): Pcruc = {formatear_ingenieria('Pcruc', valores['Pcruc'])} "
+            f"supera el límite continuo de motores Pmax = {formatear_ingenieria('Pmax', valores['Pmax'])}."
         )
     tmax_total = valores["N"] * valores["Tmax1"]
     if valores["Ttot"] > tmax_total:
         alertas.append(
-            f"EMPUJE MÁXIMO EXCEDIDO: Ttot = {formatear_ingenieria('Ttot', valores['Ttot'])} "
-            f"supera la capacidad de {valores['N']:.0f} motores ({tmax_total:.2f} N). "
-            "Cálculos de sustentación puestos en NEGATIVO."
+            f"EMPUJE MÁXIMO EXCEDIDO (MANIOBRA): Ttot = {formatear_ingenieria('Ttot', valores['Ttot'])} "
+            f"supera la capacidad de {valores['N']:.0f} motores ({tmax_total:.2f} N)."
+        )
+    if valores.get("Tcruc", 0.0) > tmax_total:
+        alertas.append(
+            f"EMPUJE MÁXIMO EXCEDIDO (CRUCERO): Tcruc = {formatear_ingenieria('Tcruc', valores['Tcruc'])} "
+            f"supera la capacidad de {valores['N']:.0f} motores ({tmax_total:.2f} N)."
+        )
+    if valores["Fexc"] < 0.0:
+        alertas.append(
+            f"SUSTENTACIÓN TOTAL INSUFICIENTE: Fexc = {formatear_ingenieria('Fexc', valores['Fexc'])} < 0 N."
+        )
+    if valores["mp"] < valores["mgm"]:
+        alertas.append(
+            f"COMBUSTIBLE A BORDO INSUFICIENTE: mp = {formatear_ingenieria('mp', valores['mp'])} "
+            f"es menor que el requerido en misión mgm = {formatear_ingenieria('mgm', valores['mgm'])}."
         )
 
-    vista = dict(valores)
-    if alertas:
-        for var_s in VARS_SUSTENTACION:
-            if var_s in vista:
-                vista[var_s] = -abs(vista[var_s])
-    return vista, alertas
+    return dict(valores), alertas
 
 
 def preparar_eq_vista(eq: sp.Eq) -> sp.Eq:
@@ -156,6 +197,7 @@ def renderizar_sustitucion(
     (o rojo si es una variable de sustentación penalizada en negativo).
     """
     eq = preparar_eq_vista(eq)
+    vars_alerta = variables_en_alerta(valores) if penalizado else set()
     marcadores = {}
     reemplazo = {}
     for i, simbolo in enumerate(sorted(eq.free_symbols, key=str)):
@@ -164,7 +206,7 @@ def renderizar_sustitucion(
             continue
         texto = formatear_ingenieria(nombre, valores[nombre])
         marca = chr(0xE000 + i)
-        if penalizado and nombre in VARS_SUSTENTACION:
+        if penalizado and nombre in vars_alerta:
             color = "red"
         else:
             color = "yellow" if nombre in fijas else "green"
@@ -298,7 +340,7 @@ def _simbolo_linea_unica(nombre: str) -> str:
         "P2": "P₂", "T2": "T₂", "R2": "R₂", "rho2": "ρ₂",
         "drho": "Δρ", "lam": "λ", "eps": "ε", "epsef": "εef",
         "beta": "β", "nu": "ν", "alpha": "α", "sigma": "σ",
-        "mu": "μ", "theta": "θ", "thmax": "θmax", "dth": "Δθ",
+        "mu": "μ", "theta": "θ", "thcruc": "θcruc", "thmax": "θmax", "dth": "Δθ",
     }
     return mapa_especial.get(nombre, nombre)
 
@@ -363,11 +405,13 @@ def renderizar_sustitucion_latex(
     por sus valores en notación de ingeniería (con unidades en fracción vertical) y coloreadas:
     - Amarillo: variable fija
     - Verde: variable calculada
-    - Rojo: variable de sustentación penalizada en negativo
+    - Rojo: variable con límite físico excedido
     """
+    vars_alerta = variables_en_alerta(valores) if penalizado else set()
+
     def _token_valor(nombre: str) -> str:
         val_latex = formatear_ingenieria_latex(nombre, valores[nombre])
-        if penalizado and nombre in VARS_SUSTENTACION:
+        if penalizado and nombre in vars_alerta:
             color = COLOR_HEX["red"]
         else:
             color = COLOR_HEX["yellow"] if nombre in fijas else COLOR_HEX["green"]
@@ -409,11 +453,12 @@ def variables_de_ecuacion(eq: sp.Eq, valores: dict[str, float], fijas: set[str],
     estado, color y valor formateado.
     """
     nombres = {str(simbolo) for simbolo in eq.free_symbols}
+    vars_alerta = variables_en_alerta(valores) if penalizado else set()
     resultado = []
     for nombre, (desc, unidad, _) in modelo.VARIABLES.items():
         if nombre in nombres:
             es_fija = nombre in fijas
-            es_penalizada = bool(penalizado and nombre in VARS_SUSTENTACION)
+            es_penalizada = bool(penalizado and nombre in vars_alerta)
             color = "red" if es_penalizada else ("yellow" if es_fija else "green")
             unidad_completa = modelo.UNIDAD_NOMBRE.get(unidad, unidad)
             resultado.append({

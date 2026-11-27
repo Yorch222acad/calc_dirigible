@@ -123,13 +123,15 @@ function crearPanelLineasDobleEje(panel) {
     const xSpan = Math.max(1e-9, xMax - xMin);
     const toX = (x) => padL + ((x - xMin) / xSpan) * plotW;
 
+    const esValidoNum = (v) => typeof v === "number" && Number.isFinite(v);
+
     function rangoEje(listaSeries, forzarCero = false) {
       if (!listaSeries.length) return [0, 1];
       let minV = Infinity;
       let maxV = -Infinity;
       for (const s of listaSeries) {
         for (const v of s.valores) {
-          if (Number.isFinite(v)) {
+          if (esValidoNum(v)) {
             if (v < minV) minV = v;
             if (v > maxV) maxV = v;
           }
@@ -361,28 +363,51 @@ function crearPanelLineasDobleEje(panel) {
       });
     }
 
-    // Trazado de cada serie de curvas
+    // Trazado de cada serie de curvas (dividido en segmentos contiguos válidos; nunca convierte null en 0)
     panel.series.forEach((serie, sIdx) => {
       if (!seriesVisibles[sIdx]) return;
       const toY = !escalaUnica && serie.eje === "y2" ? toY2 : toY1;
-      const ptsStr = serie.valores
-        .map((val, i) => `${toX(xs[i]).toFixed(1)},${toY(val).toFixed(1)}`)
-        .join(" ");
 
-      svg.appendChild(
-        crearSvgEl("polyline", {
-          fill: "none",
-          stroke: serie.color || "#38bdf8",
-          "stroke-width": 2.6,
-          "stroke-dasharray": serie.dashed ? "6,4" : "",
-          "stroke-linejoin": "round",
-          "stroke-linecap": "round",
-          points: ptsStr,
-        })
-      );
+      const segmentos = [];
+      let segActual = [];
+      serie.valores.forEach((val, i) => {
+        if (esValidoNum(val)) {
+          segActual.push(`${toX(xs[i]).toFixed(1)},${toY(val).toFixed(1)}`);
+        } else if (segActual.length > 0) {
+          segmentos.push(segActual);
+          segActual = [];
+        }
+      });
+      if (segActual.length > 0) segmentos.push(segActual);
+
+      segmentos.forEach((seg) => {
+        if (seg.length >= 2) {
+          svg.appendChild(
+            crearSvgEl("polyline", {
+              fill: "none",
+              stroke: serie.color || "#38bdf8",
+              "stroke-width": 2.6,
+              "stroke-dasharray": serie.dashed ? "6,4" : "",
+              "stroke-linejoin": "round",
+              "stroke-linecap": "round",
+              points: seg.join(" "),
+            })
+          );
+        } else if (seg.length === 1) {
+          const [px, py] = seg[0].split(",");
+          svg.appendChild(
+            crearSvgEl("circle", {
+              cx: px,
+              cy: py,
+              r: 3.5,
+              fill: serie.color || "#38bdf8",
+            })
+          );
+        }
+      });
 
       // Punto destacado sobre la curva en el estado actual
-      if (idxActual >= 0 && serie.valores[idxActual] !== undefined) {
+      if (idxActual >= 0 && esValidoNum(serie.valores[idxActual])) {
         const cx = toX(xs[idxActual]);
         const cy = toY(serie.valores[idxActual]);
         svg.appendChild(
@@ -466,12 +491,22 @@ function crearPanelLineasDobleEje(panel) {
           return;
         }
         const val = serie.valores[bestI];
+        const estadoPt = Array.isArray(serie.estados) ? serie.estados[bestI] : null;
+        if (!esValidoNum(val)) {
+          hoverDots[sIdx].setAttribute("visibility", "hidden");
+          const msgSinSol = estadoPt || "Sin solución";
+          partes.push(
+            `<span style="color:${serie.color};font-weight:600;">● ${serie.nombre}: ${msgSinSol}</span>`
+          );
+          return;
+        }
         const toY = !escalaUnica && serie.eje === "y2" ? toY2 : toY1;
         hoverDots[sIdx].setAttribute("cx", String(snapX));
         hoverDots[sIdx].setAttribute("cy", String(toY(val)));
         hoverDots[sIdx].setAttribute("visibility", "visible");
+        const sufijoEstado = estadoPt ? ` [${estadoPt}]` : "";
         partes.push(
-          `<span style="color:${serie.color};font-weight:600;">● ${serie.nombre}: ${formatearNumero(val)} ${serie.unidad}</span>`
+          `<span style="color:${serie.color};font-weight:600;">● ${serie.nombre}: ${formatearNumero(val)} ${serie.unidad}${sufijoEstado}</span>`
         );
       });
 

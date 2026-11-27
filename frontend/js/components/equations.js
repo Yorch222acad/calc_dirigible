@@ -4,12 +4,12 @@
  * Cada fila de ecuación se divide en 3 columnas:
  *   1. Izquierda: Ecuación general en gris con unidades entre paréntesis.
  *   2. Centro:    Ecuación con variables reemplazadas por datos en notación de ingeniería
- *                 y coloreadas (Amarillo = fija, Verde = calculada, Rojo = sustentación penalizada).
+ *                 y coloreadas (Amarillo = fija, Verde = calculada, Rojo = límite de diseño excedido).
  *   3. Derecha:   Explicación de cada variable involucrada y el nombre completo de su unidad.
  */
 
-import { renderizarFormulaKaTeX } from "../katex_helper.js?v=14";
-import { renderizarFlujoCategoria } from "./flowchart.js?v=14";
+import { renderizarFormulaKaTeX } from "../katex_helper.js?v=15";
+import { renderizarFlujoCategoria } from "./flowchart.js?v=15";
 
 let localFlashTimeout = null;
 

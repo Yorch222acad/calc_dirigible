@@ -3,69 +3,70 @@
 Herramienta de ingeniería y modelado físico-económico para el diseño, análisis térmico, aerodinámico, energético y de costos de un **dirigible híbrido no rígido de aire caliente** con propulsión y empuje vectorial mediante rotores eléctricos.
 
 El proyecto cuenta con dos interfaces sobre un mismo núcleo matemático:
-- **Interfaz Web (FastAPI + HTML/JS/KaTeX/Canvas)**: panel lateral con **167 variables** agrupadas en **13 categorías**, vista de ecuaciones en tiempo real con resaltado por dependencias, diagramas de flujo interactivos, **7 gráficas** de sensibilidad/escalabilidad, simulador por fases de vuelo y optimizador de diseño.
+- **Interfaz Web (FastAPI + HTML/JS/KaTeX/Canvas)**: panel lateral con **170 variables** agrupadas en **13 categorías**, vista de ecuaciones en tiempo real con resaltado por dependencias, diagramas de flujo interactivos, **7 gráficas** de sensibilidad/escalabilidad y estudio de diseño **📐 Óptimo y Casos Tipo** (`diseno.py`).
 - **Interfaz CLI (`calc.py`)**: consola interactiva con `rich` para inspeccionar, modificar y equilibrar variables rápidamente.
 
 ---
 
-## ¿Qué cambió y por qué? (Resumen de mejoras recientes)
+## ¿Qué cambió y por qué? (Resumen de mejoras y auditoría matemática)
 
-Esta versión incorpora una actualización integral de la física térmica, la contabilidad energética/económica y la arquitectura de cálculo rápido:
+Esta versión incorpora las correcciones de la auditoría matemática y de física térmica sobre el modelo simbólico-numérico:
 
-### 1. Aislamiento multicapa asimétrico con Mylar (`ncapS = 3`, `ncapI = 2`)
-- **Qué cambió**: Se reemplazó la capa única de aislante por un arreglo **asimétrico de celdas de aire** recubiertas con película reflectante **Mylar**: `ncapS = 3` capas en la mitad superior (donde el gradiente térmico y la convección libre ascendente son mayores) y `ncapI = 2` capas en la mitad inferior (donde el aire frío queda estratificado de forma estable y no recircula).
-- **Detalles**: Espesor de celda `e = 14 mm`, paso entre costillas `W = 20 cm`, espesor de lámina `ep = 6 µm`, densidad superficial `sigma = 8.4 g/m²` y conductividad `ke = 0.15 W/(m·K)`. Se calculan transmitancias separadas (`Usup` con convección `Nuc` y `Uinf` con conducción pura `ka/e`) y un promedio `U = (Usup + Uinf)/2`.
-- **Por qué**: Añadir múltiples capas delgadas reduce drásticamente las pérdidas globales `Qp` (bajando de `7528.3 W` sin aislar a `1328.8 W`, es decir `fais = 82.3 %` de ahorro térmico) manteniendo una masa de aislante contenida (`mc = 708.1 g`).
+### 1. Área superficial curva exacta de semielipsoides prolados y piel exterior en `Sc`
+- **Qué cambió**: Se corrigió la fórmula de superficie lateral de cada semielipsoide prolado ($c > R$, sin disco ecuatorial) tanto en `modelo.py` como en `evaluador.py`:
+  $$S_{\text{mitad}} = \pi R^2 + \pi R c \frac{\arcsin(e)}{e}, \quad e = \sqrt{1 - \left(\frac{R}{c}\right)^2}$$
+  lo que garantiza continuidad exacta con el límite hemisférico $2\pi R^2$ cuando $c \to R$ y coincide al $10^{-12}$ con la integración numérica de revolución.
+- **Piel exterior**: El área total de película Mylar pasó a $S_c = S \cdot \left[1 + n_{\text{cap}}\left(1 + \frac{2e}{W}\right)\right]$, contabilizando explícitamente la piel exterior junto a las capas y tabiques celulares en coherencia con las $n_{\text{cap}} + 1$ láminas térmicas.
 
-### 2. Radiación térmica infrarroja y emisividad baja (`eps = 0.04`)
-- **Qué cambió**: Se incorporó el cálculo explícito de intercambio radiativo mediante la ley de Stefan-Boltzmann (`σ_SB`), modelando tanto la radiación hacia el entorno exterior (`hrade`, `hetot = he + hrade`) como la radiación interna entre láminas de Mylar (`Tm`, `epsef = eps/(2 - eps)`, `hrad = 4·epsef·σ_SB·Tm³`).
-- **Por qué**: A `85 °C`, una superficie opaca de alta emisividad pierde calor significativo por infrarrojo. La baja emisividad del Mylar (`eps = 0.04`) suprime casi por completo el acoplamiento radiativo entre celdas (`hrad = 0.156 W/(m²·K)` y `hrade = 0.217 W/(m²·K)` en el punto base).
+### 2. Flotabilidad por regiones (`Vnuc`, `Vcel`, `rhocel`) y volumen ocupado por celdas
+- **Qué cambió**: Se descuenta la menor flotabilidad de la corona periférica de celdas aislantes (a densidad media `rhocel = P2 / (R2 · Tm)`) respecto al núcleo caliente interior `Vnuc` (`Vcel = V - Vnuc`, `m = rho2·Vnuc + rhocel·Vcel`).
+- **Por qué**: Evita que el optimizador sobreestime el empuje aerostático al elegir espesores celulares muy grandes ($e > 25\text{ mm}$) o muchas capas.
 
-### 3. Correlación de Hollands (1976) para `Nuc` y aislamiento estricto de `U0`
-- **Qué cambió**: Se corrigió el número de Nusselt dentro de las celdas inclinadas/superiores mediante la correlación de Hollands con límite inferior físico en `1.0`:
-  $$Nu_c = 1 + 1.44 \cdot \max\!\left(0,\; 1 - \frac{Ra_c}{Ra_e}\right) + \max\!\left(0,\; \left(\frac{Ra_e}{5830}\right)^{1/3} - 1\right)$$
-  con `Rac = 1708`. Además, la referencia sin aislar `U0` quedó estrictamente aislada de las variables de aislamiento y mamparos (`e`, `W`, `ncapS`, `ncapI`, `fmamp`, `nmamp`, `Nuc`, `hrad`).
-- **Por qué**: Evita que el modelo produzca valores artificiales de `Nuc < 1` (lo cual equivaldría a conducir menos calor que el aire inmóvil) y garantiza que `U0` (`3.636 W/(m²·K)`) sea una línea base invariante al comparar variantes de aislamiento. Con `e = 14 mm`, la convección intracelular queda suprimida (`Nuc = 1.000`).
+### 3. Dinámica por fases (maniobra vs. crucero), inercia del gas (`m`) y disipación `ED`
+- **Qué cambió**:
+  - La masa aparente inercial incluye ahora el gas encerrado junto a la estructura (`map = fap·(mtot + m)`) tanto en avance como en ascenso (`FL = mres·g + map·az`), con un tiempo de rampa de maniobra realista para dirigible (`ta = 18 s`).
+  - Se separó el régimen pico de maniobra (`Ttot`, `Pelec`, `Ptot`) del régimen continuo de crucero estacionario (`Tcruc`, `Pcruc`), integrando la energía eléctrica de misión `Ereq` por fases mediante `tman = min(tm, nv·ta)`.
+  - El trabajo aerodinámico `ED = FD·v·tm` se refiere al desplazamiento relativo al aire (`v·tm`) en lugar de la distancia sobre el suelo `dm`.
 
-### 4. Mamparos internos anti-convección (`nmamp = 2`, `fmamp = 0.78`)
-- **Qué cambió**: Se añadieron tabiques internos transversales (`nmamp = 2`) con pequeños orificios de ecualización de presión. Modelan tanto la reducción de la convección interna sobre la pared (`hi = fcal·fmamp·Nui·ka/D`, factor `fmamp = 0.78`) como su área y masa extra (`Smamp = nmamp·(2/3)·π·R²`, `mmamp = Smamp·sigma = 57.6 g`).
-- **Por qué**: Compartimentar el casco frena las corrientes convectivas de gran escala a lo largo del dirigible a un costo de masa muy bajo.
+### 4. Enfriamiento pasivo logarítmico (`tc`), aislamiento asimétrico y ramas inversas
+- **Qué cambió**: Se reemplazó la aproximación lineal $Q_c / Q_p$ por la integral exponencial exacta a transmitancia $U$ constante y capacidad calorífica efectiva regional $C_{\text{ef}} = Q / \Delta T = c_p(\rho_2 V_{\text{nuc}} + \tfrac{1}{2}\rho_{\text{cel}} V_{\text{cel}})$:
+  $$t_c = \frac{Q}{Q_p} \ln\!\left(\frac{\Delta T}{\Delta T - \Delta T_c}\right)$$
+  y se validan dominios físicos estrictos (`0 < dTc < dT`, `0 < ncal < 1`, enteros para `N >= 1`, `ncapS >= 0`, `ncapI >= 0`).
+- **Correlación de Hollands (`Nuc`) y ramas inversas**: La transmitancia $U(e)$ presenta físicamente dos raíces posibles a ambos lados de `Rac = 1708` (una en conducción pura `Nuc = 1` y otra en régimen convectivo `Nuc > 1`), y el intercambio `xf ↔ 1 - xf` conserva $S$.
+- **Aislamiento de `U0`**: La referencia sin aislar `U0` permanece estrictamente independiente de `e`, `W`, `ncapS`, `ncapI`, `Nuc` y `hrad`.
 
-### 5. Precalentamiento en tierra y modelo de costos (`Cop`)
-- **Qué cambió**: Se integró el costo y eficiencia del llenado y calentamiento inicial en tierra (`npre = 0.65`, `cpre = 0.24 Bs/MJ`, `Epre = Q/npre`, `Cpre = (Epre/10^6)·cpre`) junto al costo del combustible térmico en vuelo (`ccomb = 18.0 Bs/kg`, `Ccomb = mgm·ccomb`), el costo eléctrico de recarga (`celecU = 0.85 Bs/kWh`, `Celec = (Ereq/1000)·celecU`) y el costo operativo total `Cop = Cpre + Ccomb + Celec`.
-- **Por qué**: Permite modelar el aire caliente precalentado en tierra como una "batería térmica" de muy bajo costo (`Cpre = 0.34 Bs` por ciclo) para que el quemador en vuelo solo compense las pérdidas durante la misión (`Ccomb = 0.36 Bs`).
+### 5. Factibilidad unificada, signos reales en alertas y optimizador invariante
+- **Qué cambió**:
+  - Se eliminó la inversión artificial a negativo de las variables de sustentación (`F`, `mflot`, `FL`, `FLmax`, `Fexc`): toda magnitud conserva su signo físico real y las alertas marcan únicamente las variables cuyo límite ha sido excedido (incluyendo `mp < mgm` y `Fexc < 0`).
+  - En `diseno.py` y `app.py`, los límites del hardware configurado (`N·Pmax1`, `N·Tmax1`, `mbmax`, `thmax`, `Fexc >= 0`, además de `T2 <= 130 °C` editable para Mylar con uniones Kapton/PET —techo interno de búsqueda `140 °C`— y `mp <= 300 g`; las referencias históricas anteriores conservan `95 °C`) inician activos por defecto, son evaluados incluso en análisis directo (`ejecutar_optimizador=False`) y el optimizador ordena canónicamente las variables libres para que los resultados sean invariantes al orden elegido.
 
-### 6. Combustible térmico genérico (calibrado para etanol) y calibración multi-viaje (`nv = 3`)
-- **Qué cambió**: Se reemplazaron las referencias explícitas a "Propano / GLP" por la denominación genérica **combustible térmico** en ecuaciones, flujo, gráficas e interfaz web. Los valores iniciales se calibraron para etanol al 96 % (`PC = 2.5e7 J/kg`, `ncal = 0.75`, `mp = 0.220 kg`), temperatura interior reducida (`T2 = 85 °C` frente a mayor `mflot = 3.20 kg` y volumen `20.18 m³`), esbeltez `lam = 2.3`, velocidad `v = 5.5 m/s` y una misión base de **`nv = 3` viajes** de `d1 = 280 m` (`dm = 840 m`, `tm = 280 s` con viento en contra `vv = 2.5 m/s`).
-- **Por qué**: Bajar `T2` y aumentar el volumen disminuye el gradiente térmico `ΔT` y la relación superficie/volumen; usar etanol reduce drásticamente el costo por kg de combustible frente a gas presurizado; y evaluar `nv = 3` viajes permite demostrar tanto el tramo mínimo de `280 m` como la escalabilidad operativa frente a un dron puro.
-
-### 7. Optimización sin SymPy en runtime (Tearing + BLT + Simulación RK2)
-- **Qué cambió**: Aunque las 103 ecuaciones siguen definidas simbólicamente en `modelo.py`, toda la evaluación numérica, los barridos de las 7 gráficas, las derivadas e intercambios BLT (`dm → nv`, `Cop → nv`, `mres → mflot`, `U → e`, etc.) y el optimizador multi-variable (`optimizar_diseno` con soporte para `T2` y objetivo `Cop`) corren en Python puro mediante **`evaluador.py`** con resolución por *tearing* (~`0.17 ms` por evaluación). Además, **`simulacion.py`** ejecuta integración RK2 por fases térmicas (despegue, ascenso, crucero y descenso) y **`flujo.py`** / **`graficas.py`** (`G1`–`G7`) fueron actualizados con el nuevo gráfico **`G7`** de temperatura óptima y escalabilidad multi-viaje.
-- **Por qué**: Mantiene la trazabilidad exacta del sistema de 103 ecuaciones simbólicas sin sacrificar velocidad interactiva al mover deslizadores, cambiar variables objetivo o ejecutar cientos de iteraciones de optimización.
-
-### 8. Limpieza del historial Git
-- Se añadió `teoria_a_considerar/` a `.gitignore` y se depuró esa carpeta de notas personales del historial de commits de la rama `main`.
+### 6. Validación v2: ángulo en crucero, 0/0 capas, precalentamiento regional y capacidad útil real
+- **Qué cambió**:
+  - Se incorporó el ángulo de inclinación de los motores en crucero (`thcruc = arctan(FD / (mres·g))`) y el margen conjunto `dth = thmax - max(theta, thcruc)` en todas las comprobaciones de factibilidad y alertas.
+  - Se manejaron sin singularidades los cascos `0/0`, `1/0` y `0/1` (`dTcel = 0`, `Rae = 0`, `Nuc = 1`) tanto en el evaluador rápido como en el solver simbólico/BLT (`sp.Piecewise`).
+  - El calor sensible de precalentamiento `Q` distingue las dos regiones de temperatura (`Q = cp·[rho2·Vnuc·dT + rhocel·Vcel·(dT/2)]`), coherente con `m = rho2·Vnuc + rhocel·Vcel` y la sensibilidad térmica a casco fijo de `G7`.
+  - Se unificaron los topes de equipo (`N·Pmax1`, `N·Tmax1`, `mbmax`, `thmax`) separados de eventuales topes manuales (`tope_manual`), la capacidad útil en ficha se evalúa resolviendo la misión completa con equipo y batería instalada fija (y la referencia de dron puro en `G7` usa masa estructural, arrastre e inercia propios integrados por fases).
 
 ---
 
 ## Valores base verificados (Condiciones de La Paz, ~3.350 m s.n.m.)
 
-Con los parámetros iniciales en `modelo.py` (`P1 = 67120 Pa`, `T1 = 15 °C`, `T2 = 85 °C`, `lam = 2.3`, `mflot = 3.20 kg`, `v = 5.5 m/s`, `vv = 2.5 m/s`, `d1 = 280 m`, `nv = 3`, `mcarga = 1.0 kg`, `mad = 1.15 kg`, `N = 4`):
+Con los parámetros iniciales en `modelo.py` (`P1 = 67120 Pa`, `T1 = 15 °C`, `T2 = 85 °C`, `lam = 2.3`, `mflot = 3.20 kg`, `v = 8.5 m/s`, `vv = 6.0 m/s`, `d1 = 280 m`, `nv = 3`, `ta = 18.0 s`, `mcarga = 1.0 kg`, `mad = 1.15 kg`, `mp = 0.220 kg`, `N = 4`):
 
 | Magnitud | Símbolo | Valor base |
 |---|---|---|
-| Diámetro / Longitud / Volumen | `D` / `L` / `V` | `2.559 m` / `5.885 m` / `20.18 m³` |
-| Área superficial del casco | `S` | `29.58 m²` |
-| Coef. global sin / con aislante | `U0` / `U` | `3.636` / `0.642 W/(m²·K)` (`Usup = 0.550`, `Uinf = 0.734`) |
-| Pérdida térmica sin / con aislante | `Qp0` / `Qp` | `7528.3 W` / `1328.8 W` (`fais = 82.3 %`) |
-| Constante de enfriamiento (20 K) | `tc` | `199.3 s` |
-| Masa cubierta / mamparos / batería | `mc` / `mmamp` / `mbat` | `708.1 g` / `57.6 g` / `228.8 g` |
-| Masa residual por motores / Masa total | `mres` / `mtot` | `352.5 g` / `3.553 kg` |
-| Potencia eléctrica / Empuje / Ángulo | `Pelec` / `Ttot` / `theta` | `270.7 W` / `8.53 N` / `61.9°` |
-| Energía precalentamiento / térmica / eléctrica | `Epre` / `Eprop` / `Eelec` | `1425.7 kJ` / `496.1 kJ` (`mgm = 19.84 g`) / `88.4 kJ` |
-| Energía total en vuelo (`nv = 3`, `dm = 840 m`) | `Etot` | `584.5 kJ` (`tm = 280 s`) |
-| Costo operativo total | `Cop` | `0.72 Bs` (`Cpre = 0.34`, `Ccomb = 0.36`, `Celec = 0.021 Bs`) |
-| Alertas de diseño activas | — | Ninguna (`0` alertas) |
+| Diámetro / Longitud / Volumen exterior | `D` / `L` / `V` | `2.584 m` / `5.943 m` / `20.775 m³` (`Vnuc = 19.434`, `Vcel = 1.341 m³`) |
+| Área exterior del casco / Película total | `S` / `Sc` | `40.648 m²` / `156.494 m²` |
+| Coef. global sin / con aislante | `U0` / `U` | `4.324` / `0.694 W/(m²·K)` (`Usup = 0.587`, `Uinf = 0.801`) |
+| Pérdida térmica sin / con aislante | `Qp0` / `Qp` | `12301.9 W` / `1973.7 W` (`fais = 84.0 %`) |
+| Enfriamiento logarítmico (20 K) | `tc` | `158.0 s` |
+| Masa película Mylar / Masa batería | `mc` / `mbat` | `1314.5 g` / `1051.5 g` |
+| Masa residual / Masa total | `mres` / `mtot` | `1.724 kg` / `4.924 kg` |
+| Potencia pico / crucero / Empuje / Ángulos | `Pelec` / `Pcruc` / `Ttot` / `theta` / `thcruc` | `1403.8 W` / `1159.5 W` / `23.47 N` (`Tcruc = 20.88 N`) / `40.7°` / `36.2°` |
+| Energía precalentamiento / térmica / eléctrica / arrastre | `Epre` / `Eprop` / `Eelec` / `ED` | `1425.7 kJ` (`Q = 926.7 kJ`) / `884.2 kJ` (`mgm = 35.4 g`) / `417.9 kJ` / `35.2 kJ` |
+| Energía total en vuelo (`nv = 3`, `dm = 840 m`) | `Etot` | `1302.1 kJ` (`tm = 336.0 s`) |
+| Costo operativo total | `Cop` | `1.077 Bs` (`Cpre = 0.342`, `Ccomb = 0.637`, `Celec = 0.099 Bs`) |
+| Alertas de diseño activas en punto base | — | `4` alertas (`mbat > 1 kg`, `Pelec > 640 W`, `Ttot > 22 N`, `Fexc < 0`) |
 
 ---
 
@@ -76,22 +77,23 @@ Con los parámetros iniciales en `modelo.py` (`P1 = 67120 Pa`, `T1 = 15 °C`, `T
 3. **`G3` — Distancia (`dm`), Viajes (`nv`) y Tiempo (`tm`)** vs. `Etot`, `mgm`, `mbat`, `Cop` y velocidad `v` con viento `vv`.
 4. **`G4` — Aislante Mylar Multicapa Asimétrico (`e`)** vs. energía ahorrada (`Eah`) y perdida (`Em`, `Em0`).
 5. **`G5` — Combustible Térmico (`mgm`) y Balance Térmico en Vuelo**.
-6. **`G6` — Dimensiones (`L`, `D`), Silueta 2D a escala y Desglose de Masa (`mtot`)** (incluyendo `mmamp`).
-7. **`G7` — Temperatura Interior Óptima (`T2`) y Escalabilidad Multi-Viaje (`nv`)**: compara la eficiencia energética y de costo frente a un dron puro equivalente.
+6. **`G6` — Dimensiones (`L`, `D`), Silueta 2D a escala y Desglose de Masa (`mtot`)**.
+7. **`G7` — Temperatura Interior Óptima (`T2`) y Escalabilidad Multi-Viaje (`nv`)**: compara el dirigible frente a un dron puro equivalente.
 
 ---
 
 ## Estructura del proyecto
 
-- [`modelo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/modelo.py): Definición simbólica de las **167 variables**, **64 constantes iniciales (`FIJAS_INI`)**, **103 ecuaciones (`ECUACIONES_DEF`)** y **13 categorías (`C1`–`C13`)**.
-- [`evaluador.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/evaluador.py): Evaluador numérico puro en float con resolución por *tearing* (`nuc_hollands`, `resolver_tearing_u`, `evaluar_termica_T2`, `evaluar_punto`).
-- [`formateo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/formateo.py): Notación de ingeniería, renderizado KaTeX/2D y verificación de las 4 alertas de diseño (`mbat > mbmax`, `theta > thmax`, `Pelec > Pmax`, `Ttot > N·Tmax1`).
+- [`modelo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/modelo.py): Definición simbólica de las **170 variables**, **62 constantes iniciales (`FIJAS_INI`)**, **108 ecuaciones (`ECUACIONES_DEF`)** y **13 categorías (`C1`–`C13`)**.
+- [`evaluador.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/evaluador.py): Evaluador numérico puro en `float` con resolución por *tearing* (`area_semielipsoide`, `nuc_hollands`, `resolver_tearing_u`, `resolver_tearing_mbat`, `evaluar_punto`).
+- [`diseno.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/diseno.py): Estudio de diseño **Óptimo y Casos Tipo** en `float` puro (6 indicadores ponderados, límites configurables, histórico manual en JSON y 14 familias de Casos Tipo).
+- [`formateo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/formateo.py): Notación de ingeniería, renderizado KaTeX/2D y verificación de alertas conservando el signo físico real.
 - [`flujo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/flujo.py): Grupos temáticos, conexiones inter-categorías, grafo de ecuaciones y notas técnicas.
 - [`graficas.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/graficas.py): Generador de las 7 gráficas (`G1`–`G7`).
-- [`simulacion.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/simulacion.py): Simulación temporal RK2 por fases de misión (`simular_mision_fases`) y optimizador de diseño (`optimizar_diseno` con soporte para `T2` y `Cop`).
-- [`app.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/app.py): Servidor FastAPI y API REST (`GET /api/estado`, `GET /api/variable/{nombre}`, `POST /api/equilibrio`, `POST /api/modificar`, `POST /api/reiniciar`, `POST /api/optimizar`).
-- [`frontend/`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/frontend/index.html): Aplicación web modular (`main.js`, `state.js`, `api.js`, `sidebar.js`, `equations.js`, `charts.js`, `flowchart.js`, `simulation.js`, `varInput.js`, `balancer.js`, `katex_helper.js` y estilos CSS).
+- [`app.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/app.py): Servidor FastAPI y API REST (`GET /api/estado`, `GET /api/variable/{nombre}`, `POST /api/equilibrio`, `POST /api/modificar`, `POST /api/reiniciar`, `POST /api/diseno/analizar`, `/api/historico`).
+- [`frontend/`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/frontend/index.html): Aplicación web modular (`main.js`, `state.js`, `api.js`, `sidebar.js`, `equations.js`, `charts.js`, `flowchart.js`, `designStudio.js`, `varInput.js`, `balancer.js`, `katex_helper.js` y estilos CSS).
 - [`calc.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/calc.py): Calculadora interactiva en terminal (`rich`).
+- [`generar_cad_solidworks.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/generar_cad_solidworks.py): Generador de macro VBA referencial para SolidWorks a partir de configuraciones JSON exportadas.
 
 ---
 

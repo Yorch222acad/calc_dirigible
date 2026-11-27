@@ -49,7 +49,7 @@ export function renderizarSidebarCategorias(
     if (cat.tiene_penalizada) {
       const alertDot = document.createElement("span");
       alertDot.className = "category-alert-dot";
-      alertDot.title = "Contiene variables de sustentación penalizadas en negativo";
+      alertDot.title = "Contiene variables con límite de diseño excedido";
       metaDiv.appendChild(alertDot);
     }
 

@@ -209,8 +209,24 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
     ([vk]) => !designUi.varsVisibles.includes(vk)
   );
 
-  if (designUi.restricciones === null && Array.isArray(res.restricciones)) {
-    designUi.restricciones = res.restricciones.map((r) => ({ ...r }));
+  if (Array.isArray(res.restricciones)) {
+    if (designUi.restricciones === null) {
+      designUi.restricciones = res.restricciones.map((r) => ({ ...r }));
+    } else {
+      const porId = new Map(res.restricciones.map((r) => [r.id, r]));
+      designUi.restricciones = designUi.restricciones.map((prev) => {
+        const srv = porId.get(prev.id);
+        if (srv && prev.grupo === "hardware") {
+          return {
+            ...prev,
+            valor: srv.valor,
+            usar_equipo: srv.usar_equipo ?? prev.usar_equipo ?? prev.activa,
+            tope_manual: prev.tope_manual ?? null,
+          };
+        }
+        return prev;
+      });
+    }
   }
   const restricciones = designUi.restricciones || [];
   const hayHwActivo = restricciones.some((r) => r.grupo === "hardware" && r.activa);
@@ -329,18 +345,33 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
         ${restricciones
           .map((r, idx) => {
             const meta = varsRestrMeta[r.variable] || { nombre: r.variable, unidad: "", paso: 1 };
+            const esHw = r.grupo === "hardware";
+            const opMostrar = esHw ? (r.variable === "Fexc" ? ">=" : "<=") : r.op;
+            const tieneTope = esHw && r.tope_manual !== null && r.tope_manual !== undefined;
+            const valDisplay = tieneTope ? r.tope_manual : r.valor;
+            const eqTag = esHw
+              ? `<span class="design-var-unit" title="Calculado automáticamente según N, Pmax1, Tmax1, mbmax y thmax">${tieneTope ? `(eq: ${r.valor})` : "(equipo)"}</span>`
+              : "";
+            const btnClearTope = tieneTope
+              ? `<button type="button" class="btn btn-ghost design-mini-btn design-lim-clear-tope" data-idx="${idx}" title="Quitar tope manual y usar solo límite del equipo">↺ eq</button>`
+              : "";
+            const opTitle = esHw
+              ? "El sentido físico del equipo no puede invertirse; agrega una regla personalizada si deseas una cota opuesta."
+              : "Operador de comparación";
             return `
               <div class="design-limit-row ${r.activa ? "is-active" : "is-inactive"}">
                 <label class="design-limit-chk">
                   <input type="checkbox" class="design-lim-active" data-idx="${idx}" ${r.activa ? "checked" : ""} />
                   <span>${escaparHtml(meta.nombre)}</span>
                 </label>
-                <select class="design-lim-op" data-idx="${idx}">
-                  <option value="<=" ${r.op === "<=" ? "selected" : ""}>≤</option>
-                  <option value=">=" ${r.op === ">=" ? "selected" : ""}>≥</option>
+                <select class="design-lim-op" data-idx="${idx}" ${esHw ? "disabled" : ""} title="${opTitle}">
+                  <option value="<=" ${opMostrar === "<=" ? "selected" : ""}>≤</option>
+                  <option value=">=" ${opMostrar === ">=" ? "selected" : ""}>≥</option>
                 </select>
-                <input type="number" class="design-lim-val" data-idx="${idx}" step="${meta.paso || 0.5}" value="${r.valor}" />
+                <input type="number" class="design-lim-val" data-idx="${idx}" step="${meta.paso || 0.5}" value="${valDisplay}" />
                 <span class="design-var-unit">${escaparHtml(meta.unidad)}</span>
+                ${eqTag}
+                ${btnClearTope}
                 <button type="button" class="btn btn-ghost design-mini-btn design-lim-del" data-idx="${idx}" title="Quitar restricción">✕</button>
               </div>
             `;
@@ -458,7 +489,7 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
   secCtrl.querySelector("#design-limits-toggle")?.addEventListener("change", (e) => {
     const act = Boolean(e.target.checked);
     designUi.restricciones = (designUi.restricciones || []).map((r) =>
-      r.grupo === "hardware" ? { ...r, activa: act } : r
+      r.grupo === "hardware" ? { ...r, activa: act, usar_equipo: act } : r
     );
     repintarLocal();
   });
@@ -467,7 +498,11 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
     chk.addEventListener("change", () => {
       const idx = Number(chk.dataset.idx);
       if (designUi.restricciones?.[idx]) {
-        designUi.restricciones[idx].activa = Boolean(chk.checked);
+        const act = Boolean(chk.checked);
+        designUi.restricciones[idx].activa = act;
+        if (designUi.restricciones[idx].grupo === "hardware") {
+          designUi.restricciones[idx].usar_equipo = act;
+        }
         repintarLocal();
       }
     });
@@ -476,7 +511,7 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
   secCtrl.querySelectorAll(".design-lim-op").forEach((sel) => {
     sel.addEventListener("change", () => {
       const idx = Number(sel.dataset.idx);
-      if (designUi.restricciones?.[idx]) {
+      if (designUi.restricciones?.[idx] && designUi.restricciones[idx].grupo !== "hardware") {
         designUi.restricciones[idx].op = sel.value;
       }
     });
@@ -486,8 +521,23 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
     inp.addEventListener("input", () => {
       const idx = Number(inp.dataset.idx);
       const val = Number(inp.value);
-      if (designUi.restricciones?.[idx] && Number.isFinite(val)) {
-        designUi.restricciones[idx].valor = val;
+      const rObj = designUi.restricciones?.[idx];
+      if (rObj && Number.isFinite(val)) {
+        if (rObj.grupo === "hardware") {
+          rObj.tope_manual = val;
+        } else {
+          rObj.valor = val;
+        }
+      }
+    });
+  });
+
+  secCtrl.querySelectorAll(".design-lim-clear-tope").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      if (designUi.restricciones?.[idx]) {
+        designUi.restricciones[idx].tope_manual = null;
+        repintarLocal();
       }
     });
   });
@@ -537,10 +587,13 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
     repintarLocal();
   });
 
-  secCtrl.querySelector("#design-cbat-input")?.addEventListener("change", (e) => {
-    const val = Number(e.target.value);
+  const inpCbat = secCtrl.querySelector("#design-cbat-input");
+  const syncCbat = () => {
+    const val = Number(inpCbat?.value);
     if (Number.isFinite(val) && val >= 0) designUi.cbat_kg = val;
-  });
+  };
+  inpCbat?.addEventListener("input", syncCbat);
+  inpCbat?.addEventListener("change", syncCbat);
 
   secCtrl.querySelector("#btn-run-design-opt")?.addEventListener("click", () => {
     alAnalizar(true);
@@ -736,7 +789,7 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
           <div><span>Precalentamiento tierra</span><strong>${esp.Epre_kj} kJ (${esp.Cpre} Bs)</strong></div>
           <div><span>Combustible a bordo (mp)</span><strong>${esp.mp_g} g</strong></div>
           <div><span>Combustible vuelo (mgm)</span><strong>${esp.mgm_g} g (${esp.Ccomb} Bs)</strong></div>
-          <div><span>Enfriamiento 20K (tc)</span><strong>${esp.tc_s} s</strong></div>
+          <div><span>Enfriamiento ${esp.dTc ?? 20} K (tc)</span><strong>${esp.tc_s} s</strong></div>
         </div>
       </div>
 
@@ -744,9 +797,9 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
         <div class="design-spec-title">⚡ Masas, Propulsión y Autonomía</div>
         <div class="design-spec-rows">
           <div><span>Aire caliente / Residual</span><strong>${esp.mflot} kg (${esp.frac_aire_pct}%) / ${esp.mres} kg</strong></div>
-          <div><span>Carga útil / Masa total</span><strong>${esp.mcarga} kg (cap. ${esp.capacidad_util_kg} kg) / ${esp.mtot} kg</strong></div>
-          <div><span>Empuje / Ángulo / Pot.</span><strong>${esp.Ttot} N · ${esp.theta}° · ${esp.Pelec} W</strong></div>
-          <div><span>Batería / Velocidad vg</span><strong>${esp.mbat_g} g · ${esp.vg} m/s (aire ${esp.v})</strong></div>
+          <div><span>Carga útil / Masa total</span><strong>${esp.mcarga} kg (bat. fija: ${esp.mcarga_min_kg ?? 0}–${esp.capacidad_util_kg} kg; redim.: ${esp.capacidad_redim_kg ?? esp.capacidad_util_kg} kg) / ${esp.mtot} kg</strong></div>
+          <div><span>Empuje / Ángulo / Pot.</span><strong>${esp.Ttot} N (cruc. ${esp.Tcruc} N) · θ ${esp.theta}°/${esp.thcruc ?? esp.theta}° · ${esp.Pelec} W (cruc. ${esp.Pcruc ?? esp.Pelec} W)</strong></div>
+          <div><span>Batería / Velocidad vg</span><strong>${esp.mbat_g} g · ${esp.vg} m/s (aire ${esp.v}) · lim. ${esp.fase_limitante || "—"} (${esp.componente_limitante || "—"})</strong></div>
           <div><span>Autonomía máx.</span><strong>${esp.dm_aut} m (${esp.nv_aut} v., lim. ${esp.limitante_aut})</strong></div>
         </div>
       </div>
@@ -759,14 +812,24 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
 
   secSpec.querySelector("#btn-save-opt-hist")?.addEventListener("click", () => {
     if (!res.entradas_optimo || !alGuardarHistorico) return;
+    const restrSave = Array.isArray(res?.restricciones)
+      ? res.restricciones.map((r) => ({ ...r }))
+      : (Array.isArray(designUi.restricciones) ? designUi.restricciones.map((r) => ({ ...r })) : null);
+    const hwSave = restrSave
+      ? restrSave.some((r) => r.grupo === "hardware" && r.activa)
+      : Boolean(res?.respetar_limites ?? true);
+    const pesosSave = res?.pesos ? { ...res.pesos } : { ...designUi.pesos };
+    const cbatSave = Number.isFinite(Number(res?.cbat_kg)) ? Number(res.cbat_kg) : designUi.cbat_kg;
     const nombreDef = `Óptimo (${ref.score_total.toFixed(1)} pts · λ=${esp.lam}, T₂=${esp.T2}°C)`;
     alGuardarHistorico({
       nombre: nombreDef,
       nota: `Cop=${esp.Cop} Bs, Recambio=${esp.c_recambio} Bs, Aut=${esp.dm_aut} m`,
       origen: "optimo",
       entradas: res.entradas_optimo,
-      pesos: designUi.pesos,
-      cbat_kg: designUi.cbat_kg,
+      pesos: pesosSave,
+      cbat_kg: cbatSave,
+      respetar_limites: hwSave,
+      restricciones: restrSave,
     });
   });
 
@@ -774,7 +837,14 @@ function renderizarPestanaOptimo(root, res, estadoApp, callbacks) {
 }
 
 function renderizarPestanaHistorico(root, res, historico, callbacks) {
-  const { alGuardarHistorico, alEliminarHistorico, alImportarHistorico, alAplicar, alMensaje } = callbacks;
+  const {
+    alGuardarHistorico,
+    alEliminarHistorico,
+    alImportarHistorico,
+    alReevaluarHistorico,
+    alAplicar,
+    alMensaje,
+  } = callbacks;
   const metas = res?.indicadores_meta || {};
 
   const secSave = document.createElement("section");
@@ -807,13 +877,23 @@ function renderizarPestanaHistorico(root, res, historico, callbacks) {
   secSave.querySelector("#btn-hist-save-actual")?.addEventListener("click", () => {
     const nom = secSave.querySelector("#hist-name-input")?.value.trim() || `Estado actual (${new Date().toLocaleTimeString()})`;
     const nota = secSave.querySelector("#hist-note-input")?.value.trim() || "";
+    const restrSave = Array.isArray(res?.restricciones)
+      ? res.restricciones.map((r) => ({ ...r }))
+      : (Array.isArray(designUi.restricciones) ? designUi.restricciones.map((r) => ({ ...r })) : null);
+    const hwSave = restrSave
+      ? restrSave.some((r) => r.grupo === "hardware" && r.activa)
+      : Boolean(res?.respetar_limites ?? true);
+    const pesosSave = res?.pesos ? { ...res.pesos } : { ...designUi.pesos };
+    const cbatSave = Number.isFinite(Number(res?.cbat_kg)) ? Number(res.cbat_kg) : designUi.cbat_kg;
     alGuardarHistorico({
       nombre: nom,
       nota,
       origen: "actual",
       entradas: null,
-      pesos: designUi.pesos,
-      cbat_kg: designUi.cbat_kg,
+      pesos: pesosSave,
+      cbat_kg: cbatSave,
+      respetar_limites: hwSave,
+      restricciones: restrSave,
     });
   });
 
@@ -822,13 +902,23 @@ function renderizarPestanaHistorico(root, res, historico, callbacks) {
     const esp = res.optimo?.especificaciones || {};
     const nom = secSave.querySelector("#hist-name-input")?.value.trim() || `Óptimo (${res.optimo?.score_total?.toFixed(1)} pts · λ=${esp.lam})`;
     const nota = secSave.querySelector("#hist-note-input")?.value.trim() || `Cop=${esp.Cop} Bs, mbat=${esp.mbat_g} g`;
+    const restrSave = Array.isArray(res?.restricciones)
+      ? res.restricciones.map((r) => ({ ...r }))
+      : (Array.isArray(designUi.restricciones) ? designUi.restricciones.map((r) => ({ ...r })) : null);
+    const hwSave = restrSave
+      ? restrSave.some((r) => r.grupo === "hardware" && r.activa)
+      : Boolean(res?.respetar_limites ?? true);
+    const pesosSave = res?.pesos ? { ...res.pesos } : { ...designUi.pesos };
+    const cbatSave = Number.isFinite(Number(res?.cbat_kg)) ? Number(res.cbat_kg) : designUi.cbat_kg;
     alGuardarHistorico({
       nombre: nom,
       nota,
       origen: "optimo",
       entradas: res.entradas_optimo,
-      pesos: designUi.pesos,
-      cbat_kg: designUi.cbat_kg,
+      pesos: pesosSave,
+      cbat_kg: cbatSave,
+      respetar_limites: hwSave,
+      restricciones: restrSave,
     });
   });
 
@@ -923,11 +1013,12 @@ function renderizarPestanaHistorico(root, res, historico, callbacks) {
               const esp = reg.especificaciones || {};
               const checked = designUi.seleccionHistorico.has(reg.id) ? "checked" : "";
               const expandido = designUi.expandidoHistId === reg.id;
+              const verModelo = reg.modelo_version || "v1";
               return `
                 <tr>
                   <td><input type="checkbox" class="hist-sel-chk" data-id="${escaparHtml(reg.id)}" ${checked} /></td>
                   <td>
-                    <div class="design-case-name">${escaparHtml(reg.nombre)}</div>
+                    <div class="design-case-name">${escaparHtml(reg.nombre)} <small class="design-var-unit">[${escaparHtml(verModelo)}]</small></div>
                     <div class="design-case-sub">${escaparHtml(reg.fecha)} · ${escaparHtml(reg.origen)}${reg.nota ? ` · ${escaparHtml(reg.nota)}` : ""}</div>
                   </td>
                   <td><strong class="text-calc">${Number(reg.score_total).toFixed(1)}</strong></td>
@@ -939,6 +1030,7 @@ function renderizarPestanaHistorico(root, res, historico, callbacks) {
                   <td>${esp.L}×${esp.D} m <small>(${esp.mbat_g} g)</small></td>
                   <td class="design-actions-cell">
                     <button type="button" class="btn btn-ghost design-mini-btn hist-det-btn" data-id="${escaparHtml(reg.id)}" title="Ver parámetros completos">${expandido ? "▲" : "▼"}</button>
+                    <button type="button" class="btn btn-outline design-mini-btn hist-reeval-btn" data-id="${escaparHtml(reg.id)}" title="Reevaluar en motor v2 como registro nuevo (mantiene el original intacto)">↻ v2</button>
                     <button type="button" class="btn btn-outline design-mini-btn hist-load-btn" data-id="${escaparHtml(reg.id)}" title="Aplicar esta configuración al sistema">↩</button>
                     <button type="button" class="btn btn-ghost design-mini-btn hist-del-btn" data-id="${escaparHtml(reg.id)}" title="Eliminar del histórico">🗑</button>
                   </td>
@@ -953,7 +1045,15 @@ function renderizarPestanaHistorico(root, res, historico, callbacks) {
                           <span><strong>Qp:</strong> ${esp.Qp_w} W (fais ${esp.fais_pct}%)</span>
                           <span><strong>v / vv:</strong> ${esp.v} / ${esp.vv} m/s</span>
                           <span><strong>dm:</strong> ${esp.dm} m (${esp.nv} viajes)</span>
-                          <span><strong>Pelec / θ:</strong> ${esp.Pelec} W / ${esp.theta}°</span>
+                          <span><strong>Pelec / θ (man/cruc):</strong> ${esp.Pelec} W / ${esp.theta}° / ${esp.thcruc ?? esp.theta}°</span>
+                          <span><strong>Carga bat. fija:</strong> ${esp.mcarga_min_kg ?? 0}–${esp.capacidad_util_kg} kg</span>
+                          ${(() => {
+                            const customAct = (reg.restricciones || []).filter((r) => r.activa && r.grupo !== "hardware");
+                            return customAct.length > 0
+                              ? `<span><strong>Reglas activas:</strong> ${customAct.map((r) => `${escaparHtml(r.variable)} ${escaparHtml(r.op)} ${escaparHtml(r.tope_manual ?? r.valor)}`).join(", ")}</span>`
+                              : "";
+                          })()}
+                          ${reg.origen_id ? `<span><strong>Origen:</strong> ${escaparHtml(reg.origen_version || "v1")} (${escaparHtml(reg.origen_id)})</span>` : ""}
                           <span><strong>Avisos:</strong> ${(reg.avisos || []).join(", ") || "Ninguno"}</span>
                         </div>
                       </td></tr>`
@@ -989,6 +1089,12 @@ function renderizarPestanaHistorico(root, res, historico, callbacks) {
       const id = btn.dataset.id;
       designUi.expandidoHistId = designUi.expandidoHistId === id ? null : id;
       renderizarSoloVista();
+    });
+  });
+
+  secList.querySelectorAll(".hist-reeval-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (alReevaluarHistorico) alReevaluarHistorico(btn.dataset.id);
     });
   });
 
@@ -1140,13 +1246,15 @@ function renderizarPestanaCasos(root, res, callbacks) {
     btn.addEventListener("click", () => {
       const caso = casos.find((c) => c.id === btn.dataset.id);
       if (!caso?.entradas || !alGuardarHistorico) return;
+      const pesosSave = res?.pesos ? { ...res.pesos } : { ...designUi.pesos };
+      const cbatSave = Number.isFinite(Number(res?.cbat_kg)) ? Number(res.cbat_kg) : designUi.cbat_kg;
       alGuardarHistorico({
         nombre: caso.nombre,
         nota: `${caso.familia_titulo}: ${caso.cambios_txt}`,
         origen: "caso_tipo",
         entradas: caso.entradas,
-        pesos: designUi.pesos,
-        cbat_kg: designUi.cbat_kg,
+        pesos: pesosSave,
+        cbat_kg: cbatSave,
       });
     });
   });

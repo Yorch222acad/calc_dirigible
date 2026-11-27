@@ -17,7 +17,7 @@ import evaluador
 # =============================================================
 # VARIABLES: nombre -> (descripción, unidad, valor inicial o None)
 # Calibradas para La Paz - Zona Sur a 100 m (~3.350 m s.n.m.)
-# Diseño base: 3 viajes (nv=3, d1=280 m), Mylar 6 um (3/2 capas 14 mm), T2=85°C, v=8.5 m/s, vv=6.0 m/s, lam=2.3
+# Diseño base: 3 viajes (nv=3, d1=280 m), Mylar 6 um (3/2 capas 14 mm), T2=85°C, v=8.5 m/s, vv=6.0 m/s, ta=18 s, lam=2.3
 # =============================================================
 VARIABLES = {
     # Caso 1: gas a temperatura ambiente (exterior)
@@ -25,11 +25,12 @@ VARIABLES = {
     "T1":     ("Temperatura caso 1 (ambiente)",          "°C",          15.0),
     "R1":     ("Constante R caso 1",                     "J/(kg·K)",    287.058),
     "rho1":   ("Densidad caso 1 (ambiente)",             "kg/m³",       None),
-    # Caso 2: mismo gas a mayor temperatura (aire caliente interior)
+    # Caso 2: mismo gas a mayor temperatura (aire caliente interior y celdas)
     "P2":     ("Presión caso 2 (aire caliente)",         "Pa",          67120.0),
     "T2":     ("Temperatura caso 2 (aire caliente)",     "°C",          85.0),
     "R2":     ("Constante R caso 2",                     "J/(kg·K)",    287.058),
-    "rho2":   ("Densidad caso 2 (aire caliente)",        "kg/m³",       None),
+    "rho2":   ("Densidad caso 2 (núcleo caliente)",      "kg/m³",       None),
+    "rhocel": ("Densidad media del aire en celdas aislantes", "kg/m³",  None),
     "drho":   ("Diferencia de densidades",               "kg/m³",       None),
     # Geometría del casco (dos semielipsoides prolados, cf > R y cr > R)
     "R":      ("Radio máximo transversal",               "m",           None),
@@ -39,7 +40,9 @@ VARIABLES = {
     "cf":     ("Longitud semielipsoide nariz",           "m",           None),
     "cr":     ("Longitud semielipsoide cola",            "m",           None),
     "L":      ("Longitud total del casco",               "m",           None),
-    "V":      ("Volumen total del casco",                "m³",          None),
+    "V":      ("Volumen exterior del casco",             "m³",          None),
+    "Vnuc":   ("Volumen del núcleo interior caliente",   "m³",          None),
+    "Vcel":   ("Volumen periférico de celdas aislantes", "m³",          None),
     "ef":     ("Excentricidad frontal",                  "adim",        None),
     "er":     ("Excentricidad trasera",                  "adim",        None),
     "Sf":     ("Área superficial frontal",               "m²",          None),
@@ -131,7 +134,7 @@ VARIABLES = {
     "kp":     ("Factor de penalización parásita",        "adim",        1.45),
     "CDV":    ("Coef. de resistencia volumétrico",       "adim",        None),
     "FD":     ("Fuerza de resistencia aerodinámica",     "N",           None),
-    "ED":     ("Energía perdida por resistencia aerodinámica", "J",     None),
+    "ED":     ("Energía disipada por resistencia aerodinámica (aire)", "J", None),
     # Masas y balance de peso del dirigible híbrido
     "N":      ("Número de motores activos",              "adim",        4.0),
     "mmot":   ("Masa de cada motor A2212 (1000KV)",      "kg",          0.047),
@@ -143,17 +146,19 @@ VARIABLES = {
     "mflot":  ("Masa compensada por aire caliente",      "kg",          3.20),
     "mres":   ("Masa residual a sostener por motores",   "kg",          None),
     "fap":    ("Factor de masa aparente virtual",        "adim",        1.15),
-    "map":    ("Masa aparente traslacional",             "kg",          None),
+    "map":    ("Masa aparente inercial (estructura + gas)", "kg",       None),
     # Propulsión vectorial y motores Brushless A2212 (1000KV)
     "vz":     ("Velocidad de ascenso objetivo",          "m/s",         0.8),
     "vx":     ("Velocidad de traslación objetivo",       "m/s",         2.5),
-    "ta":     ("Tiempo de aceleración de maniobra",      "s",           5.0),
+    "ta":     ("Tiempo de aceleración de maniobra",      "s",           18.0),
     "az":     ("Aceleración vertical de ascenso",        "m/s²",        None),
     "ax":     ("Aceleración horizontal de avance",       "m/s²",        None),
     "FL":     ("Sustentación dinámica vertical motores", "N",           None),
     "FX":     ("Fuerza horizontal de avance motores",    "N",           None),
-    "Ttot":   ("Empuje total de los 4 motores",          "N",           None),
+    "Ttot":   ("Empuje pico de maniobra (4 motores)",    "N",           None),
+    "Tcruc":  ("Empuje vectorial en crucero estacionario", "N",         None),
     "theta":  ("Ángulo de rotación de motores",          "°",           None),
+    "thcruc": ("Ángulo de rotación de motores en crucero", "°",         None),
     "thmax":  ("Ángulo máximo de rotación admisible",    "°",           75.0),
     "dth":    ("Margen de ángulo de rotación",           "°",           None),
     "Tmax1":  ("Empuje máximo por motor A2212",          "N",           5.5),
@@ -169,12 +174,14 @@ VARIABLES = {
     "nESC":   ("Eficiencia de variadores ESC",           "adim",        0.95),
     "ntot":   ("Eficiencia propulsiva global",           "adim",        None),
     "km":     ("Factor de margen de control/maniobra",   "adim",        1.20),
-    "Pelec":  ("Potencia eléctrica de los 4 motores",    "W",           None),
+    "Pelec":  ("Potencia eléctrica pico de maniobra",    "W",           None),
+    "Pcruc":  ("Potencia eléctrica motriz en crucero estacionario", "W", None),
     "Pmax1":  ("Potencia eléctrica máx. continua/motor", "W",           160.0),
     "Pmax":   ("Potencia eléctrica máx. de 4 motores",   "W",           None),
     "dPelec": ("Margen de potencia eléctrica motores",   "W",           None),
     "Pad":    ("Potencia adicional (placa, cámara, antena, ventilador)", "W", 45.0),
-    "Ptot":   ("Potencia eléctrica total a bordo (motores + electr.)", "W", None),
+    "Ptot":   ("Potencia eléctrica total pico (maniobra)", "W",         None),
+    "tman":   ("Tiempo acumulado de maniobras de aceleración", "s",     None),
     # Batería requerida, costes energéticos y económicos de misión
     "Ereq":   ("Energía eléctrica requerida en misión",  "Wh",          None),
     "Eelec":  ("Energía eléctrica total usada en misión","J",           None),
@@ -235,7 +242,7 @@ UNIDAD_NOMBRE = {
     "Bs/kWh":   "Bolivianos por kilovatio hora",
 }
 
-# Variables de entrada al iniciar (163 variables - 101 ecuaciones = 62 fijas)
+# Variables de entrada al iniciar (170 variables - 108 ecuaciones = 62 fijas)
 # Se fijan d1 y nv (multi-viaje), capas asimétricas Mylar (ncapS, ncapI, eps),
 # precalentamiento y costos (npre, cpre, ccomb, celecU), vv, Pad y mflot; dm, U0, U, Cop, mbat y mres se despejan automáticamente.
 FIJAS_INI = [
@@ -255,22 +262,23 @@ FIJAS_INI = [
 
 # Variables que físicamente deben ser estrictamente positivas
 POSITIVAS = {
-    "P1", "R1", "rho1", "P2", "R2", "rho2",
-    "R", "D", "lam", "xf", "cf", "cr", "L", "V", "ef", "er", "Sf", "Sr", "S",
+    "P1", "R1", "rho1", "P2", "R2", "rho2", "rhocel",
+    "R", "D", "lam", "xf", "cf", "cr", "L", "V", "Vnuc", "ef", "er", "Sf", "Sr", "S",
     "m", "cp", "g",
-    "e", "W", "ncapS", "ncapI", "ncap", "ep", "ke", "eps", "epsef", "fcal",
+    "e", "W", "ep", "ke", "eps", "epsef", "fcal",
     "beta", "nu", "alpha",
     "Pr", "Nue", "he", "hrade", "hetot",
     "dTi0", "RaD0", "Nui0", "hi0", "U0",
     "dTi", "RaD", "Nui", "hi", "Tm", "hrad",
-    "dTcel", "Rae", "Rac", "Nuc", "ka", "Usup", "Uinf", "U",
-    "Qp0", "Qp", "dQp", "fais", "Sc", "sigma", "mc",
+    "hrad", "Rac", "Nuc", "ka", "Usup", "Uinf", "U",
+    "Qp0", "Qp", "Sc", "sigma", "mc",
     "vT", "dTc", "Qc", "tc",
-    "npre", "Epre", "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eah", "Eprop", "mgm",
+    "npre", "Epre", "PC", "ncal", "mgc", "tm", "Em0", "Em", "Eprop", "mgm",
     "v", "vg", "d1", "nv", "dm", "mu", "ReL", "Cf", "CDVc", "kp", "CDV", "FD", "ED",
     "N", "mmot", "mp", "mad", "mart", "mcarga", "mtot", "mflot", "mres", "fap", "map",
-    "vz", "vx", "ta", "az", "ax", "FL", "FX", "Ttot", "theta", "thmax",
-    "Tmax1", "FLmax", "dp", "Ap", "nprop0", "vpitch", "nprop", "nm", "nESC", "ntot", "km", "Pelec", "Pmax1", "Pmax", "Ptot",
+    "vz", "vx", "ta", "az", "ax", "FL", "FX", "Ttot", "Tcruc", "theta", "thcruc", "thmax",
+    "Tmax1", "FLmax", "dp", "Ap", "nprop0", "vpitch", "nprop", "nm", "nESC", "ntot", "km",
+    "Pelec", "Pcruc", "Pmax1", "Pmax", "Ptot", "tman",
     "Ereq", "Eelec", "celec", "Etot", "ctot", "ebat", "DoD", "ntemp", "Cmax", "mbe", "mbp", "mbat", "mbmax",
 }
 
@@ -281,10 +289,10 @@ UNIDAD_ING = {
     "P1":     ("Pa", "", 1),        "P2":     ("Pa", "", 1),
     "T1":     (None, "°C", 1),      "T2":     (None, "°C", 1),
     "R1":     ("J", "/(kg·K)", 1),  "R2":     ("J", "/(kg·K)", 1),
-    "rho1":   ("g", "/m³", 1000),   "rho2":   ("g", "/m³", 1000),   "drho":  ("g", "/m³", 1000),
+    "rho1":   ("g", "/m³", 1000),   "rho2":   ("g", "/m³", 1000),   "rhocel": ("g", "/m³", 1000),   "drho": ("g", "/m³", 1000),
     "lam":    (None, "adim", 1),    "xf":     (None, "adim", 1),
     "R":      ("m", "", 1),         "D":      ("m", "", 1),         "cf":     ("m", "", 1),         "cr":    ("m", "", 1),
-    "L":      ("m", "", 1),         "V":      ("m³", "", 1),
+    "L":      ("m", "", 1),         "V":      ("m³", "", 1),        "Vnuc":   ("m³", "", 1),        "Vcel":  ("m³", "", 1),
     "ef":     (None, "adim", 1),    "er":     (None, "adim", 1),
     "Sf":     ("m²", "", 1),        "Sr":     ("m²", "", 1),        "S":     ("m²", "", 1),
     "m":      ("g", "", 1000),
@@ -393,7 +401,9 @@ UNIDAD_ING = {
     "FL":     ("N", "", 1),
     "FX":     ("N", "", 1),
     "Ttot":   ("N", "", 1),
+    "Tcruc":  ("N", "", 1),
     "theta":  (None, "°", 1),
+    "thcruc": (None, "°", 1),
     "thmax":  (None, "°", 1),
     "dth":    (None, "°", 1),
     "Tmax1":  ("N", "", 1),
@@ -410,11 +420,13 @@ UNIDAD_ING = {
     "ntot":   (None, "adim", 1),
     "km":     (None, "adim", 1),
     "Pelec":  ("W", "", 1),
+    "Pcruc":  ("W", "", 1),
     "Pmax1":  ("W", "", 1),
     "Pmax":   ("W", "", 1),
     "dPelec": ("W", "", 1),
     "Pad":    ("W", "", 1),
     "Ptot":   ("W", "", 1),
+    "tman":   ("s", "", 1),
     # Batería, distancia, costes energéticos y económicos
     "Ereq":   ("Wh", "", 1),
     "Eelec":  ("J", "", 1),
@@ -446,31 +458,46 @@ S_POR_H = sp.Integer(3600)  # s -> h
 SIGMA_SB = sp.Float("5.670374419e-8")  # Constante de Stefan-Boltzmann [W/(m²·K⁴)]
 
 # =============================================================
-# Definición única de las 101 ecuaciones del modelo (fuente de verdad del solver)
+# Definición única de las 108 ecuaciones del modelo (fuente de verdad del solver)
 # =============================================================
 ECUACIONES_DEF: dict[str, sp.Eq] = {
     # Gases ideales, aire caliente y flotabilidad
     "Gas ideal (caso 1 - ambiente)": sp.Eq(S["rho1"], S["P1"] / (S["R1"] * (S["T1"] + K))),
     "Gas ideal (caso 2 - caliente)": sp.Eq(S["rho2"], S["P2"] / (S["R2"] * (S["T2"] + K))),
+    "Densidad media del aire en celdas aislantes": sp.Eq(S["rhocel"], S["P2"] / (S["R2"] * S["Tm"])),
     "Diferencia de densidades":      sp.Eq(S["drho"], S["rho1"] - S["rho2"]),
     "Gradiente térmico":             sp.Eq(S["dT"], S["T2"] - S["T1"]),
-    "Masa de aire caliente":         sp.Eq(S["m"], S["rho2"] * S["V"]),
-    "Calor sensible":                sp.Eq(S["Q"], S["m"] * S["cp"] * S["dT"]),
-    "Fuerza de sustentación aerostática": sp.Eq(S["F"], S["drho"] * S["g"] * S["V"]),
+    "Masa de aire caliente":         sp.Eq(S["m"], S["rho2"] * S["Vnuc"] + S["rhocel"] * S["Vcel"]),
+    "Calor sensible": sp.Eq(
+        S["Q"],
+        S["cp"] * (S["rho2"] * S["Vnuc"] * S["dT"] + S["rhocel"] * S["Vcel"] * (S["dT"] / 2)),
+    ),
+    "Fuerza de sustentación aerostática": sp.Eq(
+        S["F"],
+        S["drho"] * S["g"] * S["Vnuc"] + (S["rho1"] - S["rhocel"]) * S["g"] * S["Vcel"],
+    ),
     # Geometría del casco (dos semielipsoides) y película Mylar
     "Diámetro máximo transversal (2R)": sp.Eq(S["D"], 2 * S["R"]),
     "Relación de esbeltez (L/D)":       sp.Eq(S["lam"], S["L"] / (2 * S["R"])),
     "Fracción de nariz (cf/L)":         sp.Eq(S["xf"], S["cf"] / S["L"]),
     "Longitud total del casco":         sp.Eq(S["L"], S["cf"] + S["cr"]),
     "Volumen total del casco":          sp.Eq(S["V"], sp.Rational(2, 3) * sp.pi * S["R"] ** 2 * S["L"]),
+    "Volumen del núcleo interior caliente": sp.Eq(
+        S["Vnuc"],
+        (sp.pi / 3) * (
+            (S["R"] - S["ncapS"] * S["e"]) ** 2 * (S["L"] - 2 * S["ncapS"] * S["e"])
+            + (S["R"] - S["ncapI"] * S["e"]) ** 2 * (S["L"] - 2 * S["ncapI"] * S["e"])
+        ),
+    ),
+    "Volumen ocupado por celdas aislantes": sp.Eq(S["Vcel"], S["V"] - S["Vnuc"]),
     "Excentricidad frontal (cf > R)":   sp.Eq(S["ef"], sp.sqrt(1 - S["R"] ** 2 / S["cf"] ** 2)),
     "Excentricidad trasera (cr > R)":   sp.Eq(S["er"], sp.sqrt(1 - S["R"] ** 2 / S["cr"] ** 2)),
-    "Área superficial frontal":         sp.Eq(S["Sf"], sp.pi * S["R"] * S["cf"] * sp.asin(S["ef"]) / S["ef"]),
-    "Área superficial trasera":         sp.Eq(S["Sr"], sp.pi * S["R"] * S["cr"] * sp.asin(S["er"]) / S["er"]),
+    "Área superficial frontal":         sp.Eq(S["Sf"], sp.pi * S["R"] ** 2 + sp.pi * S["R"] * S["cf"] * sp.asin(S["ef"]) / S["ef"]),
+    "Área superficial trasera":         sp.Eq(S["Sr"], sp.pi * S["R"] ** 2 + sp.pi * S["R"] * S["cr"] * sp.asin(S["er"]) / S["er"]),
     "Área superficial total":           sp.Eq(S["S"], S["Sf"] + S["Sr"]),
     "Número promedio de capas celulares (ncap)": sp.Eq(S["ncap"], (S["ncapS"] + S["ncapI"]) / 2),
     "Área total de película celular": sp.Eq(
-        S["Sc"], S["ncap"] * S["S"] * (1 + 2 * S["e"] / S["W"])
+        S["Sc"], S["S"] * (1 + S["ncap"] * (1 + 2 * S["e"] / S["W"]))
     ),
     "Masa de la cuadrícula celular": sp.Eq(
         S["mc"], S["Sc"] * S["sigma"]
@@ -530,16 +557,26 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["hrad"], 4 * S["epsef"] * SIGMA_SB * S["Tm"] ** 3
     ),
     "Caída térmica en la celda aislante (dTcel)": sp.Eq(
-        S["dTcel"], (S["Usup"] / ((S["ka"] * S["Nuc"]) / S["e"] + S["hrad"])) * S["dT"]
+        S["dTcel"],
+        sp.Piecewise(
+            ((S["Usup"] / ((S["ka"] * S["Nuc"]) / S["e"] + S["hrad"])) * S["dT"], S["ncapS"] > 0),
+            (sp.Integer(0), True),
+        ),
     ),
     "Número de Rayleigh en cavidad celular (Rae)": sp.Eq(
         S["Rae"], (S["g"] * S["beta"] * S["dTcel"] * S["e"] ** 3) / (S["nu"] * S["alpha"])
     ),
     "Número de Nusselt efectivo en celda (Nuc)": sp.Eq(
         S["Nuc"],
-        1
-        + sp.Float("1.44") * sp.Max(0, 1 - S["Rac"] / S["Rae"])
-        + sp.Max(0, (S["Rae"] / sp.Integer(5830)) ** sp.Rational(1, 3) - 1),
+        sp.Piecewise(
+            (
+                1
+                + sp.Float("1.44") * sp.Max(0, 1 - S["Rac"] / S["Rae"])
+                + sp.Max(0, (S["Rae"] / sp.Integer(5830)) ** sp.Rational(1, 3) - 1),
+                S["Rae"] > S["Rac"],
+            ),
+            (sp.Integer(1), True),
+        ),
     ),
     "Coeficiente global mitad superior (Usup)": sp.Eq(
         S["Usup"],
@@ -575,9 +612,12 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Fracción de ahorro térmico celular (fais)": sp.Eq(
         S["fais"], S["dQp"] / S["Qp0"]
     ),
-    "Velocidad de enfriamiento (dT/dt)": sp.Eq(S["vT"], S["Qp"] / (S["m"] * S["cp"])),
-    "Energía cedida en caída admisible": sp.Eq(S["Qc"], S["m"] * S["cp"] * S["dTc"]),
-    "Tiempo de enfriamiento sin aporte": sp.Eq(S["tc"], S["Qc"] / S["Qp"]),
+    "Velocidad de enfriamiento (dT/dt)": sp.Eq(S["vT"], (S["Qp"] * S["dT"]) / S["Q"]),
+    "Energía cedida en caída admisible": sp.Eq(S["Qc"], S["Q"] * (S["dTc"] / S["dT"])),
+    "Tiempo de enfriamiento sin aporte": sp.Eq(
+        S["tc"],
+        (S["Q"] / S["Qp"]) * sp.log(S["dT"] / (S["dT"] - S["dTc"])),
+    ),
     # Precalentamiento en tierra y quemador térmico en vuelo
     "Energía de precalentamiento en tierra (Epre)": sp.Eq(S["Epre"], S["Q"] / S["npre"]),
     "Costo de precalentamiento en tierra (Cpre)": sp.Eq(
@@ -620,7 +660,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["FD"], sp.Rational(1, 2) * S["rho1"] * S["v"] ** 2 * S["CDV"] * S["V"] ** sp.Rational(2, 3)
     ),
     "Energía perdida por resistencia aerodinámica (ED)": sp.Eq(
-        S["ED"], S["FD"] * S["dm"]
+        S["ED"], S["FD"] * S["v"] * S["tm"]
     ),
     # Masas y balance de peso (dirigible híbrido)
     "Masa del artefacto con sus componentes (mart)": sp.Eq(
@@ -636,7 +676,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["mres"], S["mtot"] - S["mflot"]
     ),
     "Masa aparente traslacional (map)": sp.Eq(
-        S["map"], S["fap"] * S["mtot"]
+        S["map"], S["fap"] * (S["mtot"] + S["m"])
     ),
     # Dinámica vectorial y empuje (motores A2212)
     "Aceleración vertical de ascenso (az)": sp.Eq(
@@ -646,7 +686,7 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["ax"], S["vx"] / S["ta"]
     ),
     "Componente vertical de sustentación de motores (FL)": sp.Eq(
-        S["FL"], S["mres"] * S["g"] + S["mtot"] * S["az"]
+        S["FL"], S["mres"] * S["g"] + S["map"] * S["az"]
     ),
     "Componente horizontal de avance de motores (FX)": sp.Eq(
         S["FX"], S["FD"] + S["map"] * S["ax"]
@@ -660,8 +700,11 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
     "Ángulo de rotación respecto a la vertical (theta)": sp.Eq(
         S["theta"], sp.Integer(180) * sp.atan(S["FX"] / S["FL"]) / sp.pi
     ),
+    "Ángulo de rotación en crucero estacionario (thcruc)": sp.Eq(
+        S["thcruc"], sp.Integer(180) * sp.atan(S["FD"] / (S["mres"] * S["g"])) / sp.pi
+    ),
     "Margen respecto al ángulo máximo de rotación (dth)": sp.Eq(
-        S["dth"], S["thmax"] - S["theta"]
+        S["dth"], S["thmax"] - sp.Max(S["theta"], S["thcruc"])
     ),
     "Sustentación vertical máxima de los 4 motores (FLmax)": sp.Eq(
         S["FLmax"], sp.sqrt((S["N"] * S["Tmax1"]) ** 2 - S["FX"] ** 2)
@@ -686,6 +729,16 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
             + S["FX"] * S["v"]
         ),
     ),
+    "Empuje vectorial en crucero estacionario (Tcruc)": sp.Eq(
+        S["Tcruc"], sp.sqrt((S["mres"] * S["g"]) ** 2 + S["FD"] ** 2)
+    ),
+    "Potencia eléctrica motriz en crucero estacionario (Pcruc)": sp.Eq(
+        S["Pcruc"],
+        (S["km"] / S["ntot"]) * (
+            S["Tcruc"] ** sp.Rational(3, 2) / sp.sqrt(2 * S["rho1"] * S["N"] * S["Ap"])
+            + S["FD"] * S["v"]
+        ),
+    ),
     "Potencia eléctrica máxima continua de 4 motores (Pmax)": sp.Eq(
         S["Pmax"], S["N"] * S["Pmax1"]
     ),
@@ -696,8 +749,12 @@ ECUACIONES_DEF: dict[str, sp.Eq] = {
         S["Ptot"], S["Pelec"] + S["Pad"]
     ),
     # Energía y costes operativos de misión
+    "Tiempo acumulado de maniobras en misión (tman)": sp.Eq(
+        S["tman"], sp.Min(S["tm"], S["nv"] * S["ta"])
+    ),
     "Energía eléctrica requerida en misión (Ereq)": sp.Eq(
-        S["Ereq"], (S["Ptot"] * S["tm"]) / S_POR_H
+        S["Ereq"],
+        (S["Ptot"] * S["tman"] + (S["Pcruc"] + S["Pad"]) * (S["tm"] - S["tman"])) / S_POR_H,
     ),
     "Energía eléctrica total usada en misión (Eelec)": sp.Eq(
         S["Eelec"], S_POR_H * S["Ereq"]
@@ -742,6 +799,7 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
     "Gases ideales, aire caliente y flotabilidad": [
         "Gas ideal (caso 1 - ambiente)",
         "Gas ideal (caso 2 - caliente)",
+        "Densidad media del aire en celdas aislantes",
         "Diferencia de densidades",
         "Gradiente térmico",
         "Masa de aire caliente",
@@ -756,6 +814,8 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Fracción de nariz (cf/L)",
         "Longitud total del casco",
         "Volumen total del casco",
+        "Volumen del núcleo interior caliente",
+        "Volumen ocupado por celdas aislantes",
         "Área superficial total",
     ],
     "Superficies del casco y capas Mylar": [
@@ -846,16 +906,19 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Empuje vectorial total de los 4 motores (Ttot)",
         "Margen de empuje disponible de los 4 motores (dTtot)",
         "Ángulo de rotación respecto a la vertical (theta)",
+        "Ángulo de rotación en crucero estacionario (thcruc)",
         "Margen respecto al ángulo máximo de rotación (dth)",
     ],
     "Capacidad vertical, eficiencia y potencia eléctrica": [
         "Empuje vectorial total de los 4 motores (Ttot)",
+        "Empuje vectorial en crucero estacionario (Tcruc)",
         "Sustentación vertical máxima de los 4 motores (FLmax)",
         "Excedente de sustentación total (Fexc)",
         "Área de disco barrida por cada hélice (Ap)",
         "Eficiencia aerodinámica de hélice según velocidad (nprop)",
         "Eficiencia propulsiva global (ntot)",
         "Potencia eléctrica demandada por los 4 motores (Pelec)",
+        "Potencia eléctrica motriz en crucero estacionario (Pcruc)",
         "Potencia eléctrica máxima continua de 4 motores (Pmax)",
         "Margen de potencia eléctrica de los motores (dPelec)",
     ],
@@ -864,7 +927,9 @@ _CATEGORIAS_NOMBRES: dict[str, list[str]] = {
         "Energía perdida por resistencia aerodinámica (ED)",
         "Costo de precalentamiento en tierra (Cpre)",
         "Potencia eléctrica demandada por los 4 motores (Pelec)",
+        "Potencia eléctrica motriz en crucero estacionario (Pcruc)",
         "Potencia eléctrica total a bordo (Ptot)",
+        "Tiempo acumulado de maniobras en misión (tman)",
         "Energía eléctrica requerida en misión (Ereq)",
         "Energía eléctrica total usada en misión (Eelec)",
         "Coste energético eléctrico por distancia (celec)",
@@ -892,7 +957,7 @@ CATEGORIAS: dict[str, dict[str, sp.Eq]] = {
 
 # Lista plana de ecuaciones únicas y estructuras precalculadas para emparejamiento y evaluación rápida
 ECUACIONES: dict[str, sp.Eq] = dict(ECUACIONES_DEF)
-assert len(ECUACIONES) == len(ECUACIONES_DEF) == 101
+assert len(ECUACIONES) == len(ECUACIONES_DEF) == 108
 assert {nom for eqs in _CATEGORIAS_NOMBRES.values() for nom in eqs} == set(ECUACIONES_DEF), (
     "Las categorías deben cubrir exactamente todas las ecuaciones de ECUACIONES_DEF"
 )
@@ -1054,11 +1119,12 @@ def estado_equilibrio(
 
 
 _FRACCIONES_UNITARIAS = frozenset({
-    "ef", "er", "fais", "xf", "eps", "epsef", "npre",
+    "ef", "er", "xf", "eps", "epsef", "npre", "ncal",
     "nprop0", "nprop", "nm", "nESC", "ntot", "DoD", "ntemp"
 })
 _NO_NEGATIVAS = frozenset({
-    "vv", "Pad", "cpre", "ccomb", "celecU", "Cpre", "Ccomb", "Celec", "Cop"
+    "vv", "Pad", "cpre", "ccomb", "celecU", "Cpre", "Ccomb", "Celec", "Cop",
+    "ncapS", "ncapI", "ncap", "dQp", "Eah", "Vcel", "dTcel", "Rae",
 })
 _SEMILLAS_DEFECTO = {
     "R": 1.28,
@@ -1066,15 +1132,22 @@ _SEMILLAS_DEFECTO = {
     "cf": 2.06,
     "cr": 3.82,
     "L": 5.88,
-    "V": 20.18,
-    "S": 29.58,
+    "V": 20.8,
+    "Vnuc": 19.4,
+    "Vcel": 1.35,
+    "S": 40.6,
     "F": 31.3,
+    "rhocel": 0.72,
     "mflot": 3.20,
-    "Pelec": 265.0,
-    "mbat": 0.25,
-    "mbe": 0.20,
-    "mbp": 0.25,
-    "mres": 0.35,
+    "Pelec": 1400.0,
+    "Pcruc": 1160.0,
+    "Tcruc": 20.9,
+    "tman": 54.0,
+    "mbat": 1.05,
+    "mbe": 0.90,
+    "mbp": 1.05,
+    "mres": 0.95,
+    "thcruc": 45.0,
     "e": 0.014,
     "Rae": 1488.0,
     "RaD": 1.0e10,
@@ -1102,7 +1175,9 @@ def _es_valida_float(nombre: str, v: float) -> bool:
         return False
     if nombre in _FRACCIONES_UNITARIAS and not (0.0 < v < 1.0):
         return False
-    if nombre == "theta" and not (0.0 < v < 90.0):
+    if nombre == "fais" and not (0.0 <= v < 1.0):
+        return False
+    if nombre in ("theta", "thcruc") and not (0.0 < v < 90.0):
         return False
     return True
 
@@ -1550,11 +1625,29 @@ def _ejecutar_retrosustitucion(
 
 
 def _verificar_consistencia_global(conocidas: dict[str, float]) -> None:
-    """Verifica condición geométrica prolada (cf > R, cr > R) y residuo de las 103 ecuaciones."""
+    """Verifica condición geométrica prolada, dominios físicos y residuo de las 107 ecuaciones."""
     global _RESIDUAL_EVAL_CACHE
 
     if conocidas["cf"] <= conocidas["R"] or conocidas["cr"] <= conocidas["R"]:
         raise ValueError("El modelo prolado requiere que cf > R y cr > R.")
+    if conocidas["dTc"] >= conocidas["dT"]:
+        raise ValueError("La caída admisible dTc debe ser estrictamente menor que dT = T2 - T1.")
+    if (
+        conocidas["R"] <= conocidas["ncapS"] * conocidas["e"]
+        or conocidas["R"] <= conocidas["ncapI"] * conocidas["e"]
+        or conocidas["L"] <= 2.0 * max(conocidas["ncapS"], conocidas["ncapI"]) * conocidas["e"]
+        or conocidas["Vnuc"] <= 0.0
+    ):
+        raise ValueError("El espesor total de las capas aislantes supera las dimensiones del casco.")
+    if conocidas["N"] < 1.0 or abs(conocidas["N"] - round(conocidas["N"])) > 1e-7:
+        raise ValueError("El número de motores N debe ser un entero >= 1.")
+    if (
+        conocidas["ncapS"] < 0.0
+        or abs(conocidas["ncapS"] - round(conocidas["ncapS"])) > 1e-7
+        or conocidas["ncapI"] < 0.0
+        or abs(conocidas["ncapI"] - round(conocidas["ncapI"])) > 1e-7
+    ):
+        raise ValueError("El número de capas ncapS y ncapI debe ser un entero >= 0.")
 
     if _RESIDUAL_EVAL_CACHE is None:
         cache_res = []
@@ -1590,6 +1683,18 @@ def resolver(
     Lanza ValueError si el sistema no tiene solución única real.
     """
     conocidas: dict[str, float] = {k: float(v) for k, v in fijas.items()}
+    for k, v in conocidas.items():
+        if not _es_valida_float(k, v):
+            raise ValueError(f"Valor fuera de dominio físico para '{k}' ({v}).")
+    if "N" in conocidas and (conocidas["N"] < 1.0 or abs(conocidas["N"] - round(conocidas["N"])) > 1e-7):
+        raise ValueError("El número de motores N debe ser un entero >= 1.")
+    if "ncapS" in conocidas and (conocidas["ncapS"] < 0.0 or abs(conocidas["ncapS"] - round(conocidas["ncapS"])) > 1e-7):
+        raise ValueError("ncapS debe ser un entero >= 0.")
+    if "ncapI" in conocidas and (conocidas["ncapI"] < 0.0 or abs(conocidas["ncapI"] - round(conocidas["ncapI"])) > 1e-7):
+        raise ValueError("ncapI debe ser un entero >= 0.")
+    if "dTc" in conocidas and "T1" in conocidas and "T2" in conocidas:
+        if conocidas["dTc"] >= (conocidas["T2"] - conocidas["T1"]):
+            raise ValueError("La caída admisible dTc debe ser menor que dT = T2 - T1.")
     incognitas = set(VARIABLES) - set(conocidas)
 
     # 1. Vía rápida causal con variables de corte (tearing) para calibración estándar

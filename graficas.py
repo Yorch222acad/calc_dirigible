@@ -33,12 +33,18 @@ def simular_punto(base: dict[str, float], **overrides: float) -> dict[str, float
     return evaluador.evaluar_punto(base, estricto_prolado=False, **overrides)
 
 
-def _info_var(nombre: str, valores: dict[str, float], fijas: set[str], penalizado: bool) -> dict[str, Any]:
+def _info_var(
+    nombre: str,
+    valores: dict[str, float],
+    fijas: set[str],
+    penalizado: bool,
+    vars_alerta: set[str],
+) -> dict[str, Any]:
     desc, unidad, _ = modelo.VARIABLES[nombre]
     es_fija = nombre in fijas
-    es_penalizada = bool(penalizado and nombre in formateo.VARS_SUSTENTACION)
+    es_penalizada = bool(penalizado and nombre in vars_alerta)
     color = "red" if es_penalizada else ("yellow" if es_fija else "green")
-    val_vista = -abs(valores[nombre]) if es_penalizada else valores[nombre]
+    val_vista = valores[nombre]
     return {
         "nombre": nombre,
         "descripcion": desc,
@@ -70,9 +76,10 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     """
     _, alertas = formateo.evaluar_alertas_y_vista(valores)
     penalizado = bool(alertas)
+    vars_alerta = formateo.variables_en_alerta(valores) if penalizado else set()
 
     def vars_meta(lista_nombres: list[str]) -> list[dict[str, Any]]:
-        return [_info_var(n, valores, fijas, penalizado) for n in lista_nombres if n in valores]
+        return [_info_var(n, valores, fijas, penalizado, vars_alerta) for n in lista_nombres if n in valores]
 
     # =========================================================
     # 1. ESBELTEZ (lam) vs. ENERGÍA TOTAL, MASA TOTAL, L y D
@@ -551,11 +558,13 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     # 5. BALANCE TÉRMICO, ENERGÍA PERDIDA/AHORRADA Y COMBUSTIBLE TÉRMICO EN EL VUELO
     # =========================================================
     tm_actual = valores["tm"]
+    tman_actual = valores["tman"]
     ts_vuelo = _linspace(0.0, tm_actual, 36)
     qp0_w = valores["Qp0"]
     qp_w = valores["Qp"]
     dqp_w = valores["dQp"]
     ptot_w = valores["Ptot"]
+    pcruc_tot_w = valores["Pcruc"] + valores["Pad"]
     pc_ef = valores["ncal"] * valores["PC"]
 
     grafica_propano = {
@@ -605,7 +614,17 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "unidad": "kJ",
                         "eje": "y1",
                         "color": "#38bdf8",
-                        "valores": [round((((qp_w / valores["ncal"]) + ptot_w) * t) / 1000.0, 3) for t in ts_vuelo],
+                        "valores": [
+                            round(
+                                (
+                                    (qp_w / valores["ncal"]) * t
+                                    + ptot_w * min(t, tman_actual)
+                                    + pcruc_tot_w * max(0.0, t - tman_actual)
+                                ) / 1000.0,
+                                3,
+                            )
+                            for t in ts_vuelo
+                        ],
                     },
                     {
                         "nombre": "Masa de combustible térmico consumida (mgm)",
@@ -824,14 +843,20 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     # 7. TEMPERATURA INTERIOR ÓPTIMA (T2) Y ESCALABILIDAD MULTI-VIAJE (nv)
     # =========================================================
     T2_actual = valores["T2"]
-    xs_T2 = _linspace(max(valores["T1"] + 30.0, 50.0), 115.0, 40, incluir=T2_actual)
+    xs_T2 = _linspace(max(valores["T1"] + 30.0, 50.0), max(140.0, T2_actual + 5.0), 40, incluir=T2_actual)
     pts_T2: list[dict[str, float]] = []
     for t2_x in xs_T2:
         p_t2 = simular_punto(valores, T2=t2_x)
         if p_t2 is not None:
-            rho2_drop = p_t2["P2"] / (p_t2["R2"] * (t2_x - 10.0 + 273.15))
-            drho_drop = p_t2["rho1"] - rho2_drop
-            pct_loss_10k = 100.0 * (1.0 - drho_drop / max(1e-9, p_t2["drho"]))
+            t2_drop = t2_x - 10.0
+            rho2_drop = p_t2["P2"] / (p_t2["R2"] * (t2_drop + 273.15))
+            tm_drop = 0.5 * (p_t2["T1"] + t2_drop) + 273.15
+            rhocel_drop = p_t2["P2"] / (p_t2["R2"] * tm_drop)
+            f_drop = (
+                (p_t2["rho1"] - rho2_drop) * p_t2["g"] * p_t2["Vnuc"]
+                + (p_t2["rho1"] - rhocel_drop) * p_t2["g"] * p_t2["Vcel"]
+            )
+            pct_loss_10k = 100.0 * (1.0 - f_drop / max(1e-9, p_t2["F"]))
             p_t2["pct_loss_10k"] = pct_loss_10k
             pts_T2.append(p_t2)
 
@@ -840,23 +865,30 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
 
     nv_actual = valores["nv"]
     xs_nv = _linspace(1.0, max(14.0, nv_actual * 2.5), 28, incluir=nv_actual)
-    pts_nv: list[dict[str, float]] = []
+    pts_nv: list[dict[str, Any]] = []
+    dron_meta_ref: dict[str, Any] | None = None
     for nv_x in xs_nv:
         p_nv = simular_punto(valores, nv=nv_x)
         if p_nv is not None:
-            # Batería equivalente de un dron puro con la misma masa mtot en el mismo perfil de vuelo
-            fl_dron = p_nv["mtot"] * p_nv["g"] + p_nv["mtot"] * p_nv["az"]
-            fx_dron = max(1.2, 0.35 * p_nv["FD"]) + p_nv["map"] * p_nv["ax"]
-            t_dron = math.hypot(fl_dron, fx_dron)
-            p_dron = (p_nv["km"] / p_nv["ntot"]) * (
-                (t_dron ** 1.5) / math.sqrt(2.0 * p_nv["rho1"] * p_nv["N"] * p_nv["Ap"])
-                + fx_dron * p_nv["v"]
-            ) + p_nv["Pad"]
-            ereq_dron = (p_dron * p_nv["tm"]) / 3600.0
-            mbe_dron = ereq_dron / (p_nv["ebat"] * p_nv["DoD"] * p_nv["ntemp"])
-            mbp_dron = p_dron / (p_nv["ebat"] * p_nv["Cmax"] * p_nv["ntemp"])
-            p_nv["mbat_dron_g"] = max(mbe_dron, mbp_dron) * 1000.0
+            dron_ref = evaluador.evaluar_dron_referencia(p_nv)
+            if dron_meta_ref is None:
+                dron_meta_ref = dron_ref
+            p_nv["mbat_dron_g"] = (dron_ref["mbat_dron"] * 1000.0) if dron_ref["factible_cierre"] else None
+            p_nv["dron_valido_hw"] = bool(dron_ref["valido_hardware_dron"])
+            if not dron_ref["factible_cierre"]:
+                p_nv["dron_estado"] = "Sin solución (batería diverge)"
+            elif not dron_ref["valido_hardware_dron"]:
+                p_nv["dron_estado"] = "Teórico · excede equipo (" + ", ".join(dron_ref["motivos_inviable"]) + ")"
+            else:
+                p_nv["dron_estado"] = "Factible con equipo actual"
             pts_nv.append(p_nv)
+
+    hay_dron_teorico = any(not p["dron_valido_hw"] for p in pts_nv)
+    nombre_serie_dron = (
+        "Batería dron puro (est. teórica, excede equipo)"
+        if hay_dron_teorico
+        else "Batería dron puro equivalente"
+    )
 
     grafica_temp_escalabilidad = {
         "id": "temperatura_escalabilidad",
@@ -864,9 +896,16 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
         "titulo": "Temperatura Interior Óptima (T2) y Escalabilidad Multi-Viaje (nv)",
         "titulo_corto": "T2 Óptima y Escalabilidad",
         "subtitulo": (
-            "Delimitación del punto dulce de temperatura T2 (~80–90 °C): bajar T2 reduce Qp y Etot hasta que el crecimiento del volumen V "
-            "y la sensibilidad a caídas térmicas (-10 K) dominan. El Panel B demuestra la escalabilidad del dirigible frente a un dron puro."
+            "Panel A: balance entre pérdida térmica Qp, volumen V y pérdida de flotación ante −10 K con geometría regional fija (Vnuc + Vcel); "
+            "el marcador señala la mínima energía con equipo viable y pérdida ≤ 16 % ante −10 K (criterio propio e independiente del panel de diseño). "
+            "Panel B: escalabilidad frente a un dron puro de referencia (m_est = 0.65 kg, CD·A = 0.06 m², fap = 1.0, igual carga útil, misión y fases; "
+            "las muestras que exceden motores/batería se indican como estimación teórica y los huecos implican divergencia sin solución)."
         ),
+        "dron_referencia": {
+            "m_estructura_kg": 0.65,
+            "cda_m2": 0.06,
+            "fap": 1.0,
+        },
         "variables": vars_meta(["T2", "dT", "V", "Qp", "Etot", "nv", "d1", "dm", "mbat", "mbmax", "mgm", "Cop", "Cpre"]),
         "paneles": [
             {
@@ -875,7 +914,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                 "x_label": "Temperatura interior T2 (°C)",
                 "x_actual": round(T2_actual, 1),
                 "x_optimo": round(opt_T2["T2"], 1) if opt_T2 else None,
-                "x_optimo_label": f"Óptimo seguro (T2={opt_T2['T2']:.1f}°C)" if opt_T2 else "",
+                "x_optimo_label": f"Mín. Etot (equipo OK, −10 K ≤ 16%: {opt_T2['T2']:.1f}°C)" if opt_T2 else "",
                 "y1_label": "Potencia perdida Qp (W) / Energía Etot (kJ)",
                 "y2_label": "Volumen V (m³) / Pérdida sustentación -10 K (%)",
                 "xs": [round(p["T2"], 2) for p in pts_T2],
@@ -917,7 +956,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                 "x_label": f"Número de viajes consecutivos nv (tramo d1 = {d1_actual:.0f} m)",
                 "x_actual": round(nv_actual, 2),
                 "x_optimo": 1.0,
-                "x_optimo_label": "1 viaje (280 m)",
+                "x_optimo_label": f"1 viaje ({d1_actual:.0f} m)",
                 "y1_label": "Masa de batería requerida (g)",
                 "y2_label": "Combustible mgm (g) / Costo Cop (Bs)",
                 "xs": [round(p["nv"], 2) for p in pts_nv],
@@ -930,12 +969,14 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "valores": [round(p["mbat"] * 1000.0, 1) for p in pts_nv],
                     },
                     {
-                        "nombre": "Batería dron puro equivalente",
+                        "nombre": nombre_serie_dron,
                         "unidad": "g",
                         "eje": "y1",
                         "color": "#f87171",
                         "dashed": True,
-                        "valores": [round(p["mbat_dron_g"], 1) for p in pts_nv],
+                        "valores": [round(p["mbat_dron_g"], 1) if p["mbat_dron_g"] is not None else None for p in pts_nv],
+                        "estados": [p["dron_estado"] for p in pts_nv],
+                        "valido_hardware": [p["dron_valido_hw"] for p in pts_nv],
                     },
                     {
                         "nombre": "Combustible térmico consumido (mgm)",
