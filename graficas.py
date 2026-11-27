@@ -446,7 +446,7 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     }
 
     # =========================================================
-    # 4. ESPESOR DEL AISLANTE MYLAR MULTICAPA (e) vs. ENERGÍA AHORRADA Y PERDIDA
+    # 4. AISLANTE MYLAR MULTICAPA: ESPESOR (e) Y NÚMERO DE CAPAS (ncapS/ncapI)
     # =========================================================
     e_actual_mm = valores["e"] * 1000.0
     xs_e_mm = _linspace(3.0, 45.0, 46, incluir=e_actual_mm)
@@ -456,16 +456,93 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
     opt_e = min(pts_e, key=lambda d: d["Em"]) if pts_e else None
     opt_e_mm = round(opt_e["e"] * 1000.0, 2) if opt_e else None
 
+    # Barrido progresivo de capas celulares (ncapS / ncapI) de 0/0 a 4/4 (máximo 4 capas)
+    ns_act = float(valores["ncapS"])
+    ni_act = float(valores["ncapI"])
+    ncap_act = 0.5 * (ns_act + ni_act)
+    ncap_max = 4
+
+    pares_capas: list[tuple[float, float]] = [
+        (float((k + 1) // 2), float(k // 2))
+        for k in range(0, 2 * ncap_max + 1)
+    ]
+    if 0.0 <= ncap_act <= float(ncap_max):
+        idx_coinc = next(
+            (i for i, (ns, ni) in enumerate(pares_capas) if abs(0.5 * (ns + ni) - ncap_act) < 1e-6),
+            None,
+        )
+        if idx_coinc is not None:
+            pares_capas[idx_coinc] = (ns_act, ni_act)
+        else:
+            pares_capas.append((ns_act, ni_act))
+            pares_capas.sort(key=lambda par: 0.5 * (par[0] + par[1]))
+
+    def _fmt_capa(v: float) -> str:
+        return str(int(round(v))) if abs(v - round(v)) < 1e-6 else f"{v:.1f}"
+
+    def _fmt_par(ns: float, ni: float) -> str:
+        return f"{_fmt_capa(ns)}/{_fmt_capa(ni)}"
+
+    pts_capas: list[tuple[dict[str, float] | None, str, str, float]] = []
+    for ns, ni in pares_capas:
+        p_cap = simular_punto(valores, ncapS=ns, ncapI=ni)
+        ncap_val = 0.5 * (ns + ni)
+        if p_cap is None:
+            pts_capas.append((None, _fmt_par(ns, ni), "Sin solución (batería diverge)", ncap_val))
+            continue
+        motivos: list[str] = []
+        p_pico = max(p_cap["Pelec"], p_cap["Pcruc"])
+        if p_pico > p_cap["Pmax"] + 1e-6:
+            motivos.append(f"Pelec={p_pico:.0f}W>{p_cap['Pmax']:.0f}W")
+        t_pico = max(p_cap["Ttot"], p_cap["Tcruc"])
+        t_max = p_cap["N"] * p_cap["Tmax1"]
+        if t_pico > t_max + 1e-6:
+            motivos.append(f"Ttot={t_pico:.1f}N>{t_max:.1f}N")
+        th_pico = max(p_cap["theta"], p_cap["thcruc"])
+        if th_pico > p_cap["thmax"] + 1e-6:
+            motivos.append(f"θ={th_pico:.1f}°>{p_cap['thmax']:.0f}°")
+        if p_cap["mbat"] > p_cap["mbmax"] + 1e-6:
+            motivos.append(f"mbat={p_cap['mbat']*1000.0:.0f}g>{p_cap['mbmax']*1000.0:.0f}g")
+        if p_cap["Fexc"] < -1e-6:
+            motivos.append(f"Fexc={p_cap['Fexc']:.1f}N<0")
+        if p_cap["mres"] <= 0.0:
+            motivos.append("mres≤0 (exceso flot.)")
+        estado_hw = "Equipo OK" if not motivos else "Excede equipo (" + ", ".join(motivos) + ")"
+        pts_capas.append((p_cap, _fmt_par(ns, ni), estado_hw, ncap_val))
+
+    opt_capa = min(
+        (it for it in pts_capas if it[0] is not None and it[0]["valido"]),
+        key=lambda it: it[0]["Etot"],
+        default=None,
+    )
+    xs_capas = [round(it[3], 3) for it in pts_capas]
+    x_etiquetas_capas = [
+        f"Capas {it[1]} (ncap = {it[3]:.1f})" + (" · sin celdas" if it[3] == 0.0 else "")
+        for it in pts_capas
+    ]
+    estados_capas = [it[2] for it in pts_capas]
+    lbl_act_capas = _fmt_par(ns_act, ni_act)
+    lbl_opt_capas = f"Mín. Etot factible ({opt_capa[1]})" if opt_capa else ""
+    x_label_capas = (
+        f"Capas celulares promedio ncap = (ncapS + ncapI)/2  "
+        f"[0/0 → 4/4 · e = {e_actual_mm:.1f} mm, σ = {valores['sigma']*1000.0:.1f} g/m²]"
+    )
+
     grafica_aislante = {
         "id": "aislante",
         "indice": 4,
-        "titulo": "Aislante Mylar Multicapa Asimétrico (e) vs. Energía Ahorrada y Perdida",
-        "titulo_corto": "Mylar Multicapa: Ahorro vs. e",
+        "titulo": "Aislante Mylar Multicapa Asimétrico: Efecto del Espesor (e) y Número de Capas (ncapS/ncapI)",
+        "titulo_corto": "Mylar Multicapa: Espesor y Capas",
         "subtitulo": (
-            "Cómo influye el Espesor por Capa (e) con Mylar aluminizado asimétrico (ncapS/ncapI), radiación (hrad) y Hollands (Nuc) "
-            "en la Energía Ahorrada (Eah), Energía Perdida (Em vs Em0 constante), Combustible (mgm) y Masa Total (mtot)."
+            "Paneles A–B: influencia del Espesor por Capa (e) con la configuración actual de capas. "
+            "Paneles C–D: efecto de aumentar el Número de Capas Celulares (0/0 a 4/4 capas) mostrando el balance "
+            "entre ahorro térmico (Qp, Em, fais, mgm) y la penalización de masa Mylar (mc), potencia eléctrica (Pelec vs. Pmax) y batería (mbat)."
         ),
-        "variables": vars_meta(["e", "ncapS", "ncapI", "eps", "hrad", "Nuc", "Usup", "Uinf", "U", "U0", "Eah", "Em", "Em0", "mc", "mtot", "mgm"]),
+        "variables": vars_meta([
+            "e", "ncapS", "ncapI", "ncap", "sigma", "ep", "eps", "hrad", "Nuc",
+            "Usup", "Uinf", "U", "U0", "fais", "Eah", "Em", "Em0", "mc", "mtot",
+            "mgm", "Pelec", "Pmax", "mbat", "Etot",
+        ]),
         "paneles": [
             {
                 "tipo": "lineas_doble_eje",
@@ -548,6 +625,113 @@ def construir_datos_graficas(valores: dict[str, float], fijas: set[str]) -> list
                         "color": "#38bdf8",
                         "dashed": True,
                         "valores": [round(p["mtot"], 4) for p in pts_e],
+                    },
+                ],
+            },
+            {
+                "tipo": "lineas_doble_eje",
+                "titulo": "C. Número de Capas Celulares (ncapS/ncapI) vs. Pérdida Térmica (Qp, Em), Ahorro (%) y Combustible (mgm)",
+                "x_label": x_label_capas,
+                "x_actual": round(ncap_act, 3),
+                "x_actual_label": lbl_act_capas,
+                "x_optimo": round(opt_capa[3], 3) if opt_capa else None,
+                "x_optimo_label": lbl_opt_capas,
+                "num_ticks_x": ncap_max,
+                "x_tick_decimals": 0,
+                "x_etiquetas": x_etiquetas_capas,
+                "mostrar_puntos": True,
+                "y1_label": "Potencia perdida Qp (W) / Energía perdida Em (kJ)",
+                "y2_label": "Ahorro térmico fais (%) / Combustible mgm (g)",
+                "xs": xs_capas,
+                "series": [
+                    {
+                        "nombre": "Potencia perdida con aislante (Qp)",
+                        "unidad": "W",
+                        "eje": "y1",
+                        "color": "#f87171",
+                        "valores": [round(it[0]["Qp"], 2) if it[0] is not None else None for it in pts_capas],
+                    },
+                    {
+                        "nombre": "Energía perdida en misión (Em)",
+                        "unidad": "kJ",
+                        "eje": "y1",
+                        "color": "#fb923c",
+                        "dashed": True,
+                        "valores": [round(it[0]["Em"] / 1000.0, 2) if it[0] is not None else None for it in pts_capas],
+                    },
+                    {
+                        "nombre": "Ahorro térmico celular (fais)",
+                        "unidad": "%",
+                        "eje": "y2",
+                        "color": "#4ade80",
+                        "valores": [round(it[0]["fais"] * 100.0, 1) if it[0] is not None else None for it in pts_capas],
+                    },
+                    {
+                        "nombre": "Masa de combustible térmico (mgm)",
+                        "unidad": "g",
+                        "eje": "y2",
+                        "color": "#facc15",
+                        "valores": [round(it[0]["mgm"] * 1000.0, 2) if it[0] is not None else None for it in pts_capas],
+                        "estados": estados_capas,
+                    },
+                ],
+            },
+            {
+                "tipo": "lineas_doble_eje",
+                "titulo": "D. Penalización por Capas (ncapS/ncapI): Potencia Motores (Pelec vs. Pmax), Masa Mylar (mc), Batería (mbat) y Energía (Etot)",
+                "x_label": x_label_capas,
+                "x_actual": round(ncap_act, 3),
+                "x_actual_label": lbl_act_capas,
+                "x_optimo": round(opt_capa[3], 3) if opt_capa else None,
+                "x_optimo_label": lbl_opt_capas,
+                "num_ticks_x": ncap_max,
+                "x_tick_decimals": 0,
+                "x_etiquetas": x_etiquetas_capas,
+                "mostrar_puntos": True,
+                "y1_label": "Potencia eléctrica motores Pelec y tope Pmax (W)",
+                "y2_label": "Masa Mylar mc y Batería mbat (g) / Energía Etot (kJ)",
+                "xs": xs_capas,
+                "series": [
+                    {
+                        "nombre": "Potencia eléctrica motores (Pelec)",
+                        "unidad": "W",
+                        "eje": "y1",
+                        "color": "#38bdf8",
+                        "valores": [round(it[0]["Pelec"], 1) if it[0] is not None else None for it in pts_capas],
+                        "estados": estados_capas,
+                    },
+                    {
+                        "nombre": "Tope continuo de motores (Pmax)",
+                        "unidad": "W",
+                        "eje": "y1",
+                        "color": "#ef4444",
+                        "dashed": True,
+                        "valores": [
+                            round((it[0]["Pmax"] if it[0] is not None else valores["Pmax"]), 1)
+                            for it in pts_capas
+                        ],
+                    },
+                    {
+                        "nombre": "Masa película Mylar (mc)",
+                        "unidad": "g",
+                        "eje": "y2",
+                        "color": "#facc15",
+                        "valores": [round(it[0]["mc"] * 1000.0, 1) if it[0] is not None else None for it in pts_capas],
+                    },
+                    {
+                        "nombre": "Masa de batería requerida (mbat)",
+                        "unidad": "g",
+                        "eje": "y2",
+                        "color": "#f472b6",
+                        "valores": [round(it[0]["mbat"] * 1000.0, 1) if it[0] is not None else None for it in pts_capas],
+                    },
+                    {
+                        "nombre": "Energía total en misión (Etot)",
+                        "unidad": "kJ",
+                        "eje": "y2",
+                        "color": "#4ade80",
+                        "dashed": True,
+                        "valores": [round(it[0]["Etot"] / 1000.0, 2) if it[0] is not None else None for it in pts_capas],
                     },
                 ],
             },

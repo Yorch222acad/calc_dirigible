@@ -97,6 +97,26 @@ def main() -> None:
                 assert panel_b.locator("svg.chart-svg polyline").count() >= 3
                 print("[E2E 2 OK] G7 Panel B renderiza SVG y reporta 'Sin solución' sin colapsar null a 0.")
 
+                # 2b. Gráfica G4 (Mylar Multicapa): 4 paneles con efecto por número de capas (Paneles C y D)
+                page.locator("#charts-nav-list button", has_text="G4.").click()
+                assert page.locator(".chart-subpanel-card").count() == 4, (
+                    f"Se esperaban 4 paneles en G4, hay {page.locator('.chart-subpanel-card').count()}"
+                )
+                g4_panel_c = page.locator(".chart-subpanel-card").nth(2)
+                g4_panel_d = page.locator(".chart-subpanel-card").nth(3)
+                g4_panel_c.wait_for(state="visible", timeout=10000)
+                g4_panel_d.wait_for(state="visible", timeout=10000)
+                assert g4_panel_c.locator("svg.chart-svg polyline").count() >= 4
+                assert g4_panel_d.locator("svg.chart-svg polyline").count() >= 4
+                overlay_d = g4_panel_d.locator('svg.chart-svg rect[fill="transparent"]')
+                overlay_d.scroll_into_view_if_needed()
+                box_d = overlay_d.bounding_box()
+                assert box_d is not None and box_d["width"] > 100
+                page.mouse.move(box_d["x"] + box_d["width"] * 0.5, box_d["y"] + box_d["height"] * 0.5)
+                readout_d = g4_panel_d.locator(".chart-readout-bar").inner_text()
+                assert "Capas" in readout_d, f"Se esperaba etiqueta 'Capas' en G4 Panel D, dio: {readout_d}"
+                print("[E2E 2b OK] G4 muestra 4 paneles (espesor e + efecto multicapa en Paneles C y D).")
+
                 # 3. Abrir Diseño Óptimo y validar operadores bloqueados + guardado v5/v6 inmutable
                 with page.expect_response(lambda r: r.url.endswith("/api/diseno/analizar") and r.request.method == "POST") as resp_init_info:
                     page.locator("#btn-open-design").click()

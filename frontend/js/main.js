@@ -15,25 +15,25 @@ import {
   deleteHistorico,
   postImportarHistorico,
   postReevaluarHistorico,
-} from "./api.js?v=20";
-import { store } from "./state.js?v=20";
+} from "./api.js?v=21";
+import { store } from "./state.js?v=21";
 import {
   renderizarSidebarCategorias,
   renderizarSidebarGraficas,
-} from "./components/sidebar.js?v=20";
+} from "./components/sidebar.js?v=21";
 import {
   renderizarPanelEcuaciones,
   desplazarDentroContenedor,
   resaltarYEncuadrarEcuacion,
-} from "./components/equations.js?v=20";
-import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=20";
-import { renderizarPanelDiseno } from "./components/designStudio.js?v=20";
-import { renderizarPanelGraficas } from "./components/charts.js?v=20";
+} from "./components/equations.js?v=21";
+import { renderizarMapaFlujoGlobal } from "./components/flowchart.js?v=21";
+import { renderizarPanelDiseno } from "./components/designStudio.js?v=21";
+import { renderizarPanelGraficas } from "./components/charts.js?v=21";
 import {
   inicializarEntradaTeclado,
   renderizarCatalogoVariables,
   renderizarDetalleVariable,
-} from "./components/varInput.js?v=20";
+} from "./components/varInput.js?v=21";
 
 // Referencias a elementos del DOM
 const appShell = document.getElementById("app-shell");

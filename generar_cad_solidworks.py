@@ -496,12 +496,16 @@ def generar_macro_vba(p: dict[str, Any]) -> str:
 
     nombre_limpio = (
         p["nombre"]
-        .replace("λ", "lam=")
+        .replace("Ó", "O")
+        .replace("ó", "o")
+        .replace("·", "|")
+        .replace("λ", "lam")
         .replace("₂", "2")
         .replace("°", " deg")
         .encode("ascii", "ignore")
         .decode("ascii")
     )
+    tipo_capas = "simetricas" if n_sup == n_inf else "asimetricas"
 
     vba = f'''Attribute VB_Name = "DirigibleReferencial"
 Option Explicit
@@ -510,7 +514,7 @@ Option Explicit
 ' Modelo CAD Referencial de Dirigible Hibrido para SolidWorks
 ' Generado automaticamente por generar_cad_solidworks.py
 ' Caso: {nombre_limpio}
-' Casco hueco + capas celulares asimetricas: {n_sup} sup / {n_inf} inf (e = {p["e_mm"]:.1f} mm)
+' Casco hueco + capas celulares {tipo_capas}: {n_sup} sup / {n_inf} inf (e = {p["e_mm"]:.1f} mm)
 ' Dimensiones: L={p["L"]:.3f} m | D={p["D"]:.3f} m (cf={p["cf"]:.3f} m, cr={p["cr"]:.3f} m) | V={p["V"]:.2f} m3
 ' Centro flotacion X_CB = {p["x_cb"]:.3f} m | Motores: {p["N"]} x dia {p["dp"]*1000:.0f} mm en +/-{p["z_mot"]:.3f} m
 ' Gondola: {p["gond_l"]*1000:.0f} x {p["gond_w"]*1000:.0f} x {p["gond_h"]*1000:.0f} mm (gap {p["gap"]*1000:.0f} mm)
@@ -629,7 +633,7 @@ Sub main()
     If Not swAxisFeat Is Nothing Then swAxisFeat.Name = "Eje_Casco_X"
 
     ' -------------------------------------------------------------------------
-    ' 1. Piel exterior del casco y capas celulares asimetricas ({n_sup} sup / {n_inf} inf)
+    ' 1. Piel exterior del casco y capas celulares {tipo_capas} ({n_sup} sup / {n_inf} inf)
     ' -------------------------------------------------------------------------
 {chr(10).join(bloques_capas)}
 

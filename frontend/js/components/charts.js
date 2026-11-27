@@ -217,7 +217,7 @@ function crearPanelLineasDobleEje(panel) {
     }
 
     // Cuadrícula vertical y etiquetas de eje X
-    const numTicksX = 6;
+    const numTicksX = Number.isInteger(panel.num_ticks_x) && panel.num_ticks_x >= 2 ? panel.num_ticks_x : 6;
     for (let i = 0; i <= numTicksX; i++) {
       const frac = i / numTicksX;
       const xVal = xMin + frac * xSpan;
@@ -243,7 +243,10 @@ function crearPanelLineasDobleEje(panel) {
         "font-size": "11",
         "font-family": "monospace",
       });
-      txtX.textContent = formatearNumero(xVal);
+      txtX.textContent =
+        panel.x_tick_decimals !== undefined && panel.x_tick_decimals !== null
+          ? xVal.toFixed(panel.x_tick_decimals)
+          : formatearNumero(xVal);
       svg.appendChild(txtX);
     }
 
@@ -349,7 +352,8 @@ function crearPanelLineasDobleEje(panel) {
         "font-size": "11",
         "font-weight": "700",
       });
-      badgeAct.textContent = `★ Actual (${formatearNumero(panel.x_actual)})`;
+      const lblActual = panel.x_actual_label || formatearNumero(panel.x_actual);
+      badgeAct.textContent = `★ Actual (${lblActual})`;
       svg.appendChild(badgeAct);
 
       // Índice más cercano a x_actual
@@ -405,6 +409,22 @@ function crearPanelLineasDobleEje(panel) {
           );
         }
       });
+
+      if (panel.mostrar_puntos) {
+        serie.valores.forEach((val, i) => {
+          if (!esValidoNum(val)) return;
+          svg.appendChild(
+            crearSvgEl("circle", {
+              cx: toX(xs[i]),
+              cy: toY(val),
+              r: 3,
+              fill: serie.color || "#38bdf8",
+              stroke: "#0b1120",
+              "stroke-width": 1,
+            })
+          );
+        });
+      }
 
       // Punto destacado sobre la curva en el estado actual
       if (idxActual >= 0 && esValidoNum(serie.valores[idxActual])) {
@@ -481,8 +501,12 @@ function crearPanelLineasDobleEje(panel) {
       hoverLine.setAttribute("x2", String(snapX));
       hoverLine.setAttribute("visibility", "visible");
 
+      const xTexto =
+        Array.isArray(panel.x_etiquetas) && panel.x_etiquetas[bestI]
+          ? panel.x_etiquetas[bestI]
+          : `X = ${formatearNumero(xs[bestI])}`;
       const partes = [
-        `<strong style="color:#fde047;">X = ${formatearNumero(xs[bestI])}</strong>`,
+        `<strong style="color:#fde047;">${xTexto}</strong>`,
       ];
 
       panel.series.forEach((serie, sIdx) => {

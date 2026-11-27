@@ -1,208 +1,194 @@
-# Defensa Técnica y Académica: Dirigible Híbrido de Aire Caliente y Rotores Eléctricos
+# Documentación Técnica Consolidada: Dirigible Híbrido de Aire Caliente y Rotores Eléctricos
 
-**Contexto operativo:** Condiciones de altura de La Paz (3,350 m s.n.m., $P_1 = 67.1\text{ kPa}$, $\rho_1 = 0.811\text{ kg/m}^3$, viento frontal $v_v = 6\text{ m/s}$, misión multi-viaje de $d_m = 840\text{ m}$ en $n_v = 3$ tramos).  
-**Base matemática:** Sistema acoplado de **170 variables y 108 ecuaciones**, aislamiento celular asimétrico en Mylar, quemador capilar de etanol y optimización pre-prototipo (auditado v2).
+**Contexto operativo:** Condiciones de altura de La Paz (`3,350 m s.n.m.`, $P_1 = 67.12\text{ kPa}$, $\rho_1 = 0.811\text{ kg/m}^3$, viento frontal sostenido $v_v = 6.0\text{ m/s}$).  
+**Base matemática auditada (`v2`):** Sistema acoplado de **170 variables y 108 ecuaciones**, aislamiento celular en Mylar aluminizado, ciclo térmico dual (calentador en tierra + quemador capilar aéreo de etanol) y puente CAD 3D en SolidWorks (`CIERRE_AUDITORIAS.md`, auditorías V1–V10 cerradas).
 
 ---
 
 ## Resumen Ejecutivo e Indicadores Clave
 
-| Indicador principal | Valor logrado | Referencia / Comparativa |
+| Indicador principal | Diseño Definitivo (`def`, manta real `12 µm / 17 g/m²`) | Referencia `6 µm / 8.4 g/m²` (`T2 ≤ 95 °C`) |
 | :--- | :--- | :--- |
-| **Motor matemático** | **170 variables / 108 ecuaciones** | Compilado sin SymPy en tiempo de ejecución (`< 1 ms` por evaluación) |
-| **Reducción de pérdidas térmicas ($Q_p$)** | **−79.3 %** (`16,325.7 W → 3,376.2 W`) | Capa celular asimétrica de Mylar `2/1` frente a casco sin aislar `0/0` (hasta **−84.0 %** con `3/2`) |
-| **Ahorro de batería LiPo ($m_{bat}$)** | **−70.1 %** (`637.5 g` vs. `2,130.3 g`) | Frente a un dron multirrotor puro equivalente de igual carga útil ($1.0\text{ kg}$), misión y propulsión |
-| **Inercia térmica pasiva ($t_c$ para −20 K)** | **4.8× más margen** (`20.0 s → 96.5 s`) | Hasta `163.8 s` en configuración `3/2` para descenso seguro |
-| **Costo operativo total ($C_{op}$)** | **2.05 Bs / misión** (`0.68 Bs/viaje`) | `0.40 Bs` precalentamiento + `1.59 Bs` etanol + `0.06 Bs` electricidad (`2.44 Bs/km`) |
-| **Ventaja de recarga rápida (`Hot-Swap`)** | **298× menor costo de capital** | Rellenar etanol (`89.2 g`): `1.60 Bs` vs. batería LiPo de repuesto (`637.5 g`): `478.12 Bs` |
+| **Configuración seleccionada** | **`1 / 1` capa simétrica**, $L = 8.083\text{ m}$, $D = 2.275\text{ m}$, $V = 21.90\text{ m}^3$, $T_2 = 114.8\,^\circ\text{C}$, $d_m = 540\text{ m}$ (`2 × 270 m`), $m_{carga} = 1.10\text{ kg}$ | `2 / 1` capas asimétricas, $L = 7.66\text{ m}$, $V = 21.92\text{ m}^3$, $T_2 = 95.0\,^\circ\text{C}$, $d_m = 840\text{ m}$ (`3 × 280 m`), $m_{carga} = 1.00\text{ kg}$ |
+| **Reducción de pérdidas térmicas ($Q_p$)** | **−69.5 %** (`21,154.9 W → 6,454.6 W`, $U = 1.379\text{ W/(m}^2\cdot\text{K)}$) | **−79.3 %** (`16,325.7 W → 3,376.2 W`) |
+| **Ahorro de batería LiPo ($m_{bat}$)** | **494.2 g** vs. `873.9 g` de dron puro (**−43.5 %**; dron además excede `640 W` y `22 N`) | **637.5 g** vs. `2,130.3 g` de dron puro (**−70.1 %**) |
+| **Inercia térmica pasiva ($t_c$ para −20 K)** | **`44.7 s`** con `1/1` capa (`4×` más margen que `~12.5 s` en `0/0`) | `96.5 s` en `2/1` (`158.0 s` en base `3/2`) |
+| **Costo operativo total ($C_{op}$)** | **`2.553 Bs` / misión** (`1.276 Bs/viaje`, `0.477 Bs` tierra + `2.036 Bs` etanol + `0.040 Bs` elec.) | `2.047 Bs` / misión (`0.40 Bs` tierra + `1.59 Bs` etanol + `0.06 Bs` elec.) |
+| **Ventaja recarga rápida (`Hot-Swap`)** | **156.4× menor capital:** llenar etanol (`131.7 g`): **`2.37 Bs`** vs. LiPo repuesto (`494.2 g`): **`370.63 Bs`** | Repuesto LiPo ~`298×` más costoso que tanque etanol |
 
-### Estructura de la Defensa (10 minutos — 6 ejes)
-1. **Fundamentación metodológica y resultados pre-prototipo:** por qué modelar 107 ecuaciones antes de construir y cómo transformó un diseño inviable en factible.
-2. **Física crítica y comparación con dron puro:** arquitectura en 4 bloques acoplados, análisis de sensibilidad (top 5 factores) y ventaja en altura.
-3. **Capa celular asimétrica de Mylar:** mecanismos físicos (convección Hollands + escudo IR + asimetría) e impacto cuantificado frente a casco sin aislar.
-4. **Ciclo térmico y economía operativa:** precalentamiento en tierra como *"batería térmica"*, mantenimiento en vuelo, costos y recarga *Hot-Swap*.
-5. **Calentador capilar de etanol propuesto:** diseño en 3 etapas con cámara de dilución segura (`120–150 °C`) y difusor ancho (`fcal = 1.275`, `ncal = 0.75`).
-6. **Plataforma completa de software y puente CAD 3D:** motor dual CAS/float, equilibrio inverso BLT, interfaz KaTeX, 7 gráficas, optimizador multi-criterio, 14 Casos Tipo y macro VBA en SolidWorks.
+### Estructura del documento (6 ejes técnicos)
+1. **Fundamentación metodológica y cierre pre-prototipo:** por qué modelar 108 ecuaciones antes de fabricar y consolidación de las auditorías V1–V10.
+2. **Física crítica y comparación frente a dron puro:** arquitectura `C1–C13`, top 5 factores sensibles y justificación en altura.
+3. **Caracterización real de la manta térmica y análisis por capas (`1/1` vs. multicapa):** por qué con la manta comercial (`59 g`, `12 µm`, `17 g/m²`) no conviene usar más de una capa celular.
+4. **Calentador en tierra y economía operativa:** el aire precalentado como *"batería térmica"* de `0 g` a bordo y costos *Hot-Swap*.
+5. **Calentador aéreo con etanol (3 etapas):** quemador capilar multi-mecha antiderrame, chimenea de dilución segura (`125–155 °C`) y difusor cónico ancho (`fcal = 1.275`, `ncal = 0.75`).
+6. **Plataforma de software y puente CAD 3D definitivo:** motor dual CAS/float, 7 gráficas (`G4` multicapa `0/0 → 4/4`), optimizador, histórico y macro VBA de SolidWorks `dirigible_solidworks_referencial_2026-11-27_def.bas`.
 
 ---
 
 ## 1. Fundamentación Metodológica: ¿Por Qué Modelar 108 Ecuaciones Antes de Fabricar?
 
 ### El desafío de operar en La Paz con hardware acotado
-* **Atmósfera exigente:** $P_1 = 67.1\text{ kPa}$ y $\rho_1 = 0.811\text{ kg/m}^3$ (**~34 % menos densidad del aire** que a nivel del mar) frente a viento frontal sostenido de $v_v = 6\text{ m/s}$.
-* **Hardware real fijo:** 4 rotores Brushless **A2212** limitados a **640 W eléctricos continuos**, **22 N** de empuje total máximo y batería LiPo **$\le 1\text{ kg}$** ($1,000\text{ g}$).
-* **Fallas de fórmulas sueltas:** modificar el grosor de Mylar o la esbeltez ($\lambda$) altera simultáneamente el área térmica, la flotabilidad, el arrastre aerodinámico y la masa de batería requerida.
-* **Efecto bola de nieve:** cada $+100\text{ g}$ extra de estructura eleva la carga residual, dispara el empuje inducido ($\propto T^{3/2}$), exige mayor batería y vuelve a incrementar el peso total del vehículo.
+* **Atmósfera exigente:** $P_1 = 67.12\text{ kPa}$ y $\rho_1 = 0.811\text{ kg/m}^3$ (**~34 % menos densidad del aire** que a nivel del mar) frente a viento frontal sostenido de $v_v = 6.0\text{ m/s}$.
+* **Hardware real fijo:** 4 rotores Brushless **A2212 (1000KV)** con hélices de `10"` (`254 mm`), limitados a **640 W eléctricos continuos**, **22 N** de empuje total máximo y batería LiPo **$\le 1\text{ kg}$** (`1,000 g`).
+* **Efecto bola de nieve:** cada `+100 g` extra en película o estructura eleva la carga residual `mres`, dispara la potencia inducida ($\propto T^{3/2}$), exige mayor batería y vuelve a aumentar el volumen del casco y su arrastre aerodinámico.
 
-### Lazos cerrados acoplados imposibles de resolver a mano
-1. **Envolvente Mylar + Batería:** $m_c + m_{bat} \rightarrow$ definen masa total $m_{tot}$ y carga residual $m_{res}$.
-2. **Dinámica vectorial A2212:** $m_{res}$, fuerza de arrastre $F_D$ e inercia del gas $m_{ap} \rightarrow$ determinan $T_{tot}$, ángulo $\theta$ y potencia eléctrica $P_{elec}$.
-3. **Fases de misión ($840\text{ m}$):** pico de maniobra ($t_{man}$) + crucero estacionario ($P_{cruc}$) $\rightarrow$ energía integrada $E_{req}$.
-4. **Criterio dual de batería:** $m_{bat} = \max(m_{be}\text{ [energía]},\; m_{bp}\text{ [potencia pico]}) \circlearrowleft$ retroalimentado hacia el paso 1.
+### Lazos cerrados acoplados (`170` variables / `108` ecuaciones)
+1. **Envolvente + Batería:** $m_c + m_{bat} \rightarrow$ definen masa total $m_{tot}$ y carga residual $m_{res} = m_{tot} - m_{flot}$.
+2. **Dinámica vectorial A2212:** $m_{res}$, fuerza de arrastre $F_D$ e inercia aparente del gas + casco $m_{ap} = f_{ap}(m_{tot} + m)$ $\rightarrow$ determinan $T_{tot}$, ángulos $\theta / \theta_{cruc}$ y potencias $P_{elec} / P_{cruc}$.
+3. **Fases de misión:** pico de maniobra ($t_{man} = \min(t_m, n_v \cdot t_a)$ con $t_a = 18\text{ s}$) + crucero estacionario $\rightarrow$ energía integrada $E_{req}$.
+4. **Criterio dual de batería:** $m_{bat} = \max(m_{be}\text{ [energía]},\; m_{bp}\text{ [potencia pico]}) \circlearrowleft$ realimentado hacia el paso 1.
 
-### Qué se logró antes de pruebas en prototipos (Base Inviable vs. Auditoría vs. Óptimo)
+### Evolución hasta el diseño definitivo (`Base → Auditorías V1–V10 → Definitivo`)
 
 | Etapa | Configuración clave | Parámetros resultantes y diagnóstico |
 | :--- | :--- | :--- |
-| **1 · Base Inicial (Inviable)** | $\lambda = 2.3$, $T_2 = 85\,^\circ\text{C}$, $v = 8.5\text{ m/s}$, capas Mylar `3/2` ($e = 14\text{ mm}$), $V = 20.77\text{ m}^3$, $m_{flot} = 3.20\text{ kg}$ | **4 límites violados:** $P_{elec} = 1,403.8\text{ W}\ (> 640\text{ W})$, $m_{bat} = 1,051.5\text{ g}\ (> 1,000\text{ g})$, $T_{tot} = 23.47\text{ N}\ (> 22.0\text{ N})$, excedente $F_{exc} = -1.05\text{ N}\ (< 0)$. |
-| **2 · Auditoría Matemática (v1 y v2)** | Revisión independiente completa sobre el modelo, evaluador y optimizador | • Corrección del área prolada faltante ($+\pi R^2$): **+35 %** de superficie real $S$ detectado antes de cortar material.<br>• Piel exterior integrada en $S_c$ (**+330–390 g** reales incluidos) y soporte sin singularidades en `0/0`, `1/0`, `0/1`.<br>• Descuento térmico regional ($V_{nuc}/V_{cel}$ y $Q$ por regiones) + sensibilidad `-10 K` consistente.<br>• Separación maniobra ($t_a = 18\text{ s}$) vs. crucero ($P_{cruc}$, $\theta_{cruc}$) y tope de inclinación en ambas fases.<br>• Límites de hardware sincronizados (`N·Pmax1`), capacidad útil real por misión y eliminación de mamparos ($< 2\text{ \%}$ ahorro). |
-| **3 · Óptimo Factible (0 alertas)** | $\lambda = 3.76$, $T_2 = 95.0\,^\circ\text{C}$, $v = 7.71\text{ m/s}$, capas Mylar `2/1` ($e = 31.9\text{ mm}$), $V = 21.92\text{ m}^3$ (**87.0 %** aire caliente) | **100 % factible (0 alertas):** $P_{elec}$ pico $= 639.6\text{ W}\ (\le 640\text{ W})$, crucero $P_{cruc} = 450.5\text{ W}$, $m_{bat} = 637.5\text{ g}\ (\le 1,000\text{ g})$, $T_{tot} = 12.77\text{ N}$ ($T_{cruc} = 9.78\text{ N}$), $\theta = 60.3^\circ / 56.5^\circ$, $F_{exc} = +13.60\text{ N}$, carga admisible fija `[0.6716 – 1.0000] kg`. |
-
-*Conclusión metodológica:* cero hardware desperdiciado; los errores de escala y las sobreestimaciones de área/masa se detectaron y resolvieron en simulación antes de fabricar el primer prototipo.
+| **1 · Base Inicial (Inviable)** | $\lambda = 2.3$, $T_2 = 85\,^\circ\text{C}$, $v = 8.5\text{ m/s}$, capas `3/2` ($e = 14\text{ mm}$), `6 µm / 8.4 g/m²`, $V = 20.77\text{ m}^3$ | **4 límites violados:** $P_{elec} = 1,403.8\text{ W}\ (> 640\text{ W})$, $m_{bat} = 1,051.5\text{ g}\ (> 1,000\text{ g})$, $T_{tot} = 23.47\text{ N}\ (> 22.0\text{ N})$, $F_{exc} < 0$. |
+| **2 · Auditoría Matemática V1–V10 (`v2`)** | Revisión integral de física, evaluador numérico, optimizador, histórico y Playwright E2E | Corrección área prolada exacta ($+\pi R^2$), piel exterior en $S_c$, celdas sin singularidad (`0/0`..`4/4`), enfriamiento logarítmico e Hipótesis B regional (`tc = 158.0 s` en base), separación maniobra/crucero (`θ` y `θcruc`), límites de hardware sincronizados y tolerancia económica (`c_recambio`, sub-métrica). Residuo máx. `4.64 × 10⁻¹³`. |
+| **3 · Diseño Definitivo (`def`, manta real `59 g`)** | `ep = 12 µm`, `σ = 17.0 g/m²`, `ε = 0.08`, `mad = 1.30 kg`, `mcarga = 1.10 kg`, `λ = 3.55`, `T2 = 114.8 °C`, **`1/1` capa** (`e = 29.1 mm`), `v = 7.64 m/s`, `dm = 540 m` | **100 % factible (0 alertas):** $P_{elec} = 637.0\text{ W}\ (\le 640\text{ W})$, $P_{cruc} = 449.8\text{ W}$, $m_{bat} = 494.2\text{ g}$, $T_{tot} = 12.91\text{ N}$ ($T_{cruc} = 9.94\text{ N}$), $\theta = 59.2^\circ / 55.2^\circ$, $F_{exc} = +13.32\text{ N}$, carga admisible fija `[0.7427 – 1.1000] kg`. |
 
 ---
 
-## 2. Arquitectura Física y Aspectos con Mayor Impacto en el Cálculo
+## 2. Arquitectura Física y Comparación Frente a Dron Puro
 
 ### Los 4 bloques físicos acoplados (`C1 → C13`)
 * **C1–C3 · Aerostática y Casco:** gases ideales ($P_1, P_2, T_1, T_2$), densidad media en celdas ($\rho_{cel}$), casco bi-semielipsoidal prolado con $V = V_{nuc} + V_{cel}$, área curva exacta $S = S_f + S_r$ y masa de película Mylar $m_c = S_c \cdot \sigma$.
-* **C4–C7 · Térmica y Quemador:** convección externa forzada ($Nu_e \propto Re^{4/5}$) + radiación exterior ($h_{rade}$), celdas de Mylar con correlación de Hollands ($Nu_c$) y radiación interna ($h_{rad} \rightarrow U_{sup}, U_{inf}$), enfriamiento logarítmico $t_c$, precalentamiento $E_{pre}$ y consumo de etanol $m_{gm}$.
-* **C8 · Viento y Arrastre:** velocidad neta respecto al suelo $v_g = v - v_v$, misión multi-viaje $d_m = n_v \cdot d_1$ ($840\text{ m}$ en 3 tramos), correlación volumétrica de Hoerner $C_{DVc}(\lambda)$, factor parásito $k_p = 1.45$ y trabajo aéreo $E_D$.
-* **C9–C13 · Propulsión y Batería:** reparto híbrido $m_{res} = m_{tot} - m_{flot}$, inercia añadida del gas $m_{ap} = f_{ap}(m_{tot} + m)$, empuje vectorial pico ($T_{tot}, \theta$) vs. crucero ($T_{cruc}, P_{cruc}$), integración energética por fases ($t_{man}$) y lazo dual de batería $m_{bat} = \max(m_{be}, m_{bp})$.
+* **C4–C7 · Térmica y Quemador:** convección externa forzada ($Nu_e \propto Re^{4/5}$) + radiación exterior ($h_{rade}$), celdas cerradas con correlación de Hollands ($Nu_c$) y radiación interna ($h_{rad} \rightarrow U_{sup}, U_{inf}$), enfriamiento logarítmico regional $t_c$, precalentamiento $E_{pre}$ y consumo de etanol $m_{gm}$.
+* **C8 · Viento y Arrastre:** velocidad neta $v_g = v - v_v$, misión multi-viaje $d_m = n_v \cdot d_1$, correlación volumétrica de Hoerner $C_{DVc}(\lambda)$, factor parásito $k_p = 1.45$ y trabajo aéreo $E_D$.
+* **C9–C13 · Propulsión y Batería:** reparto híbrido $m_{res} = m_{tot} - m_{flot}$, inercia añadida $m_{ap} = f_{ap}(m_{tot} + m)$, empuje pico vs. crucero y lazo dual $m_{bat} = \max(m_{be}, m_{bp})$.
 
-### Los 5 fenómenos físicos más influyentes (ordenados por impacto)
-1. **Superficie real $S$ + piel exterior $S_c$ (`+26–35 % área`):** multiplica directamente las pérdidas térmicas $Q_p$, la masa de Mylar $m_c$ ($1.16\text{ kg}$) y el consumo de combustible $m_{gm}$.
-2. **Viento frontal de $6\text{ m/s}$ y velocidad aerodinámica $v$ (`FD ∝ v²`):** frena el avance neto respecto al suelo ($v_g = v - v_v$), alarga el tiempo de misión $t_m$ y degrada la eficiencia propulsiva de las hélices $\eta_{prop}(v)$.
-3. **Separación de maniobra ($t_{man}$) vs. crucero + inercia del gas (`−21 a −38 % batería`):** separar la rampa de arranque ($t_a = 18\text{ s}$) del crucero estacionario e incluir la masa de aire contenido $m$ ($\approx 14\text{ kg}$) evita sobredimensionar la batería frente a asumir aceleración continua.
-4. **Reparto híbrido ($m_{flot} = 87\text{ \%}\,m_{tot}$, `> 3× menos batería`):** al incrementar la sustentación aerostática cae $m_{res}$ y se reduce drásticamente la potencia inducida ($\propto T_{tot}^{3/2}$), liberando a los motores.
-5. **Volumen ocupado por las celdas ($V_{cel}$, `9–17 % de V`):** el aire atrapado en las celdas está a temperatura media $T_m < T_2$ (más denso que el núcleo), lo que frena la ganancia neta al aumentar espesores por encima de $e > 30\text{ mm}$ ($V = 21.92\text{ m}^3$: $V_{nuc} = 19.86\text{ m}^3$, $V_{cel} = 2.06\text{ m}^3$).
+### Los 5 fenómenos físicos más influyentes
+1. **Superficie real $S$ y gramaje de película ($\sigma \cdot S_c$):** en el prototipo real, pasar de película ideal `8.4 g/m²` a la manta medida `17.0 g/m²` eleva $m_c$ a `1,826.7 g` (`36.2 %` de `mtot`) aun usando solo `1/1` capa.
+2. **Viento frontal de `6.0 m/s` (`FD ∝ v²`):** domina el arrastre (`8.16 N`), la inclinación (`59.2° / 55.2°`) y reduce la velocidad útil al suelo a $v_g = 1.64\text{ m/s}$.
+3. **Separación de maniobra ($t_{man}$) vs. crucero + inercia del gas:** el crucero opera a `449.8 W` frente al pico de `637.0 W` en rampa ($18\text{ s}$), evitando sobredimensionar `mbe` (`426.1 g`).
+4. **Reparto híbrido ($m_{flot} = 88.5\text{ \%}\,m_{tot}$):** sostener `4.46 kg` por aire caliente reduce $m_{res}$ a apenas `0.581 kg`, manteniendo la potencia motriz dentro del rango A2212.
+5. **Volumen de celdas ($V_{cel} = 1.25\text{ m}^3$):** el aire periférico a $T_m = 64.9\,^\circ\text{C}$ aporta menos flotación que el núcleo a `114.8 °C`, poniendo techo rentable a espesores extremos ($e \approx 29.1\text{ mm}$).
 
-### Justificación en altura ($3,350\text{ m}$): Dirigible Híbrido vs. Dron Puro (igual carga útil $1.0\text{ kg}$ y misión $840\text{ m}$)
+### Justificación en altura (`3,350 m s.n.m.`): Dirigible Híbrido Definitivo vs. Dron Puro Equivalente
 
-| Magnitud (misma carga útil $1.0\text{ kg}$, misión $840\text{ m}$, $v_v = 6\text{ m/s}$, 4× A2212) | Dron Puro Equivalente (0 % aire caliente, est. `0.65 kg`, $C_D A = 0.06\text{ m}^2$) | Dirigible Híbrido Óptimo (87 % aire caliente) |
+| Magnitud (misma carga útil `1.10 kg`, misión `540 m`, `vv = 6.0 m/s`, 4× A2212) | Dron Puro Equivalente (`est. 0.65 kg`, `CD·A = 0.06 m²`) | Dirigible Híbrido Definitivo (`88.5 %` aire caliente) |
 | :--- | :--- | :--- |
-| **Carga sostenida por rotores** | 100 % rotores ($39.0\text{ N}$ con `mtot = 3.97 kg`, $\rho_1 = 0.811\text{ kg/m}^3$) | $m_{flot} = 3.71\text{ kg}$ compensados a $95\,^\circ\text{C}$; rotores cargan $m_{res} = 0.55\text{ kg}$ + avance |
-| **Potencia eléctrica requerida** | **1,751.3 W** pico / **1,722.2 W** crucero (`2.7×` sobre límite `640 W`) | **639.6 W** pico / **450.5 W** crucero (viable) |
-| **Energía eléctrica integrada ($491\text{ s}$)** | **235.2 Wh** | **70.4 Wh** |
-| **Batería LiPo requerida ($m_{bat}$)** | **2,130.3 g** (**INVIABLE**, $> 1,000\text{ g}$) | **637.5 g** (**VIABLE**, **−70.1 %** de masa de batería) |
+| **Carga sostenida por rotores** | 100 % rotores (`mtot = 2.81 kg`, `27.5 N` verticales) | $m_{flot} = 4.460\text{ kg}$ aerostáticos; rotores solo cargan $m_{res} = 0.581\text{ kg}$ + avance |
+| **Empuje vectorial (`Tmax = 22.0 N`)** | **27.67 N** pico / **27.52 N** crucero (**INVIABLE**, excede `22 N`) | **12.91 N** pico / **9.94 N** crucero (**VIABLE**) |
+| **Potencia eléctrica (`Pmax = 640 W`)** | **1,029.1 W** pico / **1,009.9 W** crucero (**INVIABLE**, `1.6×` tope) | **637.0 W** pico / **449.8 W** crucero (**VIABLE**) |
+| **Energía y batería LiPo requerida** | `96.5 Wh` $\rightarrow$ **`873.9 g`** | `47.04 Wh` $\rightarrow$ **`494.2 g`** (**−43.5 % batería**) |
 
 ---
 
-## 3. La Capa Celular Asimétrica de Mylar: Funcionamiento e Impacto
+## 3. Caracterización de la Manta Real y Por Qué Se Usa Solo 1 Capa Celular (`1/1`)
 
-### Cómo funciona (3 mecanismos combinados)
-1. **Atrapamiento convectivo (correlación de Hollands):** celdas cuadradas de aire cerradas (espesor $e = 32\text{ mm}$ en el óptimo, ancho $W = 20\text{ cm}$) mantienen el número de Rayleigh cercano o inferior al crítico ($Ra_c = 1,708$), frenando la convección natural interna.
-2. **Escudo infrarrojo multicapa ($\varepsilon = 0.04$):** el Mylar aluminizado presenta emisividad efectiva $\varepsilon_{ef} \approx 0.020$ entre caras enfrentadas, suprimiendo **~40×** la transferencia de calor por radiación respecto a un plástico opaco convencional.
-3. **Asimetría estructural ($n_{capS} > n_{capI}$):** en la mitad superior (donde el aire caliente asciende por flotabilidad) se colocan más capas (`2` en el óptimo `2/1`, `3` en el caso `3/2`); en la mitad inferior el aire frío tiende a estratificarse de forma estable ($Nu = 1$), lo que permite reducir capas sin degradar el aislamiento y ahorrar peso de película.
+### Parámetros reales medidos de la envolvente
+* **Material conseguido:** Manta térmica de emergencia **FIRSTIME bicolor dorado/plateado de `160 × 210 cm` (`3.36 m²`)**, película BoPET/PET metalizado comercial (`90 %` reflectividad IR declarada).
+* **Peso real medido en balanza:** **`59 g`** $\rightarrow$ gramaje puro `59 / 3.36 = 17.56 g/m²` (espesor real $\approx 12.5\text{ µm}$, confirmando `ep = 12 µm`). En el cálculo definitivo se adoptó **`σ = 17.0 g/m²`** y **`ε = 0.08`** orientando la **cara plateada hacia el interior** de la celda para maximizar reflexión infrarroja.
+* **Límite térmico validado por uniones:** al sellar con **cinta de poliéster térmico (`180–200 °C`) y cinta Kapton (`220–260 °C`)**, se elimina el punto débil de adhesivos comunes (`80–90 °C`) y la restricción queda gobernada por la contracción del PET comercial y la pluma del quemador, estableciendo el techo seguro en **`T2 <= 115 °C`** (alcanzado en `114.8 °C`).
 
-*Papel en el proyecto:* sustituye los mamparos interiores y concentra **> 70 %** de la resistencia térmica total en la pared de la envolvente.
+### Análisis por número de capas (`G4`: `0/0 → 4/4` capas): por qué `1/1` y no multicapa en este caso
 
-### Efecto cuantificado: Con vs. Sin Capa Celular (misma envolvente óptima, $T_2 = 95\,^\circ\text{C}$, $v = 7.71\text{ m/s}$, $840\text{ m}$)
+Con una película de `17.0 g/m²` (más del doble del Mylar ultraligero de `6 µm / 8.4 g/m²`), cada capa adicional añade una masa considerable que rompe el balance peso-potencia:
 
-| Magnitud evaluada | Sin aislante (`0 / 0`) | Con capa celular (`2 / 1`) | Efecto real obtenido |
-| :--- | :--- | :--- | :--- |
-| **Transmitancia global $U$** | `4.279 W/(m²·K)` | `0.885 W/(m²·K)` | **−79.3 %** fuga térmica |
-| **Pérdida calorífica $Q_p$** | `16,325.7 W` | `3,376.2 W` | Evita necesitar quemador de `16.3 kW` |
-| **Enfriamiento pasivo (−20 K, $t_c$)** | `20.0 s` | `96.5 s` | **4.8×** margen de seguridad |
-| **Etanol requerido en vuelo ($m_{gm}$)** | `427.3 g` | `88.4 g` | **−79.3 %** combustible |
-| **Costo operativo total ($C_{op}$)** | `8.15 Bs` | `2.05 Bs` | **−74.9 %** costo por misión |
-| **Autonomía con $m_p = 89.2\text{ g}$ a bordo** | `175 m` (`0.6 viajes`) | `840 m` (`3.0 viajes`) | Habilita completar los 3 viajes |
+#### A. Barrido manteniendo el casco definitivo (`V = 21.90 m³`, `mflot = 4.46 kg`)
 
-Sin aislamiento celular, la masa adicional del quemador y del etanol junto a un enfriamiento en apenas `20 s` vuelven impracticable el dirigible.
+| Capas (`ncapS/ncapI`) | `Qp` (W) | Ahorro `fais` | Etanol `mgm` (g) | Masa film `mc` (g) | `Pelec` (W) | `mbat` (g) | Diagnóstico hardware |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`0 / 0`** (sin celdas) | `20,819.8` | `0.0 %` | `364.9` | `784.4` | `575.7` | `449.8` | Exceso de flotación (`mflot` calibrado para más peso) |
+| **`1 / 0`** (solo sup.) | `14,231.6` | `32.2 %` | `249.4` | `1,301.3` | `562.9` | `440.5` | `θ = 89.9° > 75°` (`mres` casi nulo) |
+| **`1 / 1` (Definitivo)** | **`6,454.6`** | **`69.5 %`** | **`113.1`** | **`1,826.7`** | **`637.0`** | **`494.2`** | **Equipo OK (única banda óptima factible)** |
+| **`2 / 1`** | `4,869.8` | `77.2 %` | `85.3` | `2,360.1` (`+533 g`) | `815.1` | `623.2` | **Excede `Pelec > 640 W`** |
+| **`2 / 2`** | `3,897.2` | `81.9 %` | `68.3` | `2,902.1` | `1,103.3` | `832.1` | **Excede `Pelec > 640 W` y `Ttot = 23.5 N > 22 N`** |
+| **`3 / 2` → `4 / 4`** | `3,170 → 2,168` | `85.4 → 90.2 %` | `55.6 → 38.0` | `3,452 → 5,150` | `1,509 → 4,025` | `1,126 → 3,159` | **Inviable** (`Pelec`, `Ttot`, `mbat`, `Fexc` fuera de rango) |
 
----
+#### B. Re-optimizando todo el dirigible (`λ, v, mflot, e, T2, mp`) para cada configuración con `17.0 g/m²`
 
-## 4. Ciclo Térmico (Calentar y Mantener) y Economía Operativa
+| Capas forzadas | Score | `L` × `D` (`V`) | Masa film `mc` | `Qp` / `tc` (`−20 K`) | `Pelec` / `mbat` | Costo `Cop` | Conclusión |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`0 / 0`** | `38.61` | `7.48 × 2.07 m` (`16.70 m³`) | `669.1 g` | `18.04 kW` / `12.5 s` | `604.5 W` / `470.6 g` | `4.863 Bs` | Pérdidas extremas (`~316 g` etanol en vuelo) e inercia crítica (`12.5 s`). |
+| **`1 / 0`** | `39.85` | `8.10 × 2.16 m` (`19.86 m³`) | `1,175.3 g` | `13.44 kW` / `19.9 s` | `611.6 W` / `475.8 g` | `4.104 Bs` | La mitad inferior sin celdas sigue fugando demasiado calor. |
+| **`1 / 1` (Óptimo)** | **`42.01`** | `8.08 × 2.28 m` (`21.90 m³`) | `1,826.7 g` | **`6.45 kW` / `44.7 s`** | `637.0 W` / `494.2 g` | **`2.553 Bs`** | **Mejor balance global:** captura el `69.5 %` de ahorro sin sobredimensionar `V`. |
+| **`2 / 1`** | `40.38` | `8.22 × 2.36 m` (`23.98 m³`) | `2,254.7 g` | `6.35 kW` / `50.3 s` | `634.1 W` / `492.1 g` | `2.821 Bs` | Para cargar `+428 g` de Mylar debe inflar el casco y acortar `e`, perdiendo casi todo el ahorro en `Qp` (`−1.6 %`) y subiendo costo/precalentamiento. |
+| **`2 / 2`** | `37.17` | `8.84 × 2.51 m` (`29.20 m³`) | `3,118.7 g` | `5.54 kW` / `69.9 s` | `638.7 W` / `573.2 g` | `3.267 Bs` | Casco desproporcionado (`mtot = 6.42 kg`, `3.12 kg` solo de plástico) con peor desempeño neto. |
+| **`3 / 2` y sup.** | — | — | — | — | — | — | **Sin solución factible** dentro de `640 W / 22 N / 1 kg`. |
 
-### Estrategia térmica en 4 fases
-La estrategia clave consiste en utilizar el aire precalentado en tierra como una **"batería térmica" barata (`0.40 Bs`)** para no cargar peso de arranque en vuelo, y usar combustible líquido únicamente para sostener el equilibrio térmico contra las pérdidas $Q_p$:
-
-1. **① En tierra · Precalentamiento:** un soplador externo calienta los $21.92\text{ m}^3$ ($V_{nuc} = 19.86\text{ m}^3$ a $95\,^\circ\text{C}$ y $V_{cel} = 2.06\text{ m}^3$ a $T_m = 55\,^\circ\text{C}$) desde $15\,^\circ\text{C}$ antes del despegue.
-   * $Q = 1,073.1\text{ kJ}$, $E_{pre} = 1,651.0\text{ kJ}$ ($\eta_{pre} = 0.65$), costo $C_{pre} = 0.396\text{ Bs}$ (**~0.40 Bs**), **cero peso** de equipo de arranque en vuelo.
-2. **② Despegue · Maniobra pico:** rampa suave ($t_a = 18\text{ s}$) hacia crucero; el aire ya parte caliente al 100 % de flotación.
-   * Tiempo acumulado de maniobra $t_{man} = 54\text{ s}$, $P_{elec} = 639.6\text{ W}$ ($\le 640\text{ W}$), $T_{tot} = 12.77\text{ N}$ ($\le 22\text{ N}$), $\theta = 60.3^\circ$ (crucero $56.5^\circ$).
-3. **③ En vuelo · Mantenimiento de $Q_p$:** el quemador de etanol solo repone las fugas térmicas a través de la pared sin recalentar desde cero.
-   * Consume $m_{gm} = 88.36\text{ g}$ en $491\text{ s}$ ($E_{prop} = 2,209\text{ kJ}$, $C_{comb} = 1.591\text{ Bs}$); costo eléctrico $C_{elec} = 0.060\text{ Bs}$.
-4. **④ Seguridad · Inercia térmica:** si el quemador se apaga o raciona la llama, la capa de Mylar conserva el calor útil.
-   * Enfriamiento logarítmico $t_c = 96.5\text{ s}$ para caer $20\text{ K}$ en `2/1` (y `163.8 s` en configuración `3/2`), garantizando tiempo suficiente para aterrizar con control.
-
-### Desglose económico y ventaja *Hot-Swap* (`840 m` / 3 viajes)
-* **Costo operativo total por misión:** **2.05 Bs** (`0.68 Bs / viaje` · `2.44 Bs / km`):
-  * Precalentamiento en tierra ($C_{pre}$): **0.40 Bs** (**19.4 %**)
-  * Etanol en vuelo ($C_{comb}$): **1.59 Bs** (**77.7 %**)
-  * Recarga eléctrica LiPo ($C_{elec}$): **0.06 Bs** (**2.9 %**)
-* **Recambio rápido (*Hot-Swap*) entre vuelos sin esperar carga eléctrica (`479.72 Bs` total combinado):**
-  * Rellenar depósito de etanol ($m_p = 89.2\text{ g}$): **1.60 Bs** (**0.3 %**)
-  * Batería LiPo cargada de repuesto ($637.5\text{ g}$): **478.12 Bs** (**99.7 %**)
-  * $\rightarrow$ La batería de repuesto exige **298× más capital** que la recarga térmica completa.
-* **Ventaja Etanol 96 % (`18 Bs/kg`) vs. latas GLP/Butano (`100–110 Bs/kg`):** **~6× menor costo por kg**, sin envase metálico presurizado y con recarga líquida en segundos.
-* *Tarifas de referencia del modelo:* electricidad `0.85 Bs/kWh`, gas en tierra `0.24 Bs/MJ`, etanol `18 Bs/kg`, batería LiPo `750 Bs/kg`.
+**Conclusión física:** la **primera capa cerrada (`0/0 → 1/1`) aporta el gran salto de eficiencia térmica (`−69.5 %`)** al crear un colchón de aire confinado y dos superficies reflectantes (`ε = 0.08`). Con película de `17 g/m²`, intentar agregar más capas obliga a agrandar el casco para cargar el propio plástico, aumentando `S` y neutralizando el aislamiento extra. Usar `2/1` o `3/2` capas solo vuelve a ser óptimo si en una iteración futura se consigue película ultraligera de `6–8 µm` (`8.4–11 g/m²`).
 
 ---
 
-## 5. Calentador Capilar de Etanol Propuesto
+## 4. Calentador en Tierra y Economía Operativa (`Hot-Swap`)
 
-El desafío térmico consiste en inyectar entre $2$ y $3\text{ kW}$ de potencia calorífica dentro de un casco cuya lámina de Mylar pierde integridad estructural por encima de **110–140 °C**, sin penalizar la carga útil con un intercambiador metálico pesado. Se propone un subsistema vertical en **3 etapas**:
+La arquitectura térmica divide el problema en **calentar en tierra** (equipo pesado externo) y **mantener en vuelo** (quemador ligero a bordo):
 
-1. **Quemador capilar blindado (base):**
-   * Fieltro de fibra cerámica embebido en etanol líquido (consumo aproximado de **~5.6–10 mL/min** según régimen).
-   * Retiene el combustible por capilaridad evitando derrames al cabecear o inclinarse el dirigible.
-   * Alojado dentro de una camisa cortaviento de doble pared perforada más malla apagachispas de acero inoxidable.
+### Subsistema de tierra: precalentamiento previo al despegue
+* **Equipos:** soplador/calefactor externo a GLP o gas estacionario con manga ignífuga acoplable a la boca inferior del casco (`ηpre = 0.65`, tarifa `cpre = 0.24 Bs/MJ`).
+* **Energía y tiempos (diseño definitivo `21.90 m³`):** eleva `Vnuc = 20.64 m³` desde `15 °C` hasta `114.8 °C` y `Vcel = 1.25 m³` hasta `T_m = 64.9 °C`:
+  * Calor sensible regional absorbido: **`Q = 1,291.4 kJ`**
+  * Energía consumida en tierra: **`Epre = 1,986.8 kJ`** (`~1.5–3.5 min` con quemador/soplador de `10–20 kW`)
+  * Costo económico: **`Cpre = 0.477 Bs`** (`18.7 %` del costo operativo total)
+* **Ventaja clave:** actúa como una **"batería térmica" inicial con 0 gramos** de peso extra en el dirigible, permitiendo despegar inmediatamente al 100 % de flotabilidad aerostática sin gastar combustible líquido ni potencia eléctrica en rampa térmica inicial.
+
+### Desglose económico de misión y ventaja *Hot-Swap* (`540 m` / 2 viajes)
+* **Costo operativo total por misión:** **`2.553 Bs`** (`1.276 Bs / viaje` · `4.728 Bs / km`):
+  * Precalentamiento en tierra ($C_{pre}$): **`0.477 Bs`** (`18.7 %`)
+  * Etanol en vuelo ($C_{comb}$): **`2.036 Bs`** (`79.8 %`)
+  * Recarga eléctrica LiPo ($C_{elec}$): **`0.040 Bs`** (`1.6 %`)
+* **Recambio rápido (*Hot-Swap*) entre misiones (`373.00 Bs` total combinado):**
+  * Rellenar depósito completo de etanol ($m_p = 131.7\text{ g}$): **`2.37 Bs`** (`0.6 %`)
+  * Batería LiPo cargada de repuesto ($494.2\text{ g}$ a `750 Bs/kg`): **`370.63 Bs`** (`99.4 %`)
+  * $\rightarrow$ La batería de repuesto exige **`156.4×` más capital** que la recarga térmica completa.
+* **Ventaja Etanol 96 % (`18 Bs/kg`) vs. latas GLP/Butano (`100–110 Bs/kg`):** `~6×` menor costo por kg, sin envases metálicos presurizados y con recarga líquida en segundos.
+
+---
+
+## 5. Calentador Aéreo con Etanol (Arquitectura Capilar en 3 Etapas)
+
+El desafío en vuelo consiste en reponer continuamente las fugas térmicas **`Qp = 6,454.6 W`** (potencia química bruta $Q_p / \eta_{cal} \approx 8.61\text{ kW}$) dentro de una envolvente de PET comercial de `12 µm` cuyo techo seguro es `115 °C`, sin cargar un intercambiador metálico cerrado que añadiría **`400–700 g`** de masa muerta y penalizaría la eficiencia a `0.50–0.65`.
+
+Se consolida un calentador vertical ligero de transferencia directa con dilución en **3 etapas** (validando `ηcal = 0.75` y `fcal = 1.275`):
+
+1. **Quemador capilar blindado (etapa inferior):**
+   * **Principio antiderrame:** matriz/cama ancha multi-mecha de fibra cerámica embebida en etanol líquido (`PC = 25 MJ/kg`). Retiene el combustible por capilaridad evitando derrames o desplazamientos bruscos al cabecear (`θ = 59.2°` en maniobra) sin bomba de alta presión.
+   * **Caudal de combustible (diseño definitivo `1/1`):** tasa de quemado de **`0.344 g/s = 20.7 g/min ≈ 26 mL/min`**, consumiendo `mgm = 113.12 g` (`~141 mL`) en los `328.6 s` de vuelo con depósito a bordo `mp = 131.7 g` (`~165 mL`). *(Nota: si en una segunda versión con película `6 µm / 2/1` capas `Qp` baja a `~3.38 kW`, el caudal cae a `~10.8 g/min ≈ 13.5 mL/min`)*.
+   * **Protección de llama:** camisa cortaviento de doble pared perforada + malla apagachispas de acero inoxidable para estabilizar combustión frente a turbulencias de entrada.
 2. **Cámara / chimenea de dilución térmica (etapa media):**
-   * Los gases de combustión salen a **600–800 °C** con caudal reducido (**~2–3 L/s**) hacia una chimenea ligera de aluminio.
-   * Un micro-ventilador de **5–10 W** (potencia contemplada dentro de $P_{ad} = 45\text{ W}$ auxiliares) recircula **30–60 L/s** de aire más frío tomado del fondo del propio casco para mezclarlo con los gases.
-   * La mezcla diluye la temperatura de salida a unos seguros **120–150 °C**, protegiendo el Mylar superior.
-3. **Difusor cónico ancho y justificación de $f_{cal} = 1.275$ / $\eta_{cal} = 0.75$:**
-   * Un difusor cónico superior perforado descarga el flujo templado a baja velocidad (**$< 1\text{ m/s}$**), evitando chorros calientes focalizados hacia el techo.
-   * Esta transferencia directa con dilución justifica el factor de exceso/pérdida del calentador $f_{cal} = 1.275$ y rendimiento $\eta_{cal} = 0.75$; por contraste, un intercambiador de calor cerrado aleteado añadiría **400–700 g** de masa muerta y reduciría $\eta_{cal}$ a **0.50–0.65**.
-   * El alivio inferior (~2 L/s) en la zona más fría del casco minimiza las pérdidas energéticas de purga; con aislamiento Mylar, variar $f_{cal}$ apenas desplaza el costo operativo $C_{op}$ en $\pm 1\text{ \%}$.
+   * Los gases de combustión (`600–800 °C`) ascienden por una chimenea ligera de aluminio de pared fina.
+   * Un ventilador axial de bajo peso (potencia contemplada dentro de $P_{ad} = 45\text{ W}$ auxiliares) aspira aire más frío del fondo del propio casco (`~75–95 °C`) y lo mezcla transversalmente en la chimenea.
+   * Para diluir `6.45 kW` netos a una descarga segura de **`125–155 °C`**, el flujo requerido de aire recirculado ronda **`110–135 L/s`** (en comparación, para `~3.0–3.4 kW` con película `6 µm` bastan `30–60 L/s`), protegiendo la manta de `12 µm` y sus cintas de poliéster/Kapton.
+3. **Difusor cónico ancho perforado + alivio inferior (etapa superior):**
+   * Un difusor cónico ancho con placa perforada desacelera el flujo templado por debajo de **`1.0–1.5 m/s`**, repartiendo el calor radialmente sin chorros focalizados contra el techo.
+   * Un pequeño puerto de alivio en la base del casco purga el exceso mínimo de gases de combustión desde la región más fría del volumen, minimizando la pérdida energética (justificando `ηcal = 0.75`) y el aumento moderado de convección interna (`fcal = 1.275`).
 
 ---
 
-## 6. Muestra de la Plataforma de Software y Puente CAD 3D
+## 6. Plataforma de Software y Puente CAD 3D Definitivo
 
-### Núcleo simbólico-numérico, equilibrio inverso e interfaz (`calc.py` + FastAPI)
-* **Motor dual CAS + float (`< 1 ms`):** las 108 ecuaciones residen simbólicamente en SymPy (`modelo.py`) para trazabilidad total, y se compilan por descomposición *tearing* en `evaluador.py` en aritmética float pura (**cero SymPy en barridos y optimización**).
-* **Equilibrio e intercambio inverso:** grafo bipartito (**Hopcroft/DFS + descomposición BLT de Tarjan**) que permite intercambiar cualquier variable fija por una calculada ($d_m \leftrightarrow n_v$, $T_2 \leftrightarrow \rho_2$, $V \leftrightarrow m_{flot}$, $U \leftrightarrow e$) verificando la consistencia del balance.
-* **Ecuaciones KaTeX + alertas reales:** aplicación web FastAPI con 13 categorías, sustitución numérica en tiempo real, cajas explicativas de coeficientes y alertas físicas reales sin ocultar ni alterar signos físicos.
-* **Mapa de flujo global (`C1 → C13`):** diagramas interactivos por categoría y mapa global completo con resaltado de lazos cerrados (batería$\leftrightarrow$masa y celdas$\leftrightarrow$volumen) y navegación directa a cada ecuación.
+### Núcleo simbólico-numérico, equilibrio inverso y gráficas
+* **Motor dual CAS + float (`< 1 ms`):** 108 ecuaciones simbólicas en [`modelo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/modelo.py) compiladas por descomposición *tearing* en [`evaluador.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/evaluador.py) (`0` SymPy en tiempo de optimización o barridos).
+* **Equilibrio inverso BLT (`C1 → C13`):** grafo bipartito + descomposición Tarjan para intercambiar cualquier variable fija por una calculada (`dm ↔ nv`, `T2 ↔ ρ2`, `V ↔ mflot`, `U ↔ e`), interfaz KaTeX en tiempo real y mapa de flujo interactivo.
+* **7 gráficas comparativas (`G1–G7`):** incluyendo la nueva **comparativa multicapa `0/0 → 4/4` en `G4` (Paneles C y D)** que expone gráficamente la caída térmica frente al peso de película y saturación de `Pelec / Pmax`, además de `G7` frente al dron puro equivalente.
+* **Optimizador multi-criterio (`< 80 ms`) y 14 familias de Casos Tipo:** invariante al orden de variables, histórico persistente JSON, importación compatible `v1 → v2` y suite de regresión automatizada ([`auditar_modelo.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/auditar_modelo.py) + [`auditar_frontend.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/auditar_frontend.py) en Chromium).
 
-### Exploración paramétrica, optimizador y Casos Tipo
-* **7 gráficas interactivas (`G1–G7`):**
-  * `G1`: Esbeltez $\lambda$ vs. energías y dimensiones.
-  * `G2`: Reparto híbrido $m_{flot} / m_{res}$ y $F / F_L$.
-  * `G3`: Distancia, viajes ($n_v$) y viento frontal.
-  * `G4`: Espesor de Mylar $e$ vs. ahorro térmico.
-  * `G5`: Combustible $m_{gm}$ acumulado en vuelo.
-  * `G6`: Silueta 2D a escala y desglose de masas.
-  * `G7`: Temperatura $T_2$ óptima ($-10\text{ K}$) y comparación directa vs. dron puro.
-* **Optimizador multi-criterio:** 6 indicadores ponderables por perfil (costo operativo, *Hot-Swap*, energía, masa útil, autonomía, velocidad), variables constructivas libres/editables dinámicamente y límites activos de hardware. Opera mediante **muestreo Halton canónico + descenso hacia factibilidad** en **`< 80 ms`**, de forma **invariante al orden** de variables.
-* **Auditoría matemática verificada:** residuo máximo de **$4.6 \times 10^{-13}$** y criterio de factibilidad unificado en todas las vistas.
-* **14 familias de Casos Tipo e Histórico JSON:** ~40 escenarios comparativos frente al óptimo (nivel del mar, HDPE/Nylon, propano/butano, `0/1/3` capas, vientos fuertes y 1–7 viajes) más histórico manual persistente con comparador SVG multi-diseño, exportación e importación JSON.
-
-### Puente automático hacia geometría CAD 3D en SolidWorks
-* **Flujo:** `Histórico JSON → generar_cad_solidworks.py → Macro VBA (.bas)`.
-* **Geometría generada automáticamente:**
-  * Casco bi-semielipsoidal hueco generado por revolución exacta con piel exterior y capas celulares asimétricas visibles en vista de corte.
-  * Anillos separadores internos espaciados según el espesor $e$.
-  * Góndola rectangular centrada bajo el centro de flotación ($x_{cb}$) con puntales acortados.
-  * Bastidor en H + 4 tirantes diagonales triangulados y 4 motores con discos de hélice ($d_p$) para validar holguras geométricas y empaquetamiento antes de fabricar.
+### Puente CAD 3D en SolidWorks (Macro Definitiva)
+* **Flujo:** [`especf_optm_hist/historico_dirigible_2026-11-27_def.json`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/historico_dirigible_2026-11-27_def.json) $\rightarrow$ [`generar_cad_solidworks.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/generar_cad_solidworks.py) $\rightarrow$ [`especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas).
+* **Modelo sólido generado:**
+  * Casco bi-semielipsoidal hueco `L = 8.083 m × D = 2.274 m` (`cf = 2.829 m`, `cr = 5.254 m`) con piel exterior, `1` capa aislante completa de `360°` (`e = 29.1 mm`) y anillos separadores visibles en vista de sección.
+  * Góndola rectangular de componentes (`600 × 300 × 250 mm`) centrada bajo `X_CB = 3.738 m` con separación vertical `gap = 135 mm` y dos soportes verticales.
+  * Bastidor estructural en `"H"` reforzado con 4 tirantes diagonales triangulados y 4 motores A2212 con hélices `dp = 254 mm` en `±Z = 550 mm` (`X = [3318, 4158] mm`), garantizando **`278.9 mm`** de holgura mínima hélice–casco y **`273.0 mm`** lateral a góndola.
 
 ---
 
-## 7. Conclusiones y Hoja de Ruta Experimental
+## 7. Conclusiones y Próxima Fase Experimental
 
-1. **Viabilidad demostrada:** el modelo acoplado confirma que el dirigible híbrido cumple los límites reales de 4 motores A2212 (`639.6 W ≤ 640 W`), ángulo tanto en maniobra como en crucero (`60.3° / 56.5° ≤ 75°`) y batería LiPo `≤ 1 kg` (`637.5 g`) operando a `3,350 m` con `6 m/s` de viento frontal y capacidad útil verificada (`0.67–1.00 kg` con batería instalada fija).
-2. **Habilitadores físicos:** la capa celular asimétrica de Mylar (`−79.3 %` pérdidas térmicas) junto al precalentamiento en tierra (`0.40 Bs`) y el quemador capilar de etanol (`1.60 Bs` *Hot-Swap*) resuelven simultáneamente autonomía y costo.
-3. **Siguiente fase en banco experimental:** contrastar experimentalmente potencia térmica, mezcla y temperatura de salida del quemador de etanol en cámara cortaviento, medir la masa real de unión de las celdas de Mylar y validar las curvas reales empuje–potencia en altura antes de ensamblar el demostrador completo.
+1. **Viabilidad cerrada con material comercial real:** aun duplicando el gramaje de película al usar la manta real **FIRSTIME de `59 g` (`12 µm`, `17 g/m²`)**, el dirigible híbrido cumple todas las restricciones reales (`Pelec = 637.0 W ≤ 640 W`, `Ttot = 12.91 N ≤ 22 N`, `mbat = 494.2 g ≤ 1 kg`, `θ = 59.2° ≤ 75°`, `mcarga = 1.10 kg`) donde un dron puro equivalente (`1,029 W / 27.7 N`) resulta físicamente inviable.
+2. **Justificación de diseño monocapa (`1/1`):** el análisis acoplado y las curvas `G4` demostraron que a `17 g/m²` usar `2` o más capas dispara el tamaño y el arrastre del casco sin beneficio neto; `1/1` optimiza simultáneamente masa, costo (`2.553 Bs`) e inercia de seguridad (`44.7 s`).
+3. **Banco de pruebas experimental inmediato:** validar en banco estático el quemador capilar de etanol de `~8.6 kW` brutos con chimenea de dilución (`110–135 L/s`, descarga `125–155 °C`), ensayar a `115 °C` las uniones de manta + poliéster térmico/Kapton bajo tracción, y verificar el soplador de tierra y empuje real de hélices `10"` en altura antes del ensamblaje completo.
 
 ---
 
-## 8. Guion Cronometrado Sugerido para el Video de 10 Minutos
+## 8. Guion Cronometrado Sugerido para Video Técnico (10 Minutos)
 
-* **[0:00 – 0:30] Apertura:** Buenos días. Presento la defensa técnica del proyecto de dirigible híbrido de aire caliente con rotores eléctricos, diseñado específicamente para operar en altura en La Paz (3,350 m s.n.m.) con viento frontal de 6 m/s. En los próximos 10 minutos explicaré por qué fue necesario construir un modelo acoplado de 170 variables y 108 ecuaciones antes de cortar una sola lámina de material, qué fenómenos físicos dominan el rendimiento, cómo funciona la capa celular de Mylar y el quemador de etanol propuesto, y mostraré las capacidades del software desarrollado.
-* **[0:30 – 0:55] Mapa de exposición:** La presentación recorre seis bloques en secuencia lógica: primero, la fundamentación matemática y lo logrado antes de fabricar prototipos; segundo, los aspectos físicos con mayor peso en el modelo; tercero, el papel decisivo de la capa celular de Mylar; cuarto, la estrategia térmica de precalentamiento en tierra y sus costos operativos; quinto, la arquitectura del quemador de etanol; y por último, una muestra de todas las herramientas del software.
-* **[0:55 – 1:40] Por qué 108 ecuaciones:** ¿Por qué necesitamos 108 ecuaciones y no unas pocas fórmulas de hoja de cálculo? Porque a 3,350 metros de altura la densidad del aire cae un 34 %, mientras debemos vencer 6 m/s de viento en contra con cuatro motores A2212 limitados a 640 W y 1 kg máximo de batería. En estas condiciones el sistema tiene un lazo cerrado muy sensible: si sube la masa de aislante o de batería, sube la carga residual que sostienen los rotores, sube la potencia inducida $T^{3/2}$, se requiere más batería, y esa batería vuelve a aumentar el peso total. Sin resolver ese lazo junto al térmico-geométrico en computadora, cualquier prototipo empírico quedaría fuera de rango.
-* **[1:40 – 2:30] Logros pre-prototipo:** Nuestro punto base inicial superaba ampliamente los límites con 1,404 W de potencia y más de 1 kg de batería. Además, una auditoría matemática independiente detectó errores que habrían arruinado las pruebas reales: el término $\pi R^2$ faltante en la superficie de cada semielipsoide, el peso de la piel exterior, el calor sensible regional, el ángulo de los motores durante el crucero y la capacidad útil real de misión. Con el modelo ya auditado, el optimizador halló un punto 100 % factible: esbeltez 3.76, 2/1 capas, 95 °C y crucero a 7.71 m/s, que cumple todos los límites con 640 W pico, 451 W en crucero y solo 638 g de batería.
-* **[2:30 – 3:10] Bloques físicos:** Todo el modelo físico se organiza en cuatro grandes bloques acoplados a lo largo de 13 categorías: aerostática y geometría del casco prolado descontando celdas; transferencia térmica combinando convección, radiación infrarroja y Hollands; aerodinámica con viento en contra de 6 m/s y arrastre volumétrico de Hoerner; y finalmente el bloque propulsivo con disco actuador, separación de maniobra y crucero y dimensionamiento dual de la batería.
-* **[3:10 – 4:00] Los 5 factores críticos:** De las 108 ecuaciones, cinco fenómenos dominan el comportamiento numérico. Primero, la superficie exterior real y su piel, porque controlan tanto la pérdida térmica como la masa del casco. Segundo, el viento de 6 m/s: cada metro por segundo adicional dispara el arrastre cuadráticamente y castiga el tiempo en vuelo. Tercero, separar la maniobra de aceleración —incluyendo la inercia de unos 14 kg de aire contenido— respecto al crucero estacionario, lo que recorta la batería necesaria entre 21 % y 38 % frente a suponer aceleración continua. Cuarto, el porcentaje de carga cubierto por aire caliente (87 % en el óptimo), y quinto, el volumen periférico de celdas aislantes, que limita físicamente el grosor rentable.
-* **[4:00 – 4:35] Híbrido vs. Dron puro:** Esta comparación muestra la razón de ser del vehículo híbrido: si intentamos mover la misma carga útil de 1 kg en un dron multirrotor puro equivalente (con su propia estructura ligera y sin masa de gas) a 3,350 metros y con 6 m/s de viento frontal durante 840 metros, el modelo predice 1,751 W pico y más de 2.1 kg de batería, completamente fuera del límite del hardware. En nuestro dirigible híbrido, al descargar el 87 % del peso en el aire caliente, los cuatro rotores bajan a 451 W en crucero, 640 W en pico de arranque y solo 638 g de batería: un recorte del 70 % que hace viable la misión.
-* **[4:35 – 5:20] Capa celular de Mylar:** La pieza habilitadora del proyecto es la capa celular asimétrica de Mylar aluminizado. En vez de una tela simple que perdería calor masivamente hacia el viento de 6 m/s, rodeamos el casco con celdas cuadradas cerradas que combinan tres mecanismos: primero, confinan el aire en espesores finos para suprimir corrientes convectivas según la correlación de Hollands; segundo, al ser láminas reflectantes con emisividad 0.04, bloquean cerca de 40 veces la transferencia por radiación infrarroja respecto a un plástico opaco; y tercero, la configuración es asimétrica: concentra más capas en la mitad superior, donde asciende el aire caliente, mientras abajo la estratificación estable permite usar menos capas y ahorrar peso.
-* **[5:20 – 6:00] Impacto cuantificado del Mylar:** En números exactos, pasar de piel simple (0/0) a capa celular asimétrica (2/1) reduce la transmitancia $U$ de 4.28 a 0.89 W/(m²·K), recortando la pérdida térmica de 16.3 kW a 3.38 kW (−79.3 %). Esto tiene cuatro consecuencias directas: el tiempo de enfriamiento sube casi cinco veces (de 20 a 96.5 segundos), el consumo de etanol para 840 metros baja de 427 gramos a solo 88.4 gramos, el costo operativo cae de 8.15 a 2.05 Bs, y la autonomía con 89 gramos a bordo pasa de 175 metros (inviable) a completar los 3 viajes.
-* **[6:00 – 6:40] Ciclo térmico en vuelo:** El ciclo térmico se divide en cuatro fases para optimizar peso y costo. Primero, en tierra se calienta el volumen considerando sus dos regiones térmicas antes del despegue: son 1.65 MJ que cuestan apenas 40 centavos de boliviano y actúan como una batería térmica sin cargar ese calentador a bordo. Segundo, durante los despegues y giros (54 segundos acumulados de maniobra) los rotores operan hasta 640 W. Tercero, en crucero el quemador a bordo solo repone las pérdidas continuas a través del Mylar usando 88.4 g de etanol. Cuarto, si fallara la llama, la capa celular garantiza entre 96 y 164 segundos antes de perder 20 K, permitiendo un descenso controlado.
-* **[6:40 – 7:25] Costos y Hot-Swap:** En términos económicos, completar los tres viajes cuesta apenas 2.05 bolivianos: 19 % corresponde al precalentamiento en tierra, 78 % al etanol consumido en vuelo y solo 3 % a la electricidad de los motores. Más revelador aún es comparar el recambio rápido o *Hot-Swap* para operar de continuo: rellenar el tanque completo de etanol cuesta 1.60 bolivianos, mientras mantener una batería LiPo cargada de repuesto ronda 478 bolivianos, casi 300 veces más caro. Además, el etanol comercial a 18 Bs/kg resulta seis veces más económico que las latas presurizadas de propano o butano y evita manipular envases a presión.
-* **[7:25 – 8:15] Calentador capilar de etanol:** ¿Cómo transferimos entre 2 y 3 kW de calor dentro de un casco de Mylar que se ablanda sobre 110–140 °C sin usar un pesado intercambiador cerrado? Proponemos un quemador capilar en tres etapas verticales. Abajo, un recipiente con fibra cerámica retiene el etanol por capilaridad para evitar derrames si el dirigible cabecea, rodeado por una camisa cortaviento perforada y malla apagachispas. En la etapa media, los escasos litros por segundo de gases a 600–800 °C entran a una chimenea de aluminio donde un micro-ventilador de menos de 10 W mezcla de 30 a 60 L/s de aire tomado del fondo del propio casco, diluyendo la temperatura a unos seguros 120–150 °C. Arriba, un difusor ancho perforado libera el aire a baja velocidad (< 1 m/s), evitando chorros contra el techo y justificando $f_{cal} = 1.275$ y rendimiento térmico $\eta_{cal} = 0.75$ sin añadir los 400 a 700 gramos de un intercambiador aleteado.
-* **[8:15 – 8:45] Software (Núcleo e interfaz):** Pasando a lo que ofrece el software desarrollado: combina la trazabilidad exacta de 108 ecuaciones simbólicas en SymPy con un evaluador numérico en float puro por descomposición *tearing* que corre en menos de un milisegundo. Su asistente de equilibrio matemático usa grafos bipartitos y descomposición por bloques de Tarjan para permitir cálculos inversos —por ejemplo fijar un volumen o transmitancia $U$ y despejar $m_{flot}$ o espesor $e$—. Todo se presenta en una interfaz web con ecuaciones KaTeX coloreadas, notas de ingeniería y mapas de flujo interactivos.
-* **[8:45 – 9:20] Gráficas, optimizador y casos:** Además del explorador de ecuaciones, la plataforma ofrece tres herramientas clave de ingeniería: siete gráficas paramétricas para analizar sensibilidad térmica, aerodinámica y comparación contra un dron puro; un estudio óptimo multi-criterio con seis indicadores ponderables y restricciones configurables de hardware que encuentra soluciones factibles en menos de 80 milisegundos de forma invariante al orden de variables; y una matriz de 14 familias de casos tipo junto a un histórico JSON exportable para comparar alternativas constructivas.
-* **[9:20 – 9:40] Puente CAD 3D:** Finalmente, el archivo JSON exportado desde el histórico alimenta el script `generar_cad_solidworks.py`, que genera automáticamente una macro VBA nativa para construir en SolidWorks un modelo sólido 3D referencial: casco hueco con sus capas asimétricas y anillos separadores visibles en corte, góndola ubicada bajo el centro de flotación, bastidor en H triangulado y los cuatro rotores con su diámetro real de hélice para verificar holguras.
-* **[9:40 – 10:00] Cierre:** En conclusión, la modelización previa nos permitió demostrar viabilidad en altura bajo restricciones estrictas de motor y batería, validar la capa celular de Mylar y el ciclo de etanol como ejes habilitadores, y construir una plataforma completa conectada hasta CAD 3D. El siguiente paso inmediato es pasar al banco de pruebas experimental para validar el quemador capilar con difusor, pesar las uniones reales de Mylar y contrastar la curva de empuje-potencia de las hélices antes del montaje final. Muchas gracias.
+* **[0:00 – 0:30] Apertura:** Presento el proyecto de dirigible híbrido de aire caliente y rotores eléctricos optimizado para operar en altura en La Paz (`3,350 m s.n.m.`, `6 m/s` de viento frontal). Mostraré cómo un modelo acoplado de 170 variables y 108 ecuaciones, calibrado finalmente con la manta térmica comercial medida en balanza, permitió cerrar un diseño viable y exportarlo directamente a SolidWorks.
+* **[0:30 – 1:30] Por qué 108 ecuaciones y cierre de auditoría:** Con `34 %` menos densidad del aire y cuatro motores A2212 limitados a `640 W`, `22 N` y `1 kg` de batería, el peso de la envolvente y el empuje forman un lazo muy sensible. Tras 10 rondas de auditoría matemática y pruebas automatizadas en navegador, corregimos superficie prolada exacta, piel exterior, enfriamiento regional, separación de maniobra/crucero y márgenes reales hasta lograr un residuo menor a `5 × 10⁻¹³`.
+* **[1:30 – 2:40] Física crítica y ventaja frente a dron puro:** Comparando contra un dron puro equivalente levantando `1.1 kg` durante `540 m` contra `6 m/s` de viento, el multirrotor exige `1,029 W` y `27.7 N`, completamente fuera del equipo. Al delegar `88.5 %` del peso (`4.46 kg`) al aire caliente a `114.8 °C`, nuestros rotores bajan a `637 W` pico, `450 W` en crucero, `12.9 N` de empuje y `494 g` de batería (`−43.5 %`).
+* **[2:40 – 4:30] Manta real de `59 g` y por qué usamos solo `1/1` capa:** Medimos nuestra manta comercial de `160 × 210 cm` en `59 g` (`12 µm`, `17 g/m²`) y aseguramos sus costuras con cinta de poliéster térmico y Kapton para operar hasta `115 °C`. Al reoptimizar con ese gramaje real, vimos en la gráfica multicapa `G4` algo crucial: la primera capa `1/1` ya reduce `69.5 %` las pérdidas térmicas (`21.1 kW` a `6.45 kW`), pero añadir `2/1` o `2/2` suma tantos cientos de gramos que dispara el volumen a `24–29 m³` o excede los `640 W`. Por eso `1/1` es el óptimo real con este material.
+* **[4:30 – 6:15] Calentador en tierra y economía *Hot-Swap*:** Dividimos la energía térmica en dos sistemas. En tierra, un soplador de gas externo inyecta `1,291 kJ` en un par de minutos (`0.48 Bs`) actuando como batería térmica de cero gramos a bordo. La misión completa cuesta `2.55 Bs`, y en recarga rápida rellenar `132 g` de etanol cuesta `2.37 Bs` frente a `371 Bs` por una batería LiPo de repuesto (`156×` más barata la energía térmica).
+* **[6:15 – 7:50] Calentador aéreo de etanol en 3 etapas:** Para reponer `6.45 kW` sin dañar la manta de `12 µm` ni cargar medio kilo de intercambiador metálico, usamos un quemador capilar en fibra cerámica a `~26 mL/min` antiderrame dentro de malla apagachispas, conectado a una chimenea de aluminio donde aire recirculado del fondo (`110–135 L/s`) diluye la mezcla a `125–155 °C` antes de salir por un difusor cónico ancho a baja velocidad.
+* **[7:50 – 9:20] Software y puente CAD SolidWorks:** Todo vive en una plataforma web FastAPI + SymPy/float (`< 1 ms`), con equilibrio inverso por bloques BLT, 7 gráficas paramétricas, optimizador multi-criterio e histórico JSON. Desde ese histórico definitivo generamos automáticamente la macro VBA de SolidWorks para el casco de `8.08 × 2.27 m`, capa `1/1`, góndola bajo centro de flotación y bastidor en H con `279 mm` de holgura en hélices.
+* **[9:20 – 10:00] Cierre:** Con el diseño definitivo y su CAD cerrados, el siguiente paso pasa directo al banco experimental para validar el quemador de etanol con chimenea de dilución, las costuras a `115 °C` y las hélices en altura antes del ensamblaje final. Gracias.

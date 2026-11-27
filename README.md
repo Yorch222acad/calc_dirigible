@@ -70,12 +70,57 @@ Con los parámetros iniciales en `modelo.py` (`P1 = 67120 Pa`, `T1 = 15 °C`, `T
 
 ---
 
+## Diseño definitivo de construcción (manta térmica real `12 µm` / `17 g/m²`)
+
+A partir del modelo auditado `v2` ([`CIERRE_AUDITORIAS.md`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/CIERRE_AUDITORIAS.md)), se caracterizó la manta térmica comercial adquirida (**FIRSTIME `160 × 210 cm` = `3.36 m²`**, peso medido **`59 g`** $\rightarrow$ `17.56 g/m²` pura, espesor estándar `ep = 12 µm`) unida con **cinta de poliéster térmico (`180–200 °C`) y cinta Kapton (`220–260 °C`)**, fijando un límite térmico seguro de `T2 <= 115 °C`, orientando la cara plateada al interior (`eps = 0.08`) e incorporando márgenes constructivos realistas (`mad = 1.30 kg`, `mcarga = 1.10 kg`, misión `2 × 270 m = 540 m` contra `vv = 6.0 m/s`).
+
+El diseño definitivo exportado en [`especf_optm_hist/historico_dirigible_2026-11-27_def.json`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/historico_dirigible_2026-11-27_def.json) (`id = f53b37f3b5`, **Score `42.01`**, `0` alertas) y su macro CAD en [`especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas) quedan establecidos en:
+
+| Magnitud del diseño definitivo (`def`) | Símbolo | Valor verificado |
+|---|---|---|
+| Casco bi-semielipsoidal (`cf = 2.829 m`, `cr = 5.254 m`, `λ = 3.55`) | `L` / `D` / `V` | `8.083 m` / `2.275 m` / `21.90 m³` (`Vnuc = 20.64`, `Vcel = 1.25 m³`) |
+| Área exterior / Película total Mylar | `S` / `Sc` | `46.91 m²` / `107.45 m²` |
+| Configuración celular simétrica (`e = 29.1 mm`, `W = 20 cm`) | `ncapS` / `ncapI` / `mc` | **`1 / 1` capa** · `1,826.7 g` (`ep = 12 µm`, `σ = 17.0 g/m²`, `ε = 0.08`) |
+| Desempeño térmico e inercia (`T2 = 114.8 °C`, `dTc = 20 K`) | `U` / `Qp` / `fais` / `tc` | `1.379 W/(m²·K)` / `6,454.6 W` (`69.5 %` ahorro) / `44.7 s` |
+| Reparto de masas (`88.5 %` aire caliente) | `mflot` / `mres` / `mtot` | `4.460 kg` / `0.581 kg` / `5.041 kg` (`capacidad fija: 0.7427–1.1000 kg`) |
+| Propulsión (`4 × A2212`, `v = 7.64 m/s`, `vg = 1.64 m/s`) | `Pelec` / `Pcruc` / `Ttot` / `θ` | `637.0 W` / `449.8 W` / `12.91 N` (`Tcruc = 9.94 N`) / `59.2°` (`55.2°`) |
+| Excedente vertical y batería LiPo | `Fexc` / `mbat` | `+13.32 N` / `494.2 g` (`Ereq = 47.04 Wh`, autonomía `626 m`) |
+| Energías y costos (`dm = 540 m`, `tm = 328.6 s`) | `Epre` / `mgm` / `Cop` | `1,986.8 kJ` (`0.477 Bs`) / `113.12 g` (`2.036 Bs`) / **`2.553 Bs`** (`Recambio: 2.37 vs. 370.63 Bs`) |
+| Macro CAD SolidWorks (góndola `600×300×250 mm`, `gap = 135 mm`) | `X_CB` / holguras | `3.738 m` / `278.9 mm` al casco y `273.0 mm` lateral a góndola |
+
+* **Ventaja frente a dron puro equivalente (`mcarga = 1.1 kg`, `540 m`, `3,350 m s.n.m.`, `vv = 6 m/s`):** un multirrotor equivalente sin sustentación aerostática requeriría `1,029.1 W` pico (`1,009.9 W` crucero, excede `640 W`), `27.67 N` de empuje (excede `22 N`) y `873.9 g` de batería, resultando inviable con los `4 × A2212`; el dirigible híbrido recorta `43.5 %` de batería (`494.2 g`) y hace viable el hardware.
+
+### Por qué se usa solo `1` capa celular (`1/1`) y no multicapa en este caso
+
+Con el gramaje real de la manta comercial (`σ = 17.0 g/m²`, más del doble de `8.4 g/m²` del Mylar de `6 µm`), el **Panel C y Panel D de `G4`** muestran que añadir una segunda o tercera capa penaliza la masa más rápido de lo que ahorra térmicamente:
+
+1. **Barrido sobre el mismo casco (`mflot = 4.46 kg`):** pasar de `0/0` a `1/1` recorta `Qp` de `20.82 kW` a `6.45 kW` (**`−69.5 %`**) cumpliendo todos los topes (`Pelec = 637.0 W`). Al subir a `2/1`, `Qp` baja a `4.87 kW`, pero la película sube a `mc = 2,360.1 g` (`+533 g`) y `Pelec` salta a `815.1 W` (`> 640 W`); en `2/2` llega a `1,103.3 W` y `23.5 N` (`> 22 N`), y en `4/4` alcanza `mc = 5,149.9 g` y `4,024.9 W`.
+2. **Re-optimizando todo el casco (`λ, v, mflot, e, T2, mp`) para cada par de capas (`σ = 17.0 g/m²`):**
+   - `0/0`: `Score = 38.61`, `V = 16.70 m³`, `mc = 669.1 g`, `Qp = 18.04 kW`, `tc = 12.5 s`, `Cop = 4.863 Bs`.
+   - `1/0`: `Score = 39.85`, `V = 19.86 m³`, `mc = 1,175.3 g`, `Qp = 13.44 kW`, `tc = 19.9 s`, `Cop = 4.104 Bs`.
+   - **`1/1` (óptimo definitivo):** `Score = 42.01`, `V = 21.90 m³`, `mc = 1,826.7 g`, `Qp = 6.45 kW`, `tc = 44.7 s`, `Cop = 2.553 Bs`.
+   - `2/1`: `Score = 40.38`, exige crecer a `23.98 m³` (`mc = 2,254.7 g`), apenas reduce `Qp` a `6.35 kW` (porque obliga a reducir `e` y agrandar `S`) y encarece el costo a `2.821 Bs`.
+   - `2/2`: `Score = 37.17`, se dispara a `L = 8.84 m`, `V = 29.20 m³`, `mc = 3,118.7 g`, `mtot = 6.42 kg`, `mbat = 573.2 g` y `Cop = 3.267 Bs`.
+   - **`3/2` o superior:** **sin solución factible** dentro de `640 W / 22 N / 1 kg`.
+
+En consecuencia, `1/1` captura la mayor parte del beneficio aislante sin provocar la "bola de nieve" volumétrica; pasar a `2/1` o `3/2` capas solo vuelve a ser conveniente si se consigue película ultraligera de `6–8 µm` (`σ ≈ 8.4–11 g/m²`).
+
+### Subsistemas térmicos consolidados: calentador en tierra y calentador aéreo con etanol
+
+* **Calentador en tierra (precalentamiento previo al despegue):** soplador externo de aire caliente a GLP/gas en estación de tierra (`ηpre = 0.65`, `cpre = 0.24 Bs/MJ`) que entrega `Q = 1,291.4 kJ` útiles (`Epre = 1,986.8 kJ`, costo `Cpre = 0.477 Bs`, `~1.5–3.5 min` con equipo de `10–20 kW`). Permite despegar con el núcleo `Vnuc` a `114.8 °C` y las celdas `Vcel` a `64.9 °C` al **100 % de flotabilidad inicial** sin cargar peso de arranque a bordo.
+* **Calentador aéreo con etanol (mantenimiento continuo de `Qp`):** quemador capilar vertical en **3 etapas** sin intercambiador metálico cerrado (ahorra `400–700 g` de masa muerta manteniendo `ηcal = 0.75` y `fcal = 1.275`):
+  1. **Quemador capilar blindado (base):** matriz multi-mecha / cama ancha de fibra cerámica embebida en etanol 96 % (`PC = 25 MJ/kg`, `18 Bs/kg`, retenido por capilaridad ante cabeceo) dentro de camisa cortaviento perforada y malla apagachispas de acero inoxidable. En el diseño definitivo `1/1` (`Qp = 6.45 kW`, potencia química bruta `~8.6 kW`) consume `20.7 g/min ≈ 26 mL/min` (`mgm = 113.1 g` en `328.6 s`, tanque `mp = 131.7 g`).
+  2. **Chimenea / cámara de dilución térmica (etapa media):** mezcla los gases de combustión (`600–800 °C`) con aire recirculado desde el fondo frío del casco mediante un ventilador axial ligero (contemplado en `Pad = 45 W`) para bajar el chorro a **`125–155 °C`**, protegiendo la manta de `12 µm` y sus uniones de poliéster térmico/Kapton (requiere `~110–135 L/s` de dilución para `6.45 kW`; en configuraciones ligeras de `6 µm` con `2/1` capas, `Qp ≈ 3.4 kW`, bastarían `~30–60 L/s` y `~13.5 mL/min`).
+  3. **Difusor cónico ancho + alivio inferior:** descarga el flujo templado a baja velocidad (`< 1–1.5 m/s`) evitando puntos calientes focalizados en el techo, mientras el alivio en la parte inferior más fría minimiza la pérdida energética de purga.
+
+---
+
 ## Gráficas del sistema (`G1`–`G7`)
 
 1. **`G1` — Esbeltez (`λ`) vs. Energías de Misión y Casco (`L`, `D`, `mtot`)**
 2. **`G2` — Sustentación Híbrida**: reparto entre aire caliente (`mflot`, `F`) y rotores (`mres`, `FL`), además de `mbat`.
 3. **`G3` — Distancia (`dm`), Viajes (`nv`) y Tiempo (`tm`)** vs. `Etot`, `mgm`, `mbat`, `Cop` y velocidad `v` con viento `vv`.
-4. **`G4` — Aislante Mylar Multicapa Asimétrico (`e`)** vs. energía ahorrada (`Eah`) y perdida (`Em`, `Em0`).
+4. **`G4` — Aislante Mylar Multicapa Asimétrico (`e` y `0/0 → 4/4` capas)** vs. ahorro térmico (`Eah`, `Qp`, `fais`), masa de película (`mc`), potencia (`Pelec` vs. `Pmax`) y batería (`mbat`).
 5. **`G5` — Combustible Térmico (`mgm`) y Balance Térmico en Vuelo**.
 6. **`G6` — Dimensiones (`L`, `D`), Silueta 2D a escala y Desglose de Masa (`mtot`)**.
 7. **`G7` — Temperatura Interior Óptima (`T2`) y Escalabilidad Multi-Viaje (`nv`)**: compara el dirigible frente a un dron puro equivalente.
@@ -93,7 +138,9 @@ Con los parámetros iniciales en `modelo.py` (`P1 = 67120 Pa`, `T1 = 15 °C`, `T
 - [`app.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/app.py): Servidor FastAPI y API REST (`GET /api/estado`, `GET /api/variable/{nombre}`, `POST /api/equilibrio`, `POST /api/modificar`, `POST /api/reiniciar`, `POST /api/diseno/analizar`, `/api/historico`).
 - [`frontend/`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/frontend/index.html): Aplicación web modular (`main.js`, `state.js`, `api.js`, `sidebar.js`, `equations.js`, `charts.js`, `flowchart.js`, `designStudio.js`, `varInput.js`, `balancer.js`, `katex_helper.js` y estilos CSS).
 - [`calc.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/calc.py): Calculadora interactiva en terminal (`rich`).
-- [`generar_cad_solidworks.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/generar_cad_solidworks.py): Generador de macro VBA referencial para SolidWorks a partir de configuraciones JSON exportadas.
+- [`generar_cad_solidworks.py`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/generar_cad_solidworks.py): Generador de macro VBA referencial para SolidWorks a partir de configuraciones JSON exportadas (macro definitiva actual en [`especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas)).
+- [`CIERRE_AUDITORIAS.md`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/CIERRE_AUDITORIAS.md): Consolidación de las rondas de auditoría V1–V10 y criterios de estabilización del modelo `v2`.
+- [`texto.md`](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/texto.md): Memoria técnica consolidada del sistema, análisis multicapa, subsistemas térmicos (tierra y etanol aéreo) y exposición completa.
 
 ---
 

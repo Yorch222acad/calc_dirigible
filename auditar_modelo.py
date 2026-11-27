@@ -986,6 +986,64 @@ def contrastar_ecuaciones(base):
         assert math.isclose(conocido[objetivo], vuelta[objetivo], rel_tol=1e-7)
 
 
+def verificar_g4_multicapa(base):
+    sol_base = modelo.resolver(base)
+    gs = graficas.construir_datos_graficas(sol_base, set(modelo.FIJAS_INI))
+    g4 = next(g for g in gs if g["id"] == "aislante")
+    assert len(g4["paneles"]) == 4, f"G4 debe tener 4 paneles, tiene {len(g4['paneles'])}"
+
+    esperado_xs = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+    pan_c, pan_d = g4["paneles"][2], g4["paneles"][3]
+    for idx_p, pan in ((2, pan_c), (3, pan_d)):
+        assert pan["xs"] == esperado_xs, (
+            f"G4 panel {idx_p}: rango xs inesperado {pan['xs']} (esperado {esperado_xs})"
+        )
+        assert len(pan["x_etiquetas"]) == len(pan["xs"])
+
+    qp_vals = pan_c["series"][0]["valores"]
+    mc_vals = pan_d["series"][2]["valores"]
+    assert all(qp_vals[i] > qp_vals[i + 1] for i in range(len(qp_vals) - 1)), (
+        f"G4 Panel C: Qp debe decrecer estrictamente de 0/0 a 4/4: {qp_vals}"
+    )
+    assert all(mc_vals[i] < mc_vals[i + 1] for i in range(len(mc_vals) - 1)), (
+        f"G4 Panel D: mc debe crecer estrictamente de 0/0 a 4/4: {mc_vals}"
+    )
+
+    # Con la manta de 59 g (~17.6 g/m2) y 12 um, 1/1 cumple equipo pero añadir 4/4 capas lo excede o diverge
+    pesada = dict(
+        base,
+        ep=12e-6,
+        sigma=0.0176,
+        eps=0.10,
+        T2=110.0,
+        mad=1.15,
+        mcarga=1.0,
+        mflot=4.10,
+        ncapS=1.0,
+        ncapI=1.0,
+        lam=3.1,
+        v=7.2,
+        nv=2.0,
+    )
+    sol_pes = modelo.resolver(pesada)
+    gs_pes = graficas.construir_datos_graficas(sol_pes, set(modelo.FIJAS_INI))
+    g4_pes = next(g for g in gs_pes if g["id"] == "aislante")
+    serie_pelec = g4_pes["paneles"][3]["series"][0]
+    assert serie_pelec["estados"][2] == "Equipo OK", (
+        f"G4 Panel D: con 1/1 capas la manta 17.6 g/m² debería cumplir equipo, dio {serie_pelec['estados'][2]}"
+    )
+    assert any("Excede equipo" in st for st in serie_pelec["estados"]), (
+        f"G4 Panel D debe reportar 'Excede equipo' al añadir capas pesadas: {serie_pelec['estados']}"
+    )
+    assert "Sin solución" in serie_pelec["estados"][-1] and serie_pelec["valores"][-1] is None, (
+        f"G4 Panel D: en 4/4 con manta 17.6 g/m² debe reportar 'Sin solución' con valor None, dio {serie_pelec['valores'][-1]} / {serie_pelec['estados'][-1]}"
+    )
+    print(
+        f"[G4 Multicapa OK] Base 0/0->4/4: Qp={qp_vals[0]:.1f}->{qp_vals[-1]:.1f} W, mc={mc_vals[0]:.0f}->{mc_vals[-1]:.0f} g; "
+        f"manta 17.6 g/m²: 1/1={serie_pelec['estados'][2]} vs 4/4={serie_pelec['estados'][-1]}."
+    )
+
+
 def main():
     flujo.validar_integridad_flujo()
     base = modelo.valores_iniciales()
@@ -1063,6 +1121,7 @@ def main():
     verificar_v8_punto_3_rechazo_espesor_no_positivo(candidato)
     verificar_v9_punto_1_fexc_y_tope_empuje(candidato, sol_cand, opt["restricciones"])
     verificar_v9_punto_2_velocidad_baja(candidato)
+    verificar_g4_multicapa(base)
     contrastar_ecuaciones(base)
 
     # Verificar carga y renderizado completo de la API (incluye KaTeX, gráficas y alertas)
