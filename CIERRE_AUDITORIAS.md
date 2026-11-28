@@ -62,3 +62,13 @@ La décima auditoría (sin hallazgos de severidad *Alta*) evidenció que el cicl
   ./venv_sus_d/bin/python -u auditar_modelo.py
   ./venv_sus_d/bin/python -u auditar_frontend.py
   ```
+
+---
+
+## 4. Consolidación posterior al cierre (diseño definitivo `def`)
+
+Sobre el modelo `v2` estabilizado arriba se cerraron las especificaciones constructivas reales y toda la documentación técnica del proyecto:
+
+* **Diseño definitivo (`def`):** [historico_dirigible_2026-11-27_def.json](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/historico_dirigible_2026-11-27_def.json) (`1/1` capa, manta comercial medida de `59 g` / `12 µm` / `σ = 17.0 g/m²` / `ε = 0.08`, uniones con cinta de poliéster térmico + Kapton contabilizadas en `mad = 1.30 kg`, `T2 = 114.8 °C`, `Pelec = 637.0 W`, `mbat = 494.2 g`, `Cop = 2.553 Bs`).
+* **Macros CAD SolidWorks:** dirigible definitivo ([dirigible_solidworks_referencial_2026-11-27_def.bas](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/dirigible_solidworks_referencial_2026-11-27_def.bas)), calentador eléctrico compacto en tierra con recirculación ([calentador_tierra_solidworks_referencial_v2.bas](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/calentador_tierra_solidworks_referencial_v2.bas)) y calentador aéreo monotubo simplificado de etanol ([calentador_etanol_simple_solidworks_v2.bas](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/especf_optm_hist/calentador_etanol_simple_solidworks_v2.bas)).
+* **Documentación sincronizada:** [README.md](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/README.md), [texto.md](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/texto.md), [ESTADO_ACTUAL_Y_CALENTADOR.md](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/ESTADO_ACTUAL_Y_CALENTADOR.md), [RESUMEN_FINAL_DISENO.md](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/RESUMEN_FINAL_DISENO.md) y [PRESUPUESTO_Y_PESO_FABRICACION.md](file:///home/yorch/Documentos/archivos-de-programa/vis_std_code/sustentacion_dirigible/PRESUPUESTO_Y_PESO_FABRICACION.md).
